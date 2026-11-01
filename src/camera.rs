@@ -71,6 +71,7 @@ pub fn camera_control(
     mut egui: EguiContexts,
     mut cam: Single<&mut Transform, With<MainCamera>>,
     visitor: Res<Visitor>,
+    settings: Res<crate::menu::Settings>,
 ) {
     let ctx = egui.ctx_mut();
     let over_ui = ctx.is_pointer_over_area() && !mouse.pressed(MouseButton::Right) && !mouse.pressed(MouseButton::Middle);
@@ -114,8 +115,8 @@ pub fn camera_control(
     let eye_before = cs.eye();
     let angles_before = (cs.yaw, cs.pitch);
     if orbit && !pan && !over_ui {
-        cs.yaw -= d.x * 0.005;
-        cs.pitch = (cs.pitch + d.y * 0.005).clamp(MIN_PITCH, MAX_PITCH);
+        cs.yaw -= d.x * 0.005 * settings.sensitivity;
+        cs.pitch = (cs.pitch + d.y * 0.005 * settings.sensitivity).clamp(MIN_PITCH, MAX_PITCH);
     }
     if !ctx.is_pointer_over_area() {
         match scroll.unit {

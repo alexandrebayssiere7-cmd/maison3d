@@ -351,7 +351,7 @@ pub struct House {
 }
 
 /// Référence vers un élément de la maison (indices dans les `Vec`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub enum ElemRef {
     Wall(usize),
     Opening(usize, usize),
@@ -416,6 +416,18 @@ fn local_box(x0: f32, x1: f32, y0: f32, y1: f32, depth: f32) -> Option<Transform
 }
 
 impl House {
+    /// Lit un monde enregistré ; refuse un relief dont la grille n'a pas la bonne taille.
+    pub fn load(path: impl AsRef<std::path::Path>) -> Result<House, String> {
+        let h: House = std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))?;
+        let (n, full) = (h.terrain.h.len(), crate::terrain::SIDE * crate::terrain::SIDE);
+        if n != 0 && n != full {
+            return Err(format!("relief invalide : {n} altitudes au lieu de {full}"));
+        }
+        Ok(h)
+    }
+
     /// Toutes les pièces visibles ; `max_level` masque les étages supérieurs.
     pub fn parts(&self, max_level: Option<i32>, open: OpenFn) -> Vec<Part> {
         let shown = |l: i32| max_level.is_none_or(|m| l <= m);
@@ -1473,5 +1485,18 @@ mod tests {
         let h = demo_house();
         let json = serde_json::to_string(&h).unwrap();
         assert_eq!(serde_json::from_str::<House>(&json).unwrap(), h);
+    }
+
+    #[test]
+    fn load_rejects_truncated_terrain() {
+        let mut h = House::default();
+        h.terrain.h = vec![0.0; 10];
+        let path = std::env::temp_dir().join("maison3d_relief_tronque.json");
+        std::fs::write(&path, serde_json::to_string(&h).unwrap()).unwrap();
+        assert!(House::load(&path).unwrap_err().contains("relief invalide"));
+        h.terrain.h.clear();
+        std::fs::write(&path, serde_json::to_string(&h).unwrap()).unwrap();
+        assert_eq!(House::load(&path).unwrap(), h);
+        let _ = std::fs::remove_file(path);
     }
 }

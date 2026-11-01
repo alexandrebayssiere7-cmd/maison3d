@@ -11,7 +11,7 @@ use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::editor::Editor;
-use crate::model::{ElemRef, House, Part, RoofKind, Rgb, Shape, WHITE_TEX};
+use crate::model::{ElemRef, House, Part, Pool, RoofKind, Rgb, Shape, WHITE_TEX};
 use crate::terrain::{self, Terrain};
 use crate::textures;
 
@@ -24,6 +24,10 @@ pub struct Sun;
 /// Entités générées depuis la maison, détruites à chaque reconstruction.
 #[derive(Component)]
 pub struct Built;
+
+/// Maillage du relief, gardé tant que le terrain et les piscines ne changent pas.
+#[derive(Component)]
+pub struct Ground;
 
 #[derive(Resource)]
 pub struct Library {
@@ -118,6 +122,8 @@ pub fn rebuild(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     old: Query<Entity, With<Built>>,
+    old_ground: Query<Entity, With<Ground>>,
+    mut ground: Local<Option<(Terrain, Vec<Pool>)>>,
 ) {
     if !ed.dirty {
         return;
@@ -126,8 +132,15 @@ pub fn rebuild(
     for e in &old {
         commands.entity(e).despawn();
     }
-    let grass = lib.material(&mut materials, WHITE_TEX, textures::find("Herbe"));
-    commands.spawn((Built, Mesh3d(meshes.add(terrain_mesh(&ed.house))), MeshMaterial3d(grass), Transform::default()));
+    // le maillage du relief est lourd : on ne le refait que si le relief ou les piscines ont changé
+    if ground.as_ref().is_none_or(|(t, p)| *t != ed.house.terrain || *p != ed.house.pools) {
+        for e in &old_ground {
+            commands.entity(e).despawn();
+        }
+        let grass = lib.material(&mut materials, WHITE_TEX, textures::find("Herbe"));
+        commands.spawn((Ground, Mesh3d(meshes.add(terrain_mesh(&ed.house))), MeshMaterial3d(grass), Transform::default()));
+        *ground = Some((ed.house.terrain.clone(), ed.house.pools.clone()));
+    }
     let open = |e| ed.doors.get(&e).map_or(0.0, |d| d.0);
     let mut parts = ed.house.parts(ed.hide_upper.then_some(ed.level), &open);
     // la voiture conduite est affichée à part, avec ses roues animées

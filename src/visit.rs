@@ -358,6 +358,7 @@ pub fn visit_update(
     scroll: Res<AccumulatedMouseScroll>,
     mut cam: Single<(&mut Transform, &mut Projection), (With<MainCamera>, Without<AvatarRoot>)>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
+    settings: Res<crate::menu::Settings>,
 ) {
     let dt = time.delta_secs().min(0.05);
     let v = &mut *v;
@@ -391,7 +392,7 @@ pub fn visit_update(
     }
 
     // --- regard et options de vue
-    let d = motion.delta;
+    let d = motion.delta * settings.sensitivity;
     v.yaw -= d.x * 0.0025;
     v.pitch = (v.pitch - d.y * 0.0025).clamp(-1.45, 1.45);
     if keys.just_pressed(KeyCode::KeyV) {
@@ -518,9 +519,9 @@ pub fn visit_update(
         .map(|h| h.0)
         .filter(|&e| {
             ed.house.openable(e)
-                || matches!(e, ElemRef::Prop(i) if ed.house.props[i].kind == PropKind::Car
-                    || furniture_spot(&ed.house.props[i], false, v.pos).is_some()
-                    || furniture_spot(&ed.house.props[i], true, v.pos).is_some())
+                || matches!(e, ElemRef::Prop(i) if ed.house.props.get(i).is_some_and(|p| p.kind == PropKind::Car
+                    || furniture_spot(p, false, v.pos).is_some()
+                    || furniture_spot(p, true, v.pos).is_some()))
         });
     let vpos = v.pos;
     let prop = match v.target {

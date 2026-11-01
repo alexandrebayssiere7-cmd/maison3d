@@ -5,6 +5,7 @@ use bevy_egui::{EguiContexts, egui};
 use egui::{Color32, RichText, Slider};
 
 use crate::camera::CamState;
+use crate::command::Command;
 use crate::editor::{Editor, Tool};
 use crate::model::*;
 use crate::render::Library;
@@ -14,7 +15,25 @@ use crate::visit::Visitor;
 /// Vignettes des textures pour egui : (id, nom), dans l'ordre du catalogue.
 type Thumbs = [(egui::TextureId, &'static str)];
 
-const ACCENT: Color32 = Color32::from_rgb(255, 200, 60);
+pub const ACCENT: Color32 = Color32::from_rgb(255, 200, 60);
+
+/// Cadre commun à tous les éléments du HUD.
+pub fn hud_frame() -> egui::Frame {
+    egui::Frame::new().fill(Color32::from_black_alpha(170)).corner_radius(10.0).inner_margin(egui::vec2(14.0, 10.0))
+}
+
+/// Touche de clavier dessinée, suivie de ce qu'elle fait.
+fn key_hint(ui: &mut egui::Ui, key: &str, label: &str) {
+    ui.horizontal(|ui| {
+        egui::Frame::new()
+            .fill(Color32::from_white_alpha(30))
+            .stroke(egui::Stroke::new(1.0_f32, Color32::from_white_alpha(70)))
+            .corner_radius(4.0)
+            .inner_margin(egui::vec2(6.0, 1.0))
+            .show(ui, |ui| ui.label(RichText::new(key).strong().color(Color32::WHITE)));
+        ui.label(RichText::new(label).color(Color32::from_gray(210)));
+    });
+}
 
 pub fn ui_system(
     mut egui: EguiContexts,
@@ -62,17 +81,24 @@ pub fn ui_system(
     if ed.walk {
         return;
     }
-    egui::TopBottomPanel::bottom("statut").show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(ed.tool.hint()).color(ACCENT));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(c) = ed.cursor {
-                    ui.monospace(format!("x {:6.2}  z {:6.2}", c.x, c.y));
-                }
-                ui.label(&ed.message);
+    // décalé de la moitié du panneau d'outils pour rester centré sur la vue 3D
+    egui::Area::new(egui::Id::new("statut"))
+        .anchor(egui::Align2::CENTER_BOTTOM, [142.0, -14.0])
+        .interactable(false)
+        .show(ctx, |ui| {
+            hud_frame().show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(ed.tool.hint()).color(ACCENT));
+                    if !ed.message.is_empty() {
+                        ui.label(RichText::new("·").color(Color32::GRAY));
+                        ui.label(RichText::new(&ed.message).color(Color32::from_gray(220)));
+                    }
+                    if let Some(c) = ed.cursor {
+                        ui.label(RichText::new(format!("x {:6.2}  z {:6.2}", c.x, c.y)).monospace().color(Color32::GRAY));
+                    }
+                });
             });
         });
-    });
 
     if let (Some(m), Some(pos)) = (&ed.measure, ctx.pointer_hover_pos()) {
         egui::Area::new(egui::Id::new("cote"))
@@ -114,13 +140,15 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, cs: &CamState) {
     let (cmd, shift) = ctx.input(|i| (i.modifiers.command, i.modifiers.shift));
     let pressed = |k: Key| ctx.input(|i| i.key_pressed(k));
     if cmd {
-        if pressed(Key::Z) && shift || pressed(Key::Y) {
+        // en visite, remplacer la maison fausserait l'index de la voiture conduite
+        let edit = !ed.walk;
+        if edit && (pressed(Key::Z) && shift || pressed(Key::Y)) {
             ed.redo();
-        } else if pressed(Key::Z) {
+        } else if edit && pressed(Key::Z) {
             ed.undo();
         } else if pressed(Key::S) {
             ed.save();
-        } else if pressed(Key::O) {
+        } else if edit && pressed(Key::O) {
             ed.load();
         } else if pressed(Key::D) {
             ed.duplicate_selected();
@@ -242,7 +270,7 @@ fn file_section(ui: &mut egui::Ui, ed: &mut Editor) {
     });
 }
 
-fn level_name(l: i32) -> String {
+pub fn level_name(l: i32) -> String {
     match l {
         -1 => "Sous-sol".into(),
         0 => "Rez-de-chaussée".into(),
@@ -264,10 +292,10 @@ fn level_section(ui: &mut egui::Ui, ed: &mut Editor) {
         ed.dirty = true;
     }
     if ui.button("+ Ajouter un étage au-dessus").on_hover_text("Copie les murs (sans les portes) et les sols de cet étage, remonte le toit").clicked() {
-        ed.checkpoint();
-        ed.house.add_storey(ed.level);
-        ed.set_level(ed.level + 1);
-        ed.message = "Étage ajouté (Ctrl+Z pour revenir)".into();
+        if ed.apply([Command::AddStorey { level: ed.level }]).is_ok() {
+            ed.set_level(ed.level + 1);
+            ed.message = "Étage ajouté (Ctrl+Z pour revenir)".into();
+        }
     }
     ui.small(format!("Surface de sol de l'étage : {:.1} m²", ed.house.floor_area(ed.level)));
 }
@@ -469,13 +497,11 @@ fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
             ui.horizontal(|ui| {
                 if ui.button("Générer").on_hover_text("Un nouveau relief à chaque clic ; la maison reste à plat").clicked() {
                     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
-                    ed.checkpoint();
-                    ed.house.generate_terrain(seed, ed.gen_amp, ed.gen_scale, ed.gen_mountains);
+                    let _ = ed.apply([Command::GenerateTerrain { seed, amp: ed.gen_amp, scale: ed.gen_scale, mountains: ed.gen_mountains }]);
                     ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
                 }
                 if ui.button("Tout aplanir").clicked() {
-                    ed.checkpoint();
-                    ed.house.terrain = Default::default();
+                    let _ = ed.apply([Command::FlattenTerrain]);
                 }
             });
         }
@@ -615,28 +641,54 @@ fn visit_overlay(ctx: &egui::Context, v: &Visitor) {
     let aim = if v.target.is_some() { ACCENT } else { Color32::from_white_alpha(200) };
     painter.circle_stroke(center, 5.0, egui::Stroke::new(2.0_f32, aim));
     if let Some(kmh) = v.speed_kmh {
-        let at = ctx.screen_rect().center_bottom() - egui::vec2(0.0, 70.0);
-        let txt = format!("{kmh:.0} km/h");
-        painter.text(at + egui::vec2(2.0, 2.0), egui::Align2::CENTER_CENTER, &txt, egui::FontId::proportional(40.0), Color32::BLACK);
-        painter.text(at, egui::Align2::CENTER_CENTER, txt, egui::FontId::proportional(40.0), Color32::WHITE);
+        egui::Area::new(egui::Id::new("vitesse"))
+            .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -30.0])
+            .interactable(false)
+            .show(ctx, |ui| {
+                hud_frame().show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("{kmh:.0}")).size(44.0).strong().color(Color32::WHITE));
+                        ui.label(RichText::new("km/h").size(16.0).color(ACCENT));
+                    });
+                });
+            });
     }
-    // actions liées à l'objet visé en évidence, les autres en discret
-    for (i, a) in v.actions.iter().enumerate() {
-        let strong = a.starts_with("E :") || a.contains("relever") || v.speed_kmh.is_some();
-        let color = if strong { ACCENT } else { Color32::from_white_alpha(170) };
-        let size = if strong { 18.0 } else { 14.0 };
-        let pos = center + egui::vec2(0.0, 30.0 + 22.0 * i as f32);
-        painter.text(pos + egui::vec2(1.0, 1.0), egui::Align2::CENTER_CENTER, *a, egui::FontId::proportional(size), Color32::BLACK);
-        painter.text(pos, egui::Align2::CENTER_CENTER, *a, egui::FontId::proportional(size), color);
+    // actions possibles sous le viseur : celles liées à l'objet visé en évidence
+    if !v.actions.is_empty() {
+        egui::Area::new(egui::Id::new("actions"))
+            .anchor(egui::Align2::CENTER_TOP, [0.0, center.y + 26.0])
+            .interactable(false)
+            .show(ctx, |ui| {
+                hud_frame().show(ui, |ui| {
+                    ui.vertical_centered(|ui| {
+                        for a in &v.actions {
+                            let strong = a.starts_with("E :") || a.contains("relever") || v.speed_kmh.is_some();
+                            let color = if strong { ACCENT } else { Color32::from_gray(190) };
+                            ui.label(RichText::new(*a).size(if strong { 17.0 } else { 14.0 }).color(color));
+                        }
+                    });
+                });
+            });
     }
     egui::Area::new(egui::Id::new("visite"))
-        .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 10.0))
+        .anchor(egui::Align2::LEFT_BOTTOM, [14.0, -14.0])
+        .interactable(false)
         .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.label(RichText::new("Visite").strong().color(ACCENT));
-                ui.label("Souris : regarder  •  ZQSD / WASD : marcher  •  Maj : courir  •  Espace : sauter");
-                ui.label("E : ouvrir / s'asseoir / s'allonger  •  C : s'asseoir  •  X : s'allonger  •  V : 1re / 3e personne");
-                ui.label("Échap ou Tab : revenir à l'édition");
+            hud_frame().show(ui, |ui| {
+                ui.label(RichText::new("VISITE").strong().color(ACCENT));
+                for (k, l) in [
+                    ("Souris", "regarder"),
+                    ("ZQSD", "marcher"),
+                    ("Maj", "courir"),
+                    ("Espace", "sauter"),
+                    ("E", "ouvrir / s'asseoir / s'allonger"),
+                    ("C", "s'asseoir"),
+                    ("X", "s'allonger"),
+                    ("V", "1re / 3e personne"),
+                    ("Échap", "revenir à l'édition"),
+                ] {
+                    key_hint(ui, k, l);
+                }
             });
         });
 }

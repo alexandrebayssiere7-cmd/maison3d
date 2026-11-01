@@ -8,6 +8,7 @@ use bevy::window::PrimaryWindow;
 use bevy_egui::EguiContexts;
 
 use crate::camera::CamState;
+use crate::command::Command;
 use crate::model::*;
 use crate::render::MainCamera;
 use crate::terrain::Brush;
@@ -108,7 +109,8 @@ pub struct Editor {
     pub hovered: Option<ElemRef>,
     wall_start: Option<Vec2>,
     drag_start: Option<Vec2>,
-    move_drag: Option<(Vec2, House)>,
+    /// Déplacement en cours : (point d'appui, maison avant, décalage actuel).
+    move_drag: Option<(Vec2, House, Vec2)>,
     pub cursor: Option<Vec2>,
     /// Cote affichée près du pointeur (longueur, surface…).
     pub measure: Option<String>,
@@ -221,6 +223,12 @@ impl Editor {
     }
 
     pub fn undo(&mut self) {
+        // pendant un déplacement, annuler l'abandonne sans toucher à l'historique
+        if self.move_drag.is_some() {
+            self.cancel();
+            self.message = "Déplacement annulé".into();
+            return;
+        }
         if let Some(h) = self.undo.pop() {
             self.redo.push(std::mem::replace(&mut self.house, h));
             self.after_restore("Annulé");
@@ -228,6 +236,7 @@ impl Editor {
     }
 
     pub fn redo(&mut self) {
+        self.cancel();
         if let Some(h) = self.redo.pop() {
             self.undo.push(std::mem::replace(&mut self.house, h));
             self.after_restore("Rétabli");
@@ -253,7 +262,7 @@ impl Editor {
     pub fn cancel(&mut self) {
         self.wall_start = None;
         self.drag_start = None;
-        if let Some((_, orig)) = self.move_drag.take() {
+        if let Some((_, orig, _)) = self.move_drag.take() {
             self.house = orig;
             self.dirty = true;
         }
@@ -292,54 +301,71 @@ impl Editor {
         self.dirty = true;
     }
 
+    /// Applique des commandes en un seul point d'annulation : toutes ou aucune.
+    /// En cas d'erreur, la maison est intacte et le message dit pourquoi.
+    pub fn apply(&mut self, cmds: impl IntoIterator<Item = Command>) -> Result<Option<ElemRef>, String> {
+        let mut h = self.house.clone();
+        let mut last = None;
+        for c in cmds {
+            match h.apply(c) {
+                Ok(e) => last = e.or(last),
+                Err(e) => {
+                    self.message = e.clone();
+                    return Err(e);
+                }
+            }
+        }
+        let old = std::mem::replace(&mut self.house, h);
+        self.push_undo(old);
+        Ok(last)
+    }
+
     pub fn delete_selected(&mut self) {
-        if let Some(e) = self.selected.take() {
-            self.checkpoint();
-            self.house.remove(e);
+        if let Some(target) = self.selected.take() {
+            let _ = self.apply([Command::Remove { target }]);
         }
     }
 
     pub fn duplicate_selected(&mut self) {
-        if let Some(e) = self.selected {
-            let mut h = self.house.clone();
-            if let Some(new) = h.duplicate(e, Vec2::splat(self.grid.max(0.5))) {
-                self.checkpoint();
-                self.house = h;
-                self.selected = Some(new);
+        if let Some(target) = self.selected {
+            if let Ok(new) = self.apply([Command::Duplicate { target, by: Vec2::splat(self.grid.max(0.5)) }]) {
+                self.selected = new;
             }
         }
     }
 
     pub fn rotate_selected(&mut self) {
-        if let Some(ElemRef::Prop(i)) = self.selected {
-            self.checkpoint();
-            let p = &mut self.house.props[i];
-            p.rot = (p.rot + 45.0) % 360.0;
+        if let Some(target @ ElemRef::Prop(_)) = self.selected {
+            let _ = self.apply([Command::Rotate { target, deg: 45.0 }]);
         }
     }
 
-    pub fn nudge_selected(&mut self, d: Vec2) {
-        if let Some(e) = self.selected {
-            self.checkpoint();
-            self.house.translate(e, d);
+    pub fn nudge_selected(&mut self, by: Vec2) {
+        if let Some(target) = self.selected {
+            let _ = self.apply([Command::Move { target, by }]);
         }
     }
 
-    pub fn save(&mut self) {
+    /// Renvoie `false` si l'écriture a échoué (le message dit pourquoi).
+    pub fn save(&mut self) -> bool {
+        if let Some(dir) = std::path::Path::new(&self.file).parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        // écrit à côté puis renomme : un arrêt en pleine écriture ne corrompt pas le monde
+        let tmp = format!("{}.tmp", self.file);
         let res = serde_json::to_string_pretty(&self.house)
             .map_err(|e| e.to_string())
-            .and_then(|s| std::fs::write(&self.file, s).map_err(|e| e.to_string()));
+            .and_then(|s| std::fs::write(&tmp, s).and_then(|()| std::fs::rename(&tmp, &self.file)).map_err(|e| e.to_string()));
+        let ok = res.is_ok();
         self.message = match res {
             Ok(()) => format!("Enregistré dans {}", self.file),
             Err(e) => format!("Erreur d'enregistrement : {e}"),
         };
+        ok
     }
 
     pub fn load(&mut self) {
-        let res = std::fs::read_to_string(&self.file)
-            .map_err(|e| e.to_string())
-            .and_then(|s| serde_json::from_str::<House>(&s).map_err(|e| e.to_string()));
-        match res {
+        match House::load(&self.file) {
             Ok(h) => self.replace_house(h, format!("Ouvert : {}", self.file)),
             Err(e) => self.message = format!("Impossible d'ouvrir {} : {e}", self.file),
         }
@@ -410,11 +436,11 @@ impl Editor {
     }
 
     fn add_segment(&mut self, a: Vec2, b: Vec2) {
-        self.checkpoint();
-        match self.tool {
-            Tool::Road => self.house.add_road(self.new_road(a, b)),
-            _ => self.house.walls.push(self.new_wall(a, b)),
-        }
+        let cmd = match self.tool {
+            Tool::Road => Command::AddRoad(self.new_road(a, b)),
+            _ => Command::AddWall(self.new_wall(a, b)),
+        };
+        let _ = self.apply([cmd]);
     }
 
     /// Ce que l'outil rectangle en cours créerait entre `a` et `b`.
@@ -550,13 +576,15 @@ pub fn editor_input(
             if click {
                 ed.selected = hit.map(|h| h.0);
                 if let (Some(_), Some(p)) = (ed.selected, p) {
-                    ed.move_drag = Some((p, ed.house.clone()));
+                    ed.move_drag = Some((p, ed.house.clone(), Vec2::ZERO));
                 }
             }
-            if let (Some(sel), Some(p), Some((start, orig))) = (ed.selected, p, &ed.move_drag) {
+            if let (Some(sel), Some(p), Some((start, orig, by))) = (ed.selected, p, &mut ed.move_drag) {
                 if mouse.pressed(MouseButton::Left) {
+                    // aperçu en direct ; la vraie commande part au relâché
+                    *by = p - *start;
                     let mut h = orig.clone();
-                    h.translate(sel, p - *start);
+                    h.translate(sel, *by);
                     if h != ed.house {
                         ed.house = h;
                         ed.dirty = true;
@@ -567,10 +595,12 @@ pub fn editor_input(
                 }
             }
             if released {
-                if let Some((_, orig)) = ed.move_drag.take() {
+                if let (Some((_, orig, by)), Some(target)) = (ed.move_drag.take(), ed.selected) {
                     if orig != ed.house {
-                        ed.push_undo(orig);
-                        ed.message = "Élément déplacé".into();
+                        ed.house = orig;
+                        if ed.apply([Command::Move { target, by }]).is_ok() {
+                            ed.message = "Élément déplacé".into();
+                        }
                     }
                 }
             }
@@ -624,20 +654,19 @@ pub fn editor_input(
             };
             if let Some(start) = finish {
                 let House { walls, slabs, roofs, pools, .. } = ed.rect_result(start, p);
-                ed.checkpoint();
-                ed.house.walls.extend(walls);
-                ed.house.slabs.extend(slabs);
-                ed.house.roofs.extend(roofs);
-                for pool in pools {
-                    ed.house.add_pool(pool);
-                }
+                let cmds = walls.into_iter().map(Command::AddWall)
+                    .chain(slabs.into_iter().map(Command::AddSlab))
+                    .chain(roofs.into_iter().map(Command::AddRoof))
+                    .chain(pools.into_iter().map(Command::AddPool));
                 ed.drag_start = None;
-                ed.message = format!("{} créé ({:.1} m²)", match ed.tool {
-                    Tool::Room => "Pièce",
-                    Tool::Floor => "Sol",
-                    Tool::Pool => "Bassin",
-                    _ => "Toit",
-                }, (p - start).abs().element_product());
+                if ed.apply(cmds).is_ok() {
+                    ed.message = format!("{} créé ({:.1} m²)", match ed.tool {
+                        Tool::Room => "Pièce",
+                        Tool::Floor => "Sol",
+                        Tool::Pool => "Bassin",
+                        _ => "Toit",
+                    }, (p - start).abs().element_product());
+                }
             } else if let Some(start) = ed.drag_start {
                 let size = (p - start).abs();
                 let color = if big_enough(start) { preview } else { Color::srgb(1.0, 0.6, 0.2) };
@@ -647,7 +676,8 @@ pub fn editor_input(
         }
         Tool::Opening(kind) => {
             let Some((ElemRef::Wall(wi) | ElemRef::Opening(wi, _), dist)) = hit else { return };
-            let wall = &ed.house.walls[wi];
+            // `ed.parts` date de l'image précédente : le mur a pu être annulé entre-temps
+            let Some(wall) = ed.house.walls.get(wi) else { return };
             let hp = origin + dir * dist;
             let along = (Vec2::new(hp.x, hp.z) - wall.a).dot(wall.dir());
             let step = if free { 0.05 } else { ed.grid.min(0.25) };
@@ -667,12 +697,7 @@ pub fn editor_input(
             draw_parts(&mut gizmos, &preview_parts, color);
             ed.measure = Some(format!("à {} du début du mur", fmt_m(t - width / 2.0)));
             if click {
-                if ok {
-                    ed.checkpoint();
-                    ed.house.walls[wi].openings.push(op);
-                } else {
-                    ed.message = format!("Pas la place pour : {}", kind.name());
-                }
+                let _ = ed.apply([Command::AddOpening { wall: wi, opening: op }]);
             }
         }
         Tool::Prop(kind) => {
@@ -680,8 +705,7 @@ pub fn editor_input(
             let prop = ed.new_prop(kind, p);
             draw_parts(&mut gizmos, &prop_parts(&prop, ElemRef::Prop(0), 0.0, ed.house.prop_y(&prop)), preview);
             if click {
-                ed.checkpoint();
-                ed.house.props.push(prop);
+                let _ = ed.apply([Command::AddProp(prop)]);
             }
         }
         Tool::Visitor => {}
@@ -721,14 +745,8 @@ pub fn editor_input(
             let (true, Some((e, _))) = (click, hit) else { return };
             match ed.tool {
                 Tool::Paint => {
-                    let (c, t) = (ed.paint_color, ed.paint_texture);
-                    ed.checkpoint();
-                    if let Some(col) = ed.house.color_mut(e) {
-                        *col = c;
-                    }
-                    if let Some(tex) = ed.house.texture_mut(e) {
-                        *tex = t;
-                    }
+                    let (color, texture) = (Some(ed.paint_color), Some(ed.paint_texture));
+                    let _ = ed.apply([Command::Paint { target: e, color, texture }]);
                 }
                 Tool::Eyedropper => {
                     if let Some(c) = ed.house.color_mut(e).copied() {
@@ -739,8 +757,7 @@ pub fn editor_input(
                     }
                 }
                 _ => {
-                    ed.checkpoint();
-                    ed.house.remove(e);
+                    let _ = ed.apply([Command::Remove { target: e }]);
                     ed.selected = None;
                 }
             }
@@ -764,5 +781,26 @@ pub fn editor_input(
         let color = if ed.tool == Tool::Erase { Color::srgb(1.0, 0.25, 0.25) } else { Color::srgba(1.0, 1.0, 1.0, 0.7) };
         let parts: Vec<Part> = ed.parts.iter().filter(|p| p.owner == h).cloned().collect();
         draw_parts(&mut gizmos, &parts, color);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn undo_during_drag_keeps_history() {
+        let mut ed = Editor::default();
+        ed.checkpoint();
+        ed.house.props.push(ed.new_prop(PropKind::Table, Vec2::ZERO));
+        let placed = ed.house.clone();
+        // glisser en cours : Ctrl+Z abandonne le déplacement sans consommer l'historique
+        ed.move_drag = Some((Vec2::ZERO, placed.clone(), Vec2::X));
+        ed.house.translate(ElemRef::Prop(0), Vec2::X);
+        ed.undo();
+        assert_eq!(ed.house, placed);
+        assert!(ed.can_undo());
+        ed.undo();
+        assert!(ed.house.props.is_empty());
     }
 }
