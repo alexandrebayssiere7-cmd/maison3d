@@ -78,6 +78,7 @@ pub struct Visitor {
     pitch: f32,
     body_yaw: f32,
     pub third: bool,
+    /// Distance voulue de la caméra 3e personne (fixe) et distance réelle (raccourcie par les murs).
     boom: f32,
     boom_cur: f32,
     stance: Stance,
@@ -362,12 +363,15 @@ pub fn visit_update(
     if keys.just_pressed(KeyCode::KeyV) {
         v.third = !v.third;
     }
+    // glisser à deux doigts sur le trackpad tourne aussi la vue (même sens qu'en édition) ;
+    // la distance de la caméra reste fixe : pas de zoom
+    if scroll.unit == MouseScrollUnit::Pixel {
+        v.yaw -= scroll.delta.x * 0.004;
+        v.pitch = (v.pitch + scroll.delta.y * 0.004).clamp(-1.45, 1.45);
+    }
     if v.third {
-        let s = match scroll.unit {
-            MouseScrollUnit::Line => scroll.delta.y,
-            MouseScrollUnit::Pixel => scroll.delta.y / 30.0,
-        };
-        v.boom = (v.boom - s * 0.4).clamp(1.2, 7.0);
+        // au-delà, la caméra passerait sous le sol et se collerait au personnage
+        v.pitch = v.pitch.clamp(-1.2, 0.55);
     }
     let look = Quat::from_euler(EulerRot::YXZ, v.yaw, v.pitch, 0.0);
     let (sy, cy) = v.yaw.sin_cos();
@@ -408,7 +412,7 @@ pub fn visit_update(
         }
         v.vel.y -= GRAVITY * dt;
         pos.y += v.vel.y * dt;
-        let floor = floor_at(pos, &solids);
+        let floor = floor_at(pos, &solids, ed.house.ground(Vec2::new(pos.x, pos.z)));
         let was_grounded = v.grounded;
         v.grounded = pos.y <= floor;
         if v.grounded {
@@ -428,13 +432,8 @@ pub fn visit_update(
             // un cycle = deux pas ; la foulée s'allonge en courant
             v.phase = (v.phase + speed * dt * TAU / (1.3 + 1.1 * run)) % TAU;
         }
-        // en 3e personne le corps se tourne vers où il va ; en 1re il suit le regard
-        if !v.third {
-            v.body_yaw = v.yaw;
-        } else if speed > 0.3 {
-            let target = (-v.vel.x).atan2(-v.vel.z);
-            v.body_yaw = lerp_angle(v.body_yaw, target, 1.0 - (-10.0 * dt).exp());
-        }
+        // le corps se tourne avec la caméra : en 3e personne on voit le personnage pivoter en douceur
+        v.body_yaw = if v.third { lerp_angle(v.body_yaw, v.yaw, 1.0 - (-12.0 * dt).exp()) } else { v.yaw };
     }
     v.dip = (v.dip - dt * 0.5).max(0.0);
 
@@ -458,7 +457,7 @@ pub fn visit_update(
         let pivot = eye + Vec3::Y * 0.1;
         let desired = look * Vec3::new(0.35, 0.15, v.boom);
         let (len, dir) = (desired.length(), desired.normalize());
-        let free = camera_clearance(&ed.parts, pivot, dir, len);
+        let free = camera_clearance(&ed.parts, pivot, dir, len, ed.house.ground(Vec2::new(pivot.x, pivot.z)));
         // on se rapproche tout de suite d'un obstacle, on s'en écarte doucement
         v.boom_cur = if free < v.boom_cur { free } else { v.boom_cur + (free - v.boom_cur) * (1.0 - (-4.0 * dt).exp()) };
         **cam_tf = Transform::from_translation(pivot + dir * v.boom_cur).with_rotation(look);
@@ -529,7 +528,7 @@ pub fn visit_update(
             v.vel = Vec3::ZERO;
         }
     }
-    v.actions.push(if v.third { "V : vue 1re personne (molette : distance)" } else { "V : vue 3e personne" });
+    v.actions.push(if v.third { "V : vue 1re personne" } else { "V : vue 3e personne" });
 }
 
 fn lerp_angle(a: f32, b: f32, k: f32) -> f32 {
@@ -539,9 +538,12 @@ fn lerp_angle(a: f32, b: f32, k: f32) -> f32 {
 
 // ---------------------------------------------------------------- collisions
 
-/// Ce qui arrête le visiteur (le volume englobant d'un toit en pente, lui, est surtout vide).
+/// Ce qui arrête le visiteur (le volume englobant d'un toit en pente, lui, est surtout vide ;
+/// on traverse l'eau, et la route inclinée est portée par le terrain terrassé dessous).
 fn solid(p: &Part) -> bool {
     !matches!(p.shape, Shape::Light | Shape::Roof { .. })
+        && !matches!(p.owner, ElemRef::Road(_))
+        && !(p.shape == Shape::Glass && matches!(p.owner, ElemRef::Pool(_)))
 }
 
 /// Bas et haut d'une boîte ; nos pièces ne tournent qu'autour de la verticale.
@@ -573,9 +575,9 @@ fn push_out(pos: &mut Vec3, tf: &Transform) {
     *pos += tf.rotation * Vec3::new(push.x, 0.0, push.y);
 }
 
-/// Hauteur du sol sous les pieds : dessus de la plus haute boîte franchissable, ou le terrain.
-fn floor_at(pos: Vec3, solids: &[Transform]) -> f32 {
-    let mut best = if pos.y >= -0.05 { 0.0 } else { -50.0 };
+/// Hauteur du sol sous les pieds : dessus de la plus haute boîte franchissable, ou le terrain `ground`.
+fn floor_at(pos: Vec3, solids: &[Transform], ground: f32) -> f32 {
+    let mut best = if pos.y >= ground - 0.05 { ground } else { -50.0 };
     for tf in solids {
         let top = y_range(tf).1;
         if top > pos.y + STEP || top <= best {
@@ -591,7 +593,7 @@ fn floor_at(pos: Vec3, solids: &[Transform]) -> f32 {
 }
 
 /// Distance libre derrière le personnage pour la caméra 3e personne (murs, sols, toits, terrain).
-fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32) -> f32 {
+fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32, ground: f32) -> f32 {
     let mut best = max;
     for p in parts.iter().filter(|p| p.shape != Shape::Light) {
         let hit = match p.shape {
@@ -606,8 +608,8 @@ fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32) -> f32 {
             best = best.min(t);
         }
     }
-    if dir.y < 0.0 && from.y > 0.0 {
-        best = best.min(from.y / -dir.y);
+    if dir.y < 0.0 && from.y > ground {
+        best = best.min((from.y - ground) / -dir.y);
     }
     (best - 0.25).max(0.15)
 }
@@ -651,7 +653,7 @@ mod tests {
                     push_out(&mut pos, tf);
                 }
             }
-            pos.y = floor_at(pos, s);
+            pos.y = floor_at(pos, s, 0.0);
         }
         pos
     }
@@ -670,10 +672,10 @@ mod tests {
     #[test]
     fn stands_on_floors_and_climbs_stairs() {
         let s = solids(0.0);
-        assert!((floor_at(Vec3::new(5.0, 0.0, 4.0), &s) - 0.02).abs() < 1e-3, "sur le parquet");
+        assert!((floor_at(Vec3::new(5.0, 0.0, 4.0), &s, 0.0) - 0.02).abs() < 1e-3, "sur le parquet");
         let mut h = demo_house();
         h.props.clear();
-        h.props.push(Prop { kind: PropKind::Stairs, pos: Vec2::new(20.0, 0.0), level: 0, rot: 0.0, color: [1.0; 3], texture: 0 });
+        h.props.push(Prop { kind: PropKind::Stairs, pos: Vec2::new(20.0, 0.0), level: 0, rot: 0.0, color: [1.0; 3], texture: 0, height: LEVEL_H });
         let stairs: Vec<Transform> = h.parts_closed(None).iter().filter(|p| solid(p)).map(|p| p.bounds()).collect();
         // 1,6 s à 3 m/s : on s'arrête sur les dernières marches
         let top = walk(Vec3::new(20.0, 0.0, -3.0), 1.6, &stairs);
@@ -686,18 +688,18 @@ mod tests {
         let parts = h.parts_closed(None);
         // au centre du salon, caméra reculée vers le mur sud (z = 0) : bloquée avant 3,9 m
         let head = Vec3::new(3.0, 1.7, 3.9);
-        let free = camera_clearance(&parts, head, -Vec3::Z, 10.0);
+        let free = camera_clearance(&parts, head, -Vec3::Z, 10.0, 0.0);
         assert!(free < 3.8 && free > 3.0, "caméra traverse le mur : {free}");
         // vers le haut : le toit (base à 3 m) arrête la caméra
-        let up = camera_clearance(&parts, head, Vec3::Y, 10.0);
+        let up = camera_clearance(&parts, head, Vec3::Y, 10.0, 0.0);
         assert!(up < 4.0, "caméra traverse le toit : {up}");
         // dehors, rien derrière : distance complète
-        assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0), 3.75);
+        assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0, 0.0), 3.75);
     }
 
     #[test]
     fn furniture_spots_face_the_right_way() {
-        let chair = Prop { kind: PropKind::Chair, pos: Vec2::ZERO, level: 0, rot: 0.0, color: [1.0; 3], texture: 0 };
+        let chair = Prop { kind: PropKind::Chair, pos: Vec2::ZERO, level: 0, rot: 0.0, color: [1.0; 3], texture: 0, height: LEVEL_H };
         let (stance, at, yaw) = furniture_spot(&chair, false, Vec3::new(0.0, 0.0, 2.0)).unwrap();
         assert_eq!(stance, Stance::Sit);
         assert!((at.y - 0.48).abs() < 1e-4);

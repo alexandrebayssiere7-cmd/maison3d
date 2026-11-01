@@ -1,7 +1,7 @@
 //! État de l'éditeur, historique d'annulation et interactions souris dans le monde 3D.
 
 use std::collections::HashMap;
-use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::{FRAC_PI_2, TAU};
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -10,6 +10,7 @@ use bevy_egui::EguiContexts;
 use crate::camera::CamState;
 use crate::model::*;
 use crate::render::MainCamera;
+use crate::terrain::Brush;
 use crate::textures::find;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -19,6 +20,9 @@ pub enum Tool {
     Room,
     Floor,
     Roof,
+    Pool,
+    Road,
+    Terrain,
     Opening(OpeningKind),
     Prop(PropKind),
     Paint,
@@ -35,6 +39,9 @@ impl Tool {
             Tool::Room => "Glisser un rectangle (ou cliquer 2 coins opposés) : 4 murs + le sol d'une pièce",
             Tool::Floor => "Glisser un rectangle (ou cliquer 2 coins opposés) : un sol (plancher, dalle, terrasse)",
             Tool::Roof => "Glisser un rectangle (ou 2 clics) au-dessus des murs — montez d'un étage avec + pour le poser sur les murs",
+            Tool::Pool => "Glisser un rectangle (ou 2 clics) : une piscine creusée dans le terrain, coins au mètre",
+            Tool::Road => "Glisser : un tronçon  •  ou clic point après point (la route s'enchaîne)  •  Échap / clic droit : terminer",
+            Tool::Terrain => "Clic maintenu : sculpter le relief avec le pinceau  •  réglez taille et force à gauche",
             Tool::Opening(_) => "Survoler un mur puis cliquer pour poser  •  vert = ça rentre, rouge = pas la place",
             Tool::Prop(_) => "Clic : poser  •  R : pivoter de 45°  •  Maj : placement libre",
             Tool::Paint => "Clic sur un élément : appliquer la couleur",
@@ -71,9 +78,27 @@ pub struct Editor {
     pub roof_color: Rgb,
     pub roof_texture: usize,
     /// (largeur, hauteur, allège) et couleur par type d'ouverture.
-    pub op_dims: [(f32, f32, f32); 3],
-    pub op_colors: [Rgb; 3],
+    pub op_dims: [(f32, f32, f32); OpeningKind::ALL.len()],
+    pub op_colors: [Rgb; OpeningKind::ALL.len()],
     pub prop_rot: f32,
+    pub prop_height: f32,
+    pub pool_depth: f32,
+    pub pool_color: Rgb,
+    pub pool_texture: usize,
+    pub road_width: f32,
+    pub road_color: Rgb,
+    pub road_texture: usize,
+    pub brush: Brush,
+    pub brush_radius: f32,
+    /// Mètres par seconde de clic maintenu.
+    pub brush_strength: f32,
+    /// Altitude visée par « Aplanir » : celle sous le pinceau au début du geste.
+    brush_target: f32,
+    pub brush_seed: u32,
+    sculpting: bool,
+    pub gen_amp: f32,
+    pub gen_scale: f32,
+    pub gen_mountains: bool,
     pub prop_color: Rgb,
     pub prop_texture: usize,
     pub paint_color: Rgb,
@@ -127,7 +152,22 @@ impl Default for Editor {
             op_dims: OpeningKind::ALL.map(|k| k.default_dims()),
             op_colors: OpeningKind::ALL.map(|k| k.default_color()),
             prop_rot: 0.0,
-            prop_color: PropKind::Table.default_color(),
+            prop_height: LEVEL_H,
+            pool_depth: 1.5,
+            pool_color: WHITE_TEX,
+            pool_texture: find("Mosaïque bleue"),
+            road_width: 4.0,
+            road_color: [0.55, 0.55, 0.57],
+            road_texture: find("Béton brut"),
+            brush: Brush::Raise,
+            brush_radius: 6.0,
+            brush_strength: 2.0,
+            brush_target: 0.0,
+            brush_seed: 1,
+            sculpting: false,
+            gen_amp: 8.0,
+            gen_scale: 40.0,
+            gen_mountains: false,            prop_color: PropKind::Table.default_color(),
             prop_texture: 0,
             paint_color: [0.8, 0.3, 0.3],
             paint_texture: 0,
@@ -304,12 +344,14 @@ impl Editor {
 
     fn snap(&self, p: Vec2, free: bool) -> Vec2 {
         // aimantation prioritaire sur les extrémités de murs existants
+        let roads = self.house.roads.iter().filter(|_| self.level == 0).flat_map(|r| [r.a, r.b]);
         let best = self
             .house
             .walls
             .iter()
             .filter(|w| w.level == self.level)
             .flat_map(|w| [w.a, w.b])
+            .chain(roads)
             .min_by(|a, b| a.distance(p).total_cmp(&b.distance(p)));
         if let Some(b) = best.filter(|b| b.distance(p) < 0.3) {
             return b;
@@ -349,7 +391,27 @@ impl Editor {
     }
 
     fn new_prop(&self, kind: PropKind, pos: Vec2) -> Prop {
-        Prop { kind, pos, level: self.level, rot: self.prop_rot, color: self.prop_color, texture: self.prop_texture }
+        Prop { kind, pos, level: self.level, rot: self.prop_rot, color: self.prop_color, texture: self.prop_texture, height: self.prop_height }
+    }
+
+    fn new_road(&self, a: Vec2, b: Vec2) -> Road {
+        Road { a, b, width: self.road_width, color: self.road_color, texture: self.road_texture }
+    }
+
+    /// Ce que l'outil mur ou route poserait entre `a` et `b`.
+    fn segment(&self, a: Vec2, b: Vec2) -> House {
+        match self.tool {
+            Tool::Road => House { roads: vec![self.new_road(a, b)], terrain: self.house.terrain.clone(), ..default() },
+            _ => House { walls: vec![self.new_wall(a, b)], ..default() },
+        }
+    }
+
+    fn add_segment(&mut self, a: Vec2, b: Vec2) {
+        self.checkpoint();
+        match self.tool {
+            Tool::Road => self.house.add_road(self.new_road(a, b)),
+            _ => self.house.walls.push(self.new_wall(a, b)),
+        }
     }
 
     /// Ce que l'outil rectangle en cours créerait entre `a` et `b`.
@@ -366,6 +428,11 @@ impl Editor {
             }
             Tool::Floor => h.slabs.push(self.new_slab(a, b)),
             Tool::Roof => h.roofs.push(self.new_roof(a, b)),
+            Tool::Pool => {
+                let (min, max) = (min.round(), max.round().max(min.round() + 1.0));
+                h.pools.push(Pool { min, max, depth: self.pool_depth, color: self.pool_color, texture: self.pool_texture });
+                h.terrain = self.house.terrain.clone();
+            }
             _ => {}
         }
         h
@@ -406,6 +473,7 @@ pub fn editor_input(
     cam: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut egui: EguiContexts,
     mut gizmos: Gizmos,
+    time: Res<Time>,
 ) {
     let ctx = egui.ctx_mut();
     let over_ui = ctx.is_pointer_over_area() || ctx.wants_pointer_input();
@@ -447,10 +515,13 @@ pub fn editor_input(
     };
     let (origin, dir) = (ray.origin, *ray.direction);
     let free = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    let ground = ray
-        .intersect_plane(Vec3::new(0.0, base, 0.0), InfinitePlane3d::new(Vec3::Y))
-        .map(|t| ray.get_point(t))
-        .map(|p| Vec2::new(p.x, p.z));
+    // au rez-de-chaussée on vise le relief, ailleurs le plancher de l'étage
+    let ground3 = if ed.level == 0 {
+        ed.house.terrain.ray(origin, dir)
+    } else {
+        ray.intersect_plane(Vec3::new(0.0, base, 0.0), InfinitePlane3d::new(Vec3::Y)).map(|t| ray.get_point(t))
+    };
+    let ground = ground3.map(|p| Vec2::new(p.x, p.z));
     let p = ground.map(|g| ed.snap(g, free));
     ed.cursor = p;
     let hit = pick(&ed.parts, origin, dir);
@@ -462,8 +533,9 @@ pub fn editor_input(
     let preview = Color::srgb(0.3, 0.9, 1.0);
 
     if let Some(p) = p {
-        if !matches!(ed.tool, Tool::Select | Tool::Paint | Tool::Eyedropper | Tool::Erase | Tool::Opening(_) | Tool::Visitor) && !over_ui {
-            gizmos.circle(Isometry3d::new(Vec3::new(p.x, base + 0.03, p.y), Quat::from_rotation_x(FRAC_PI_2)), 0.15, preview);
+        if !matches!(ed.tool, Tool::Select | Tool::Paint | Tool::Eyedropper | Tool::Erase | Tool::Opening(_) | Tool::Visitor | Tool::Terrain) && !over_ui {
+            let y = if ed.level == 0 { ed.house.terrain.height(p) } else { base };
+            gizmos.circle(Isometry3d::new(Vec3::new(p.x, y + 0.03, p.y), Quat::from_rotation_x(FRAC_PI_2)), 0.15, preview);
         }
     }
 
@@ -500,19 +572,16 @@ pub fn editor_input(
                 }
             }
         }
-        Tool::Wall => {
+        Tool::Wall | Tool::Road => {
             let Some(p) = p else { return };
             if let Some(start) = ed.wall_start {
-                let w = ed.new_wall(start, p);
-                draw_parts(&mut gizmos, &House { walls: vec![w], ..default() }.parts_closed(None), preview);
+                draw_parts(&mut gizmos, &ed.segment(start, p).parts_closed(None), preview);
                 ed.measure = Some(fmt_m(start.distance(p)));
             }
             if click {
                 match ed.wall_start {
                     Some(start) if start.distance(p) > 0.05 => {
-                        ed.checkpoint();
-                        let w = ed.new_wall(start, p);
-                        ed.house.walls.push(w);
+                        ed.add_segment(start, p);
                         ed.wall_start = Some(p);
                     }
                     Some(_) => {}
@@ -526,16 +595,15 @@ pub fn editor_input(
             if released {
                 if let (Some(press), Some(start)) = (ed.drag_start.take(), ed.wall_start) {
                     if press == start && start.distance(p) > 0.3 {
-                        ed.checkpoint();
-                        let w = ed.new_wall(start, p);
-                        ed.house.walls.push(w);
+                        ed.add_segment(start, p);
                         ed.wall_start = None;
-                        ed.message = format!("Mur de {} posé", fmt_m(start.distance(p)));
+                        let what = if ed.tool == Tool::Road { "Route" } else { "Mur" };
+                        ed.message = format!("{what} de {} posé", fmt_m(start.distance(p)));
                     }
                 }
             }
         }
-        Tool::Room | Tool::Floor | Tool::Roof => {
+        Tool::Room | Tool::Floor | Tool::Roof | Tool::Pool => {
             let Some(p) = p else { return };
             let big_enough = |a: Vec2| {
                 let s = (p - a).abs();
@@ -552,15 +620,19 @@ pub fn editor_input(
                 }
             };
             if let Some(start) = finish {
-                let House { walls, slabs, roofs, .. } = ed.rect_result(start, p);
+                let House { walls, slabs, roofs, pools, .. } = ed.rect_result(start, p);
                 ed.checkpoint();
                 ed.house.walls.extend(walls);
                 ed.house.slabs.extend(slabs);
                 ed.house.roofs.extend(roofs);
+                for pool in pools {
+                    ed.house.add_pool(pool);
+                }
                 ed.drag_start = None;
                 ed.message = format!("{} créé ({:.1} m²)", match ed.tool {
                     Tool::Room => "Pièce",
                     Tool::Floor => "Sol",
+                    Tool::Pool => "Bassin",
                     _ => "Toit",
                 }, (p - start).abs().element_product());
             } else if let Some(start) = ed.drag_start {
@@ -603,13 +675,41 @@ pub fn editor_input(
         Tool::Prop(kind) => {
             let Some(p) = p else { return };
             let prop = ed.new_prop(kind, p);
-            draw_parts(&mut gizmos, &prop_parts(&prop, ElemRef::Prop(0), 0.0), preview);
+            draw_parts(&mut gizmos, &prop_parts(&prop, ElemRef::Prop(0), 0.0, ed.house.prop_y(&prop)), preview);
             if click {
                 ed.checkpoint();
                 ed.house.props.push(prop);
             }
         }
         Tool::Visitor => {}
+        Tool::Terrain => {
+            if !mouse.pressed(MouseButton::Left) {
+                ed.sculpting = false;
+            }
+            let Some(g) = ground else { return };
+            // contour du pinceau, épousant le relief
+            let r = ed.brush_radius;
+            let ring: Vec<Vec3> = (0..=48)
+                .map(|k| {
+                    let q = g + Vec2::from_angle(k as f32 / 48.0 * TAU) * r;
+                    Vec3::new(q.x, ed.house.terrain.height(q) + 0.1, q.y)
+                })
+                .collect();
+            gizmos.linestrip(ring, preview);
+            ed.measure = Some(format!("altitude {:.2} m", ed.house.terrain.height(g)));
+            if click {
+                ed.checkpoint();
+                ed.brush_target = ed.house.terrain.height(g);
+                ed.brush_seed = ed.brush_seed.wrapping_add(1);
+                ed.sculpting = true;
+            }
+            if ed.sculpting {
+                let amount = ed.brush_strength * time.delta_secs();
+                let (mode, target, seed) = (ed.brush, ed.brush_target, ed.brush_seed);
+                ed.house.sculpt(mode, g, r, amount, target, seed);
+                ed.dirty = true;
+            }
+        }
         Tool::Paint | Tool::Eyedropper | Tool::Erase => {
             if over_ui {
                 return;
@@ -646,7 +746,7 @@ pub fn editor_input(
 
     if ed.tool == Tool::Visitor && !over_ui {
         // le bonhomme se pose sur ce qui est sous le curseur, sinon sur le sol de l'étage
-        let feet = hit.map(|(_, d)| origin + dir * d).or(ground.map(|g| Vec3::new(g.x, base, g.y)));
+        let feet = hit.map(|(_, d)| origin + dir * d).or(ground3);
         if let Some(f) = feet {
             draw_figure(&mut gizmos, f);
             if click {
