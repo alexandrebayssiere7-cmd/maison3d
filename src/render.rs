@@ -1,7 +1,7 @@
 //! Scène 3D : sol, lumière du soleil, et reconstruction des maillages de la maison.
 
 use std::collections::HashMap;
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
@@ -11,7 +11,7 @@ use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::editor::Editor;
-use crate::model::{RoofKind, Rgb, Shape};
+use crate::model::{ElemRef, Part, RoofKind, Rgb, Shape};
 use crate::textures;
 
 #[derive(Component)]
@@ -135,35 +135,52 @@ pub fn rebuild(
         commands.entity(e).despawn();
     }
     let open = |e| ed.doors.get(&e).map_or(0.0, |d| d.0);
-    let parts = ed.house.parts(ed.hide_upper.then_some(ed.level), &open);
+    let mut parts = ed.house.parts(ed.hide_upper.then_some(ed.level), &open);
+    // la voiture conduite est affichée à part, avec ses roues animées
+    if let Some(i) = ed.driving {
+        parts.retain(|p| p.owner != ElemRef::Prop(i));
+    }
     for p in &parts {
-        let mut tf = p.tf;
-        let mesh = match p.shape {
-            Shape::Cube => {
-                tf.scale = Vec3::ONE;
-                meshes.add(box_mesh(p.tf))
-            }
-            Shape::Glass => lib.cube.clone(),
-            Shape::Cylinder => lib.cylinder.clone(),
-            Shape::Sphere => lib.sphere.clone(),
-            Shape::Cone => lib.cone.clone(),
-            Shape::Roof { kind, size } => meshes.add(roof_mesh(kind, size)),
-            Shape::Light => {
-                commands.spawn((
-                    Built,
-                    PointLight { color: Color::srgb(p.color[0], p.color[1], p.color[2]), intensity: 300_000.0, range: 15.0, ..default() },
-                    p.tf.with_scale(Vec3::ONE),
-                ));
-                continue;
-            }
-        };
-        let mat = match p.shape {
-            Shape::Glass => lib.glass.clone(),
-            _ => lib.material(&mut materials, p.color, p.texture),
-        };
-        commands.spawn((Built, Mesh3d(mesh), MeshMaterial3d(mat), tf));
+        if p.shape == Shape::Light {
+            let c = Color::srgb(p.color[0], p.color[1], p.color[2]);
+            commands.spawn((Built, PointLight { color: c, intensity: 300_000.0, range: 15.0, ..default() }, p.tf.with_scale(Vec3::ONE)));
+        } else {
+            commands.spawn((Built, part_bundle(&mut lib, &mut meshes, &mut materials, p)));
+        }
     }
     ed.parts = parts;
+}
+
+/// Maillage, matériau et placement d'une pièce (hors lumières).
+pub fn part_bundle(
+    lib: &mut Library,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    p: &Part,
+) -> (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform) {
+    let mut tf = p.tf;
+    let mesh = match p.shape {
+        Shape::Cube => {
+            tf.scale = Vec3::ONE;
+            meshes.add(box_mesh(p.tf))
+        }
+        Shape::Wheel => {
+            // cylindre couché : son axe (Y) passe sur X
+            tf.rotation *= Quat::from_rotation_z(FRAC_PI_2);
+            tf.scale = Vec3::new(p.tf.scale.y, p.tf.scale.x, p.tf.scale.z);
+            lib.cylinder.clone()
+        }
+        Shape::Glass | Shape::Light => lib.cube.clone(),
+        Shape::Cylinder => lib.cylinder.clone(),
+        Shape::Sphere => lib.sphere.clone(),
+        Shape::Cone => lib.cone.clone(),
+        Shape::Roof { kind, size } => meshes.add(roof_mesh(kind, size)),
+    };
+    let mat = match p.shape {
+        Shape::Glass => lib.glass.clone(),
+        _ => lib.material(materials, p.color, p.texture),
+    };
+    (Mesh3d(mesh), MeshMaterial3d(mat), tf)
 }
 
 /// Toit en pente, faîtage le long de X. `size` = (longueur, hauteur, largeur).

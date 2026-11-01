@@ -163,10 +163,11 @@ pub enum PropKind {
     Pine,
     Hedge,
     Fence,
+    Car,
 }
 
 impl PropKind {
-    pub const ALL: [PropKind; 18] = [
+    pub const ALL: [PropKind; 19] = [
         Self::Table,
         Self::Chair,
         Self::Sofa,
@@ -185,6 +186,7 @@ impl PropKind {
         Self::Pine,
         Self::Hedge,
         Self::Fence,
+        Self::Car,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -206,6 +208,7 @@ impl PropKind {
             Self::Pine => "Sapin",
             Self::Hedge => "Haie",
             Self::Fence => "Clôture",
+            Self::Car => "Voiture",
         }
     }
     pub fn default_color(self) -> Rgb {
@@ -217,6 +220,7 @@ impl PropKind {
             Self::Kitchen => [0.88, 0.88, 0.85],
             Self::Fridge | Self::Bathtub | Self::Toilet => WHITE,
             Self::Stairs | Self::Fence => [0.6, 0.45, 0.3],
+            Self::Car => [0.72, 0.08, 0.1],
             Self::Pillar => [0.85, 0.85, 0.8],
             Self::Lamp => [1.0, 0.9, 0.7],
             // le feuillage est coloré par sa texture : teinte blanche
@@ -273,6 +277,8 @@ pub enum Shape {
     Cylinder,
     Sphere,
     Cone,
+    /// Roue : axe le long de X ; `tf.scale` = (largeur, diamètre, diamètre).
+    Wheel,
     /// Toit en pente : `size` = (longueur, hauteur, largeur), base en y = 0.
     Roof { kind: RoofKind, size: Vec3 },
     Light,
@@ -723,6 +729,38 @@ fn prop_shapes(kind: PropKind, open: f32) -> Vec<Piece> {
             v.push(bx(0.0, 0.0, 2.0, 0.7, 0.0, 1.2, None));
             v.extend(clumps(&[([-0.6, 1.2, 0.0], [0.9, 0.45, 0.75]), ([0.0, 1.25, 0.0], [0.95, 0.45, 0.75]), ([0.6, 1.2, 0.0], [0.9, 0.45, 0.75])]));
         }
+        PropKind::Car => {
+            // berline de 4,2 m, l'avant vers +z ; habitacle vitré pour conduire en vue intérieure
+            let glass = |x: f32, z: f32, sx: f32, sz: f32| (Shape::Glass, Vec3::new(x, 1.2, z), Vec3::new(sx, 0.5, sz), None, 0.0);
+            v.push(bx(0.0, 0.0, 1.8, 4.2, 0.3, 0.95, None));
+            v.push(bx(0.0, -0.15, 1.72, 2.1, 1.45, 1.52, None));
+            for (x, z) in [(-0.84, 0.88), (0.84, 0.88), (-0.84, -1.18), (0.84, -1.18), (-0.84, -0.15), (0.84, -0.15)] {
+                v.push(bx(x, z, 0.06, 0.08, 0.95, 1.45, None));
+            }
+            v.push(glass(0.0, 0.88, 1.62, 0.03));
+            v.push(glass(0.0, -1.18, 1.62, 0.03));
+            v.push(glass(-0.85, -0.15, 0.03, 2.0));
+            v.push(glass(0.85, -0.15, 0.03, 2.0));
+            // intérieur : planche de bord, volant (place conducteur à gauche, x > 0), sièges
+            v.push(bx(0.0, 0.72, 1.62, 0.3, 0.95, 1.05, Some(DARK)));
+            v.push(bx(0.4, 0.5, 0.36, 0.05, 1.0, 1.28, Some(DARK)));
+            for x in [-0.4, 0.4] {
+                v.push(bx(x, -0.45, 0.5, 0.12, 0.95, 1.35, Some([0.25, 0.25, 0.28])));
+            }
+            v.push(bx(0.0, -0.95, 1.5, 0.12, 0.95, 1.3, Some([0.25, 0.25, 0.28])));
+            // phares, feux, pare-chocs, plaques
+            for x in [-0.6, 0.6] {
+                v.push(bx(x, 2.1, 0.35, 0.03, 0.62, 0.76, Some([1.0, 0.97, 0.85])));
+                v.push(bx(x, -2.1, 0.35, 0.03, 0.66, 0.78, Some([0.8, 0.05, 0.05])));
+            }
+            v.push(bx(0.0, 2.13, 1.82, 0.08, 0.3, 0.46, Some(DARK)));
+            v.push(bx(0.0, -2.13, 1.82, 0.08, 0.3, 0.46, Some(DARK)));
+            v.push(bx(0.0, 2.15, 0.5, 0.02, 0.47, 0.58, Some(WHITE)));
+            v.push(bx(0.0, -2.15, 0.5, 0.02, 0.5, 0.61, Some(WHITE)));
+            for (x, z) in [(-0.82, 1.35), (0.82, 1.35), (-0.82, -1.35), (0.82, -1.35)] {
+                v.push((Shape::Wheel, Vec3::new(x, 0.34, z), Vec3::new(0.24, 0.68, 0.68), Some([0.08, 0.08, 0.09]), 0.0));
+            }
+        }
         PropKind::Fence => {
             for x in [-1.0, 0.0, 1.0] {
                 v.push(bx(x, 0.0, 0.08, 0.08, 0.0, 1.0, None));
@@ -864,6 +902,7 @@ pub fn demo_house() -> House {
     prop(PropKind::Pine, 14.0, 10.0, 0.0);
     prop(PropKind::Tree, -5.0, 9.0, 0.0);
     prop(PropKind::Pine, 16.0, -2.0, 0.0);
+    prop(PropKind::Car, 8.6, -2.6, 90.0);
     for i in 0..5 {
         prop(PropKind::Hedge, 11.5, 1.0 + 2.0 * i as f32, 90.0);
     }

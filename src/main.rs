@@ -41,6 +41,7 @@ fn main() {
                 camera::camera_control,
                 visit::visit_update,
                 visit::animate_avatar,
+                visit::sync_car,
                 editor::editor_input,
                 render::rebuild,
                 render::update_sun,

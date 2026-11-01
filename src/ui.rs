@@ -537,9 +537,15 @@ fn visit_overlay(ctx: &egui::Context, v: &Visitor) {
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("viseur")));
     let aim = if v.target.is_some() { ACCENT } else { Color32::from_white_alpha(200) };
     painter.circle_stroke(center, 5.0, egui::Stroke::new(2.0_f32, aim));
+    if let Some(kmh) = v.speed_kmh {
+        let at = ctx.screen_rect().center_bottom() - egui::vec2(0.0, 70.0);
+        let txt = format!("{kmh:.0} km/h");
+        painter.text(at + egui::vec2(2.0, 2.0), egui::Align2::CENTER_CENTER, &txt, egui::FontId::proportional(40.0), Color32::BLACK);
+        painter.text(at, egui::Align2::CENTER_CENTER, txt, egui::FontId::proportional(40.0), Color32::WHITE);
+    }
     // actions liées à l'objet visé en évidence, les autres en discret
     for (i, a) in v.actions.iter().enumerate() {
-        let strong = a.starts_with("E :") || a.contains("relever");
+        let strong = a.starts_with("E :") || a.contains("relever") || v.speed_kmh.is_some();
         let color = if strong { ACCENT } else { Color32::from_white_alpha(170) };
         let size = if strong { 18.0 } else { 14.0 };
         let pos = center + egui::vec2(0.0, 30.0 + 22.0 * i as f32);

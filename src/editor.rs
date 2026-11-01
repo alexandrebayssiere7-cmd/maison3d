@@ -95,6 +95,8 @@ pub struct Editor {
     pub walk_start: Option<Vec3>,
     /// Portes et placards : (ouverture actuelle 0..1, ouvert demandé). État de visite, non enregistré.
     pub doors: HashMap<ElemRef, (f32, bool)>,
+    /// Voiture en cours de conduite (index dans `house.props`), masquée du rendu normal.
+    pub driving: Option<usize>,
     pub show_help: bool,
     /// Une modification de propriété est en cours (un seul point d'annulation par geste).
     pub prop_edit_active: bool,
@@ -144,6 +146,7 @@ impl Default for Editor {
             walk: false,
             walk_start: None,
             doors: HashMap::new(),
+            driving: None,
             show_help: true,
             prop_edit_active: false,
         }

@@ -78,6 +78,7 @@ pub struct Visitor {
     pitch: f32,
     body_yaw: f32,
     pub third: bool,
+    /// Distance voulue de la caméra 3e personne (fixe) et distance réelle (raccourcie par les murs).
     boom: f32,
     boom_cur: f32,
     stance: Stance,
@@ -96,6 +97,34 @@ pub struct Visitor {
     pub target: Option<ElemRef>,
     /// Actions possibles, affichées sous le viseur.
     pub actions: Vec<&'static str>,
+    car: Option<Car>,
+    /// Vitesse affichée au compteur pendant la conduite.
+    pub speed_kmh: Option<f32>,
+}
+
+/// Voiture conduite : l'avant est vers +z local, `heading` en radians autour de la verticale.
+#[derive(Clone, Copy, Debug)]
+struct Car {
+    prop: usize,
+    pos: Vec3,
+    heading: f32,
+    /// m/s, négatif en marche arrière.
+    speed: f32,
+    steer: f32,
+    /// Rotation des roues (pour l'affichage).
+    spin: f32,
+    /// Temps sans bouger la souris : la caméra se recale alors derrière la voiture.
+    look_idle: f32,
+}
+
+const MAX_SPEED: f32 = 33.0;
+const MAX_REVERSE: f32 = 6.0;
+const WHEELBASE: f32 = 2.7;
+const WHEEL_RADIUS: f32 = 0.34;
+const DRIVE_BOOM: f32 = 6.5;
+
+fn car_tf(c: &Car) -> Transform {
+    Transform::from_translation(c.pos).with_rotation(Quat::from_rotation_y(c.heading))
 }
 
 impl Default for Visitor {
@@ -123,6 +152,8 @@ impl Default for Visitor {
             root_yaw: 0.0,
             target: None,
             actions: vec![],
+            car: None,
+            speed_kmh: None,
         }
     }
 }
@@ -254,7 +285,7 @@ pub fn animate_avatar(
     let (tf, vis) = &mut *root;
     **tf = root_tf(&v);
     // en 1re personne (ou caméra collée au personnage) on ne se voit pas
-    **vis = if v.active && v.third && v.boom_cur > 0.6 { Visibility::Visible } else { Visibility::Hidden };
+    **vis = if v.active && v.third && v.boom_cur > 0.6 && v.car.is_none() { Visibility::Visible } else { Visibility::Hidden };
     let p = &v.pose;
     let rx = Quat::from_rotation_x;
     for (j, mut t) in &mut joints {
@@ -331,6 +362,10 @@ pub fn visit_update(
     let dt = time.delta_secs().min(0.05);
     let v = &mut *v;
     if !ed.walk {
+        if let Some(car) = v.car.take() {
+            park(&car, &mut ed);
+            v.speed_kmh = None;
+        }
         if v.active {
             v.active = false;
             v.target = None;
@@ -362,12 +397,15 @@ pub fn visit_update(
     if keys.just_pressed(KeyCode::KeyV) {
         v.third = !v.third;
     }
+    // glisser à deux doigts sur le trackpad tourne aussi la vue (même sens qu'en édition) ;
+    // la distance de la caméra reste fixe : pas de zoom
+    if scroll.unit == MouseScrollUnit::Pixel {
+        v.yaw -= scroll.delta.x * 0.004;
+        v.pitch = (v.pitch + scroll.delta.y * 0.004).clamp(-1.45, 1.45);
+    }
     if v.third {
-        let s = match scroll.unit {
-            MouseScrollUnit::Line => scroll.delta.y,
-            MouseScrollUnit::Pixel => scroll.delta.y / 30.0,
-        };
-        v.boom = (v.boom - s * 0.4).clamp(1.2, 7.0);
+        // au-delà, la caméra passerait sous le sol et se collerait au personnage
+        v.pitch = v.pitch.clamp(-1.2, 0.55);
     }
     let look = Quat::from_euler(EulerRot::YXZ, v.yaw, v.pitch, 0.0);
     let (sy, cy) = v.yaw.sin_cos();
@@ -375,6 +413,12 @@ pub fn visit_update(
     let key = |k: KeyCode| if keys.pressed(k) { 1.0 } else { 0.0 };
     let mv = Vec2::new(key(KeyCode::KeyD) - key(KeyCode::KeyA), key(KeyCode::KeyW) - key(KeyCode::KeyS));
     let solids: Vec<Transform> = ed.parts.iter().filter(|p| solid(p)).map(|p| p.bounds()).collect();
+
+    if let Some(car) = v.car {
+        let (cam_tf, proj) = &mut *cam;
+        drive(v, car, &mut ed, &keys, &solids, d, dt, cam_tf, proj);
+        return;
+    }
 
     // --- déplacement (debout uniquement)
     let mut speed = 0.0;
@@ -395,7 +439,7 @@ pub fn visit_update(
         let mut pos = v.pos + hv * dt;
         for _ in 0..3 {
             for tf in &solids {
-                push_out(&mut pos, tf);
+                push_out(&mut pos, tf, RADIUS, HEIGHT);
             }
         }
         // la vitesse perdue contre un mur ne s'accumule pas
@@ -428,13 +472,8 @@ pub fn visit_update(
             // un cycle = deux pas ; la foulée s'allonge en courant
             v.phase = (v.phase + speed * dt * TAU / (1.3 + 1.1 * run)) % TAU;
         }
-        // en 3e personne le corps se tourne vers où il va ; en 1re il suit le regard
-        if !v.third {
-            v.body_yaw = v.yaw;
-        } else if speed > 0.3 {
-            let target = (-v.vel.x).atan2(-v.vel.z);
-            v.body_yaw = lerp_angle(v.body_yaw, target, 1.0 - (-10.0 * dt).exp());
-        }
+        // le corps se tourne avec la caméra : en 3e personne on voit le personnage pivoter en douceur
+        v.body_yaw = if v.third { lerp_angle(v.body_yaw, v.yaw, 1.0 - (-12.0 * dt).exp()) } else { v.yaw };
     }
     v.dip = (v.dip - dt * 0.5).max(0.0);
 
@@ -477,7 +516,12 @@ pub fn visit_update(
     v.target = pick(&ed.parts, origin, ray)
         .filter(|&(_, dist)| (origin + ray * dist).distance(eye) < REACH)
         .map(|h| h.0)
-        .filter(|&e| ed.house.openable(e) || matches!(e, ElemRef::Prop(i) if furniture_spot(&ed.house.props[i], false, v.pos).is_some() || furniture_spot(&ed.house.props[i], true, v.pos).is_some()));
+        .filter(|&e| {
+            ed.house.openable(e)
+                || matches!(e, ElemRef::Prop(i) if ed.house.props[i].kind == PropKind::Car
+                    || furniture_spot(&ed.house.props[i], false, v.pos).is_some()
+                    || furniture_spot(&ed.house.props[i], true, v.pos).is_some())
+        });
     let vpos = v.pos;
     let prop = match v.target {
         Some(ElemRef::Prop(i)) => ed.house.props.get(i).cloned(),
@@ -497,6 +541,10 @@ pub fn visit_update(
         }
     } else {
         let openable = v.target.is_some_and(|t| ed.house.openable(t));
+        let car_target = prop.as_ref().is_some_and(|p| p.kind == PropKind::Car);
+        if car_target {
+            v.actions.push("E : conduire");
+        }
         if openable {
             let open = v.target.and_then(|t| ed.doors.get(&t)).is_some_and(|d| d.1);
             v.actions.push(if open { "E : fermer" } else { "E : ouvrir" });
@@ -511,6 +559,20 @@ pub fn visit_update(
 
         let chosen = if e && openable {
             ed.toggle_door(v.target.unwrap());
+            None
+        } else if let (true, Some(ElemRef::Prop(i)), Some(p)) = (e && car_target, v.target, &prop) {
+            v.car = Some(Car {
+                prop: i,
+                pos: Vec3::new(p.pos.x, elev(p.level), p.pos.y),
+                heading: p.rot.to_radians(),
+                speed: 0.0,
+                steer: 0.0,
+                spin: 0.0,
+                look_idle: 2.0,
+            });
+            ed.driving = Some(i);
+            ed.dirty = true;
+            v.boom_cur = 1.0;
             None
         } else if e {
             if primary_lie { lie.or(sit) } else { sit.or(lie) }
@@ -529,7 +591,183 @@ pub fn visit_update(
             v.vel = Vec3::ZERO;
         }
     }
-    v.actions.push(if v.third { "V : vue 1re personne (molette : distance)" } else { "V : vue 3e personne" });
+    v.actions.push(if v.third { "V : vue 1re personne" } else { "V : vue 3e personne" });
+}
+
+/// Un pas de conduite : moteur, freins, direction, collisions, caméra, descente du véhicule.
+#[allow(clippy::too_many_arguments)]
+fn drive(
+    v: &mut Visitor,
+    mut car: Car,
+    ed: &mut Editor,
+    keys: &ButtonInput<KeyCode>,
+    solids: &[Transform],
+    mouse: Vec2,
+    dt: f32,
+    cam: &mut Transform,
+    proj: &mut Projection,
+) {
+    let key = |k: KeyCode| if keys.pressed(k) { 1.0 } else { 0.0 };
+    let throttle = key(KeyCode::KeyW) - key(KeyCode::KeyS);
+    let steer_in = key(KeyCode::KeyA) - key(KeyCode::KeyD);
+    let handbrake = keys.pressed(KeyCode::Space);
+    car.speed = car_speed(car.speed, throttle, handbrake, dt);
+
+    // la direction braque moins à haute vitesse ; modèle « bicyclette »
+    let max_steer = 0.6 / (1.0 + car.speed.abs() * 0.1);
+    car.steer += (steer_in * max_steer - car.steer) * (1.0 - (-6.0 * dt).exp());
+    car.heading += car.speed / WHEELBASE * car.steer.tan() * dt;
+    let f = Vec3::new(car.heading.sin(), 0.0, car.heading.cos());
+    let mut pos = car.pos + f * car.speed * dt;
+    // carrosserie approchée par quatre cercles alignés sur sa longueur
+    let mut hit = false;
+    for _ in 0..2 {
+        for o in [-1.45, -0.5, 0.5, 1.45] {
+            let c0 = pos + f * o;
+            let mut c = c0;
+            for tf in solids {
+                push_out(&mut c, tf, 0.85, 1.4);
+            }
+            if c != c0 {
+                pos += c - c0;
+                hit = true;
+            }
+        }
+    }
+    if hit && car.speed.abs() > 0.5 {
+        // choc : la voiture rebondit et perd l'essentiel de sa vitesse
+        car.speed *= -0.3;
+    }
+    pos.y = floor_at(pos, solids);
+    car.pos = pos;
+    car.spin = (car.spin + car.speed * dt / WHEEL_RADIUS) % TAU;
+
+    // caméra : libre à la souris, se recale derrière la voiture après une seconde
+    car.look_idle = if mouse.length() > 0.5 { 0.0 } else { car.look_idle + dt };
+    if car.look_idle > 1.0 {
+        let k = 1.0 - (-3.0 * dt).exp();
+        v.yaw = lerp_angle(v.yaw, yaw_facing(f), k);
+        v.pitch += (if v.third { -0.18 } else { -0.05 } - v.pitch) * k;
+    }
+    let look = Quat::from_euler(EulerRot::YXZ, v.yaw, v.pitch, 0.0);
+    let body = car_tf(&car);
+    if v.third {
+        let pivot = car.pos + Vec3::Y * 1.7;
+        let desired = look * Vec3::new(0.0, 0.4, DRIVE_BOOM);
+        let (len, dir) = (desired.length(), desired.normalize());
+        let free = camera_clearance(&ed.parts, pivot, dir, len);
+        v.boom_cur = if free < v.boom_cur { free } else { v.boom_cur + (free - v.boom_cur) * (1.0 - (-3.0 * dt).exp()) };
+        *cam = Transform::from_translation(pivot + dir * v.boom_cur).with_rotation(look);
+    } else {
+        // place conducteur, à gauche
+        *cam = Transform::from_translation(body.transform_point(Vec3::new(0.4, 1.25, -0.25))).with_rotation(look);
+    }
+    v.fov += (0.8 + 0.25 * (car.speed.abs() / MAX_SPEED).min(1.0) - v.fov) * (1.0 - (-3.0 * dt).exp());
+    if let Projection::Perspective(p) = proj {
+        p.fov = v.fov;
+    }
+
+    v.speed_kmh = Some(car.speed.abs() * 3.6);
+    v.target = None;
+    v.actions = vec![
+        "Z / S : accélérer, freiner, reculer",
+        "Q / D : tourner  •  Espace : frein à main",
+        "E : descendre",
+        if v.third { "V : vue intérieure" } else { "V : vue extérieure" },
+    ];
+    if keys.just_pressed(KeyCode::KeyE) {
+        // on descend côté conducteur
+        let out = body.transform_point(Vec3::new(1.5, 0.0, -0.2));
+        v.pos = Vec3::new(out.x, car.pos.y + 0.05, out.z);
+        v.root = v.pos;
+        v.vel = Vec3::ZERO;
+        v.body_yaw = v.yaw;
+        v.root_yaw = v.yaw;
+        v.speed_kmh = None;
+        v.car = None;
+        park(&car, ed);
+        return;
+    }
+    v.car = Some(car);
+}
+
+/// Nouvelle vitesse : moteur (qui s'essouffle vers la vitesse max), freins, frein à main, frottements.
+fn car_speed(speed: f32, throttle: f32, handbrake: bool, dt: f32) -> f32 {
+    // freiner jusqu'à l'arrêt complet, puis seulement repartir dans l'autre sens
+    let forward = speed > 0.0;
+    let backward = speed < 0.0;
+    let braking = handbrake || throttle == 0.0 || (throttle > 0.0 && backward) || (throttle < 0.0 && forward);
+    let accel = if handbrake {
+        -12.0 * speed.signum()
+    } else if throttle > 0.0 {
+        if backward { 10.0 } else { 5.0 * (1.0 - speed / MAX_SPEED).max(0.0) }
+    } else if throttle < 0.0 {
+        if forward { -10.0 } else { -3.0 * (1.0 + speed / MAX_REVERSE).max(0.0) }
+    } else {
+        // roue libre : frottements + résistance de l'air
+        -(1.2 + 0.012 * speed * speed) * speed.signum()
+    };
+    let new = speed + accel * dt;
+    // un frein arrête la voiture mais ne la fait pas repartir dans l'autre sens
+    if braking && new * speed <= 0.0 { 0.0 } else { new }
+}
+
+/// Laisse la voiture là où on l'a conduite et la rend à l'affichage normal.
+fn park(car: &Car, ed: &mut Editor) {
+    if let Some(p) = ed.house.props.get_mut(car.prop) {
+        p.pos = Vec2::new(car.pos.x, car.pos.z);
+        p.rot = car.heading.to_degrees().rem_euclid(360.0);
+    }
+    ed.driving = None;
+    ed.dirty = true;
+}
+
+#[derive(Component)]
+pub struct CarBody;
+
+#[derive(Component)]
+pub struct CarWheel {
+    base: Transform,
+    front: bool,
+}
+
+/// Affiche la voiture conduite (créée à la montée, supprimée à la descente) et anime ses roues.
+pub fn sync_car(
+    mut commands: Commands,
+    v: Res<Visitor>,
+    ed: Res<Editor>,
+    mut lib: ResMut<crate::render::Library>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut body: Query<(Entity, &mut Transform), (With<CarBody>, Without<CarWheel>)>,
+    mut wheels: Query<(&CarWheel, &mut Transform), Without<CarBody>>,
+) {
+    match (v.car, body.single_mut()) {
+        (Some(car), Ok((_, mut tf))) => {
+            *tf = car_tf(&car);
+            for (w, mut t) in &mut wheels {
+                let steer = if w.front { car.steer } else { 0.0 };
+                t.rotation = Quat::from_rotation_y(steer) * Quat::from_rotation_x(car.spin) * w.base.rotation;
+            }
+        }
+        (Some(car), Err(_)) => {
+            let Some(p) = ed.house.props.get(car.prop) else { return };
+            let model = Prop { pos: Vec2::ZERO, level: 0, rot: 0.0, ..p.clone() };
+            let parts = prop_parts(&model, ElemRef::Prop(car.prop), 0.0);
+            commands.spawn((CarBody, car_tf(&car), Visibility::Visible)).with_children(|root| {
+                for part in &parts {
+                    let bundle = crate::render::part_bundle(&mut lib, &mut meshes, &mut materials, part);
+                    let base = bundle.2;
+                    let mut e = root.spawn(bundle);
+                    if part.shape == Shape::Wheel {
+                        e.insert(CarWheel { base, front: part.tf.translation.z > 0.0 });
+                    }
+                }
+            });
+        }
+        (None, Ok((e, _))) => commands.entity(e).despawn(),
+        (None, Err(_)) => {}
+    }
 }
 
 fn lerp_angle(a: f32, b: f32, k: f32) -> f32 {
@@ -549,10 +787,10 @@ fn y_range(tf: &Transform) -> (f32, f32) {
     (tf.translation.y - tf.scale.y / 2.0, tf.translation.y + tf.scale.y / 2.0)
 }
 
-/// Repousse le cylindre du visiteur hors d'une boîte qu'il traverse.
-fn push_out(pos: &mut Vec3, tf: &Transform) {
+/// Repousse un cylindre (rayon, hauteur) hors d'une boîte qu'il traverse.
+fn push_out(pos: &mut Vec3, tf: &Transform, radius: f32, height: f32) {
     let (y0, y1) = y_range(tf);
-    if y1 <= pos.y + STEP || y0 >= pos.y + HEIGHT {
+    if y1 <= pos.y + STEP || y0 >= pos.y + height {
         return;
     }
     let l = tf.rotation.inverse() * (*pos - tf.translation);
@@ -560,14 +798,14 @@ fn push_out(pos: &mut Vec3, tf: &Transform) {
     let (dx, dz) = (l.x - l.x.clamp(-h.x, h.x), l.z - l.z.clamp(-h.z, h.z));
     let d2 = dx * dx + dz * dz;
     let push = if d2 > 1e-8 {
-        if d2 >= RADIUS * RADIUS {
+        if d2 >= radius * radius {
             return;
         }
         let d = d2.sqrt();
-        Vec2::new(dx, dz) / d * (RADIUS - d)
+        Vec2::new(dx, dz) / d * (radius - d)
     } else {
         // centre à l'intérieur : sortie par le côté le plus proche
-        let (px, pz) = (h.x - l.x.abs() + RADIUS, h.z - l.z.abs() + RADIUS);
+        let (px, pz) = (h.x - l.x.abs() + radius, h.z - l.z.abs() + radius);
         if px < pz { Vec2::new(px * l.x.signum(), 0.0) } else { Vec2::new(0.0, pz * l.z.signum()) }
     };
     *pos += tf.rotation * Vec3::new(push.x, 0.0, push.y);
@@ -648,7 +886,7 @@ mod tests {
             pos += Vec3::Z * 3.0 / 60.0;
             for _ in 0..3 {
                 for tf in s {
-                    push_out(&mut pos, tf);
+                    push_out(&mut pos, tf, RADIUS, HEIGHT);
                 }
             }
             pos.y = floor_at(pos, s);
@@ -693,6 +931,48 @@ mod tests {
         assert!(up < 4.0, "caméra traverse le toit : {up}");
         // dehors, rien derrière : distance complète
         assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0), 3.75);
+    }
+
+    #[test]
+    fn car_accelerates_brakes_and_never_creeps() {
+        let dt = 1.0 / 60.0;
+        let mut s = 0.0;
+        for _ in 0..(60 * 5) {
+            s = car_speed(s, 1.0, false, dt);
+        }
+        // 0 à ~70 km/h en 5 s, sans dépasser la vitesse max
+        assert!(s * 3.6 > 55.0 && s < MAX_SPEED, "{} km/h", s * 3.6);
+        let mut braking = s;
+        let mut frames = 0;
+        while braking > 0.0 {
+            braking = car_speed(braking, -1.0, false, dt);
+            frames += 1;
+        }
+        assert_eq!(braking, 0.0, "le frein ne fait pas reculer");
+        assert!(frames < 60 * 3, "freinage trop long : {frames} images");
+        // à l'arrêt sans accélérer : reste immobile
+        assert_eq!(car_speed(0.0, 0.0, false, dt), 0.0);
+        // marche arrière limitée
+        let mut r = 0.0;
+        for _ in 0..600 {
+            r = car_speed(r, -1.0, false, dt);
+        }
+        assert!(r < 0.0 && r > -MAX_REVERSE);
+    }
+
+    #[test]
+    fn car_parts_and_parking() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let i = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
+        let wheels = prop_parts(&ed.house.props[i], ElemRef::Prop(i), 0.0).iter().filter(|p| p.shape == Shape::Wheel).count();
+        assert_eq!(wheels, 4);
+        ed.driving = Some(i);
+        let car = Car { prop: i, pos: Vec3::new(20.0, 0.0, 5.0), heading: FRAC_PI_2, speed: 0.0, steer: 0.0, spin: 0.0, look_idle: 0.0 };
+        park(&car, &mut ed);
+        assert_eq!(ed.house.props[i].pos, Vec2::new(20.0, 5.0));
+        assert!((ed.house.props[i].rot - 90.0).abs() < 1e-3);
+        assert!(ed.driving.is_none() && ed.dirty);
     }
 
     #[test]
