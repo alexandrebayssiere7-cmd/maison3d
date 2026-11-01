@@ -452,7 +452,7 @@ pub fn visit_update(
         }
         v.vel.y -= GRAVITY * dt;
         pos.y += v.vel.y * dt;
-        let floor = floor_at(pos, &solids);
+        let floor = floor_at(pos, &solids, ed.house.ground(Vec2::new(pos.x, pos.z)));
         let was_grounded = v.grounded;
         v.grounded = pos.y <= floor;
         if v.grounded {
@@ -497,7 +497,7 @@ pub fn visit_update(
         let pivot = eye + Vec3::Y * 0.1;
         let desired = look * Vec3::new(0.35, 0.15, v.boom);
         let (len, dir) = (desired.length(), desired.normalize());
-        let free = camera_clearance(&ed.parts, pivot, dir, len);
+        let free = camera_clearance(&ed.parts, pivot, dir, len, ed.house.ground(Vec2::new(pivot.x, pivot.z)));
         // on se rapproche tout de suite d'un obstacle, on s'en écarte doucement
         v.boom_cur = if free < v.boom_cur { free } else { v.boom_cur + (free - v.boom_cur) * (1.0 - (-4.0 * dt).exp()) };
         **cam_tf = Transform::from_translation(pivot + dir * v.boom_cur).with_rotation(look);
@@ -563,7 +563,7 @@ pub fn visit_update(
         } else if let (true, Some(ElemRef::Prop(i)), Some(p)) = (e && car_target, v.target, &prop) {
             v.car = Some(Car {
                 prop: i,
-                pos: Vec3::new(p.pos.x, elev(p.level), p.pos.y),
+                pos: Vec3::new(p.pos.x, ed.house.prop_y(p), p.pos.y),
                 heading: p.rot.to_radians(),
                 speed: 0.0,
                 steer: 0.0,
@@ -638,7 +638,7 @@ fn drive(
         // choc : la voiture rebondit et perd l'essentiel de sa vitesse
         car.speed *= -0.3;
     }
-    pos.y = floor_at(pos, solids);
+    pos.y = floor_at(pos, solids, ed.house.ground(Vec2::new(pos.x, pos.z)));
     car.pos = pos;
     car.spin = (car.spin + car.speed * dt / WHEEL_RADIUS) % TAU;
 
@@ -655,7 +655,7 @@ fn drive(
         let pivot = car.pos + Vec3::Y * 1.7;
         let desired = look * Vec3::new(0.0, 0.4, DRIVE_BOOM);
         let (len, dir) = (desired.length(), desired.normalize());
-        let free = camera_clearance(&ed.parts, pivot, dir, len);
+        let free = camera_clearance(&ed.parts, pivot, dir, len, ed.house.ground(Vec2::new(pivot.x, pivot.z)));
         v.boom_cur = if free < v.boom_cur { free } else { v.boom_cur + (free - v.boom_cur) * (1.0 - (-3.0 * dt).exp()) };
         *cam = Transform::from_translation(pivot + dir * v.boom_cur).with_rotation(look);
     } else {
@@ -753,7 +753,7 @@ pub fn sync_car(
         (Some(car), Err(_)) => {
             let Some(p) = ed.house.props.get(car.prop) else { return };
             let model = Prop { pos: Vec2::ZERO, level: 0, rot: 0.0, ..p.clone() };
-            let parts = prop_parts(&model, ElemRef::Prop(car.prop), 0.0);
+            let parts = prop_parts(&model, ElemRef::Prop(car.prop), 0.0, 0.0);
             commands.spawn((CarBody, car_tf(&car), Visibility::Visible)).with_children(|root| {
                 for part in &parts {
                     let bundle = crate::render::part_bundle(&mut lib, &mut meshes, &mut materials, part);
@@ -777,9 +777,12 @@ fn lerp_angle(a: f32, b: f32, k: f32) -> f32 {
 
 // ---------------------------------------------------------------- collisions
 
-/// Ce qui arrête le visiteur (le volume englobant d'un toit en pente, lui, est surtout vide).
+/// Ce qui arrête le visiteur (le volume englobant d'un toit en pente, lui, est surtout vide ;
+/// on traverse l'eau, et la route inclinée est portée par le terrain terrassé dessous).
 fn solid(p: &Part) -> bool {
     !matches!(p.shape, Shape::Light | Shape::Roof { .. })
+        && !matches!(p.owner, ElemRef::Road(_))
+        && !(p.shape == Shape::Glass && matches!(p.owner, ElemRef::Pool(_)))
 }
 
 /// Bas et haut d'une boîte ; nos pièces ne tournent qu'autour de la verticale.
@@ -811,9 +814,9 @@ fn push_out(pos: &mut Vec3, tf: &Transform, radius: f32, height: f32) {
     *pos += tf.rotation * Vec3::new(push.x, 0.0, push.y);
 }
 
-/// Hauteur du sol sous les pieds : dessus de la plus haute boîte franchissable, ou le terrain.
-fn floor_at(pos: Vec3, solids: &[Transform]) -> f32 {
-    let mut best = if pos.y >= -0.05 { 0.0 } else { -50.0 };
+/// Hauteur du sol sous les pieds : dessus de la plus haute boîte franchissable, ou le terrain `ground`.
+fn floor_at(pos: Vec3, solids: &[Transform], ground: f32) -> f32 {
+    let mut best = if pos.y >= ground - 0.05 { ground } else { -50.0 };
     for tf in solids {
         let top = y_range(tf).1;
         if top > pos.y + STEP || top <= best {
@@ -829,7 +832,7 @@ fn floor_at(pos: Vec3, solids: &[Transform]) -> f32 {
 }
 
 /// Distance libre derrière le personnage pour la caméra 3e personne (murs, sols, toits, terrain).
-fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32) -> f32 {
+fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32, ground: f32) -> f32 {
     let mut best = max;
     for p in parts.iter().filter(|p| p.shape != Shape::Light) {
         let hit = match p.shape {
@@ -844,8 +847,8 @@ fn camera_clearance(parts: &[Part], from: Vec3, dir: Vec3, max: f32) -> f32 {
             best = best.min(t);
         }
     }
-    if dir.y < 0.0 && from.y > 0.0 {
-        best = best.min(from.y / -dir.y);
+    if dir.y < 0.0 && from.y > ground {
+        best = best.min((from.y - ground) / -dir.y);
     }
     (best - 0.25).max(0.15)
 }
@@ -889,7 +892,7 @@ mod tests {
                     push_out(&mut pos, tf, RADIUS, HEIGHT);
                 }
             }
-            pos.y = floor_at(pos, s);
+            pos.y = floor_at(pos, s, 0.0);
         }
         pos
     }
@@ -908,10 +911,10 @@ mod tests {
     #[test]
     fn stands_on_floors_and_climbs_stairs() {
         let s = solids(0.0);
-        assert!((floor_at(Vec3::new(5.0, 0.0, 4.0), &s) - 0.02).abs() < 1e-3, "sur le parquet");
+        assert!((floor_at(Vec3::new(5.0, 0.0, 4.0), &s, 0.0) - 0.02).abs() < 1e-3, "sur le parquet");
         let mut h = demo_house();
         h.props.clear();
-        h.props.push(Prop { kind: PropKind::Stairs, pos: Vec2::new(20.0, 0.0), level: 0, rot: 0.0, color: [1.0; 3], texture: 0 });
+        h.props.push(Prop { kind: PropKind::Stairs, pos: Vec2::new(20.0, 0.0), level: 0, rot: 0.0, color: [1.0; 3], texture: 0, height: LEVEL_H });
         let stairs: Vec<Transform> = h.parts_closed(None).iter().filter(|p| solid(p)).map(|p| p.bounds()).collect();
         // 1,6 s à 3 m/s : on s'arrête sur les dernières marches
         let top = walk(Vec3::new(20.0, 0.0, -3.0), 1.6, &stairs);
@@ -924,13 +927,13 @@ mod tests {
         let parts = h.parts_closed(None);
         // au centre du salon, caméra reculée vers le mur sud (z = 0) : bloquée avant 3,9 m
         let head = Vec3::new(3.0, 1.7, 3.9);
-        let free = camera_clearance(&parts, head, -Vec3::Z, 10.0);
+        let free = camera_clearance(&parts, head, -Vec3::Z, 10.0, 0.0);
         assert!(free < 3.8 && free > 3.0, "caméra traverse le mur : {free}");
         // vers le haut : le toit (base à 3 m) arrête la caméra
-        let up = camera_clearance(&parts, head, Vec3::Y, 10.0);
+        let up = camera_clearance(&parts, head, Vec3::Y, 10.0, 0.0);
         assert!(up < 4.0, "caméra traverse le toit : {up}");
         // dehors, rien derrière : distance complète
-        assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0), 3.75);
+        assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0, 0.0), 3.75);
     }
 
     #[test]
@@ -965,7 +968,7 @@ mod tests {
         let mut ed = Editor::default();
         ed.house = demo_house();
         let i = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
-        let wheels = prop_parts(&ed.house.props[i], ElemRef::Prop(i), 0.0).iter().filter(|p| p.shape == Shape::Wheel).count();
+        let wheels = prop_parts(&ed.house.props[i], ElemRef::Prop(i), 0.0, 0.0).iter().filter(|p| p.shape == Shape::Wheel).count();
         assert_eq!(wheels, 4);
         ed.driving = Some(i);
         let car = Car { prop: i, pos: Vec3::new(20.0, 0.0, 5.0), heading: FRAC_PI_2, speed: 0.0, steer: 0.0, spin: 0.0, look_idle: 0.0 };
@@ -977,7 +980,7 @@ mod tests {
 
     #[test]
     fn furniture_spots_face_the_right_way() {
-        let chair = Prop { kind: PropKind::Chair, pos: Vec2::ZERO, level: 0, rot: 0.0, color: [1.0; 3], texture: 0 };
+        let chair = Prop { kind: PropKind::Chair, pos: Vec2::ZERO, level: 0, rot: 0.0, color: [1.0; 3], texture: 0, height: LEVEL_H };
         let (stance, at, yaw) = furniture_spot(&chair, false, Vec3::new(0.0, 0.0, 2.0)).unwrap();
         assert_eq!(stance, Stance::Sit);
         assert!((at.y - 0.48).abs() < 1e-4);

@@ -2,6 +2,7 @@ mod camera;
 mod editor;
 mod model;
 mod render;
+mod terrain;
 mod textures;
 mod visit;
 mod ui;

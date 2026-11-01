@@ -8,6 +8,7 @@ use crate::camera::CamState;
 use crate::editor::{Editor, Tool};
 use crate::model::*;
 use crate::render::Library;
+use crate::terrain::Brush;
 use crate::visit::Visitor;
 
 /// Vignettes des textures pour egui : (id, nom), dans l'ordre du catalogue.
@@ -142,6 +143,9 @@ fn shortcuts(ctx: &egui::Context, ed: &mut Editor, cs: &CamState) {
         (Key::F, Tool::Opening(OpeningKind::Window)),
         (Key::B, Tool::Opening(OpeningKind::Bay)),
         (Key::N, Tool::Prop(PropKind::Table)),
+        (Key::J, Tool::Pool),
+        (Key::U, Tool::Road),
+        (Key::K, Tool::Terrain),
         (Key::G, Tool::Paint),
         (Key::I, Tool::Eyedropper),
         (Key::X, Tool::Erase),
@@ -259,6 +263,12 @@ fn level_section(ui: &mut egui::Ui, ed: &mut Editor) {
     if ui.checkbox(&mut ed.hide_upper, "Masquer les étages au-dessus (H)").changed() {
         ed.dirty = true;
     }
+    if ui.button("+ Ajouter un étage au-dessus").on_hover_text("Copie les murs (sans les portes) et les sols de cet étage, remonte le toit").clicked() {
+        ed.checkpoint();
+        ed.house.add_storey(ed.level);
+        ed.set_level(ed.level + 1);
+        ed.message = "Étage ajouté (Ctrl+Z pour revenir)".into();
+    }
     ui.small(format!("Surface de sol de l'étage : {:.1} m²", ed.house.floor_area(ed.level)));
 }
 
@@ -268,7 +278,10 @@ fn tool_button(ui: &mut egui::Ui, ed: &mut Editor, tool: Tool, label: &str, key:
         (a, b) => a == b,
     };
     let text = RichText::new(label).size(14.0);
-    let resp = ui.add_sized([128.0, 26.0], egui::Button::new(text).selected(selected)).on_hover_text(format!("Raccourci : {key}"));
+    let mut resp = ui.add_sized([128.0, 26.0], egui::Button::new(text).selected(selected));
+    if !key.is_empty() {
+        resp = resp.on_hover_text(format!("Raccourci : {key}"));
+    }
     if resp.clicked() {
         let t = match (tool, ed.tool) {
             (Tool::Prop(_), Tool::Prop(k)) => Tool::Prop(k),
@@ -290,7 +303,13 @@ fn tools_section(ui: &mut egui::Ui, ed: &mut Editor) {
             (Tool::Opening(OpeningKind::Door), "🚪 Porte", "O"),
             (Tool::Opening(OpeningKind::Window), "▣ Fenêtre", "F"),
             (Tool::Opening(OpeningKind::Bay), "Baie vitrée", "B"),
-            (Tool::Prop(PropKind::Table), "Mobilier", "N"),
+            (Tool::Opening(OpeningKind::FrenchDoor), "Porte-fenêtre", ""),
+            (Tool::Opening(OpeningKind::Fixed), "Vitre fixe", ""),
+            (Tool::Opening(OpeningKind::Grid), "Fenêtre carreaux", ""),
+            (Tool::Prop(PropKind::Table), "Mobilier / jardin", "N"),
+            (Tool::Pool, "Piscine", "J"),
+            (Tool::Road, "Route", "U"),
+            (Tool::Terrain, "Relief", "K"),
             (Tool::Paint, "🎨 Peinture", "G"),
             (Tool::Eyedropper, "💧 Pipette", "I"),
             (Tool::Erase, "✖ Gomme", "X"),
@@ -379,7 +398,7 @@ fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
             let (w, h, s) = &mut ed.op_dims[k as usize];
             ui.add(Slider::new(w, 0.3..=6.0).text("largeur").suffix(" m"));
             ui.add(Slider::new(h, 0.3..=4.0).text("hauteur").suffix(" m"));
-            if k == OpeningKind::Window {
+            if matches!(k, OpeningKind::Window | OpeningKind::Grid | OpeningKind::Fixed) {
                 ui.add(Slider::new(s, 0.0..=2.5).text("allège").suffix(" m"));
             }
             color_row(ui, "Couleur", &mut ed.op_colors[k as usize]);
@@ -388,17 +407,23 @@ fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
             }
         }
         Tool::Prop(current) => {
-            egui::Grid::new("meubles").num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
-                for (i, k) in PropKind::ALL.into_iter().enumerate() {
-                    if ui.add_sized([84.0, 22.0], egui::Button::new(k.name()).selected(k == current)).clicked() {
-                        ed.set_tool(Tool::Prop(k));
+            for (title, outdoor) in [("Intérieur", false), ("Jardin (suit le relief)", true)] {
+                ui.small(title);
+                egui::Grid::new(("meubles", outdoor)).num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
+                    for (i, k) in PropKind::ALL.into_iter().filter(|k| k.outdoor() == outdoor).enumerate() {
+                        if ui.add_sized([84.0, 22.0], egui::Button::new(k.name()).selected(k == current)).clicked() {
+                            ed.set_tool(Tool::Prop(k));
+                        }
+                        if i % 3 == 2 {
+                            ui.end_row();
+                        }
                     }
-                    if i % 3 == 2 {
-                        ui.end_row();
-                    }
-                }
-            });
+                });
+            }
             ui.add(Slider::new(&mut ed.prop_rot, 0.0..=359.0).text("rotation (R)").suffix("°"));
+            if current.has_height() {
+                ui.add(Slider::new(&mut ed.prop_height, 0.4..=8.0).text("hauteur").suffix(" m"));
+            }
             finish_row(ui, "t_meuble", &mut ed.prop_color, &mut ed.prop_texture, thumbs);
         }
         Tool::Paint | Tool::Eyedropper => {
@@ -417,6 +442,40 @@ fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
                     if resp.clicked() {
                         ed.paint_color = c;
                     }
+                }
+            });
+        }
+        Tool::Pool => {
+            ui.add(Slider::new(&mut ed.pool_depth, 0.5..=3.0).text("profondeur").suffix(" m"));
+            finish_row(ui, "t_piscine", &mut ed.pool_color, &mut ed.pool_texture, thumbs);
+        }
+        Tool::Road => {
+            ui.add(Slider::new(&mut ed.road_width, 1.0..=12.0).text("largeur").suffix(" m"));
+            finish_row(ui, "t_route", &mut ed.road_color, &mut ed.road_texture, thumbs);
+        }
+        Tool::Terrain => {
+            ui.horizontal_wrapped(|ui| {
+                for b in Brush::ALL {
+                    ui.selectable_value(&mut ed.brush, b, b.name());
+                }
+            });
+            ui.add(Slider::new(&mut ed.brush_radius, 1.0..=30.0).text("taille").suffix(" m"));
+            ui.add(Slider::new(&mut ed.brush_strength, 0.2..=10.0).text("force").suffix(" m/s"));
+            ui.add_space(4.0);
+            ui.label(RichText::new("Relief aléatoire").strong());
+            ui.add(Slider::new(&mut ed.gen_amp, 1.0..=40.0).text("altitude").suffix(" m"));
+            ui.add(Slider::new(&mut ed.gen_scale, 10.0..=100.0).text("taille des reliefs").suffix(" m"));
+            ui.checkbox(&mut ed.gen_mountains, "Montagnes (crêtes) plutôt que collines");
+            ui.horizontal(|ui| {
+                if ui.button("Générer").on_hover_text("Un nouveau relief à chaque clic ; la maison reste à plat").clicked() {
+                    let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
+                    ed.checkpoint();
+                    ed.house.generate_terrain(seed, ed.gen_amp, ed.gen_scale, ed.gen_mountains);
+                    ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
+                }
+                if ui.button("Tout aplanir").clicked() {
+                    ed.checkpoint();
+                    ed.house.terrain = Default::default();
                 }
             });
         }
@@ -448,6 +507,8 @@ fn selection_section(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
         ElemRef::Slab(_) => "Sol".into(),
         ElemRef::Roof(_) => "Toit".into(),
         ElemRef::Prop(i) => h.props.get(i).map_or("?", |p| p.kind.name()).to_string(),
+        ElemRef::Pool(_) => "Piscine".into(),
+        ElemRef::Road(_) => "Route".into(),
     };
     ui.label(RichText::new(format!("Sélection : {title}")).strong().color(ACCENT));
     match sel {
@@ -495,10 +556,26 @@ fn selection_section(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
         ElemRef::Prop(i) => {
             let Some(p) = h.props.get_mut(i) else { return };
             ui.add(Slider::new(&mut p.rot, 0.0..=359.0).text("rotation").suffix("°"));
+            if p.kind.has_height() {
+                ui.add(Slider::new(&mut p.height, 0.4..=8.0).text("hauteur").suffix(" m"));
+            }
             finish_row(ui, "s_meuble", &mut p.color, &mut p.texture, thumbs);
             if ui.button("Couleur d'origine").clicked() {
                 p.color = p.kind.default_color();
             }
+        }
+        ElemRef::Pool(i) => {
+            let Some(p) = h.pools.get_mut(i) else { return };
+            let size = p.max - p.min;
+            ui.label(format!("{:.0} × {:.0} m", size.x, size.y));
+            ui.add(Slider::new(&mut p.depth, 0.5..=3.0).text("profondeur").suffix(" m"));
+            finish_row(ui, "s_piscine", &mut p.color, &mut p.texture, thumbs);
+        }
+        ElemRef::Road(i) => {
+            let Some(r) = h.roads.get_mut(i) else { return };
+            ui.label(format!("Longueur : {:.2} m", r.a.distance(r.b)));
+            ui.add(Slider::new(&mut r.width, 1.0..=12.0).text("largeur").suffix(" m"));
+            finish_row(ui, "s_route", &mut r.color, &mut r.texture, thumbs);
         }
     }
     if ed.house != before {
@@ -580,6 +657,13 @@ fn help(ui: &mut egui::Ui) {
         "Mobilier (N) : choisissez un meuble, cliquez pour le poser",
         "Tab : posez le bonhomme où vous voulez et visitez (E ouvre portes et placards)",
         "Peinture (G) : choisissez une couleur et/ou une des 55 textures",
+    ]);
+    section(ui, "Extérieur", &[
+        "Relief (K) : pinceau monter / creuser / aplanir / lisser / aléatoire, ou « Générer » des collines et montagnes",
+        "Piscine (J) : glissez un rectangle, elle se creuse dans le terrain",
+        "Route (U) : comme les murs, point après point ; le terrain est terrassé dessous",
+        "Mobilier (N) → Jardin : arbres, fleurs, haies… posés sur le relief",
+        "« + Ajouter un étage » : recopie les murs et sols de l'étage courant au-dessus",
     ]);
     section(ui, "Caméra", &[
         "ZQSD / WASD : avancer vers là où vous regardez  •  Espace / C : monter / descendre",

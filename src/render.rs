@@ -11,7 +11,8 @@ use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::editor::Editor;
-use crate::model::{ElemRef, Part, RoofKind, Rgb, Shape};
+use crate::model::{ElemRef, House, Part, RoofKind, Rgb, Shape, WHITE_TEX};
+use crate::terrain::{self, Terrain};
 use crate::textures;
 
 #[derive(Component)]
@@ -88,15 +89,6 @@ pub fn setup_scene(
     mut images: ResMut<Assets<Image>>,
 ) {
     let textures = textures::catalog().iter().map(|t| (t.name, images.add(texture_image(t)), t.scale)).collect();
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(600.0, 600.0))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.36, 0.55, 0.3),
-            perceptual_roughness: 1.0,
-            ..default()
-        })),
-        Transform::from_xyz(0.0, -0.005, 0.0),
-    ));
     commands.spawn((Camera3d::default(), MainCamera, Transform::from_xyz(-10.0, 15.0, 25.0)));
     commands.spawn((Sun, DirectionalLight { shadows_enabled: true, ..default() }, Transform::default()));
     commands.insert_resource(Library {
@@ -134,6 +126,8 @@ pub fn rebuild(
     for e in &old {
         commands.entity(e).despawn();
     }
+    let grass = lib.material(&mut materials, WHITE_TEX, textures::find("Herbe"));
+    commands.spawn((Built, Mesh3d(meshes.add(terrain_mesh(&ed.house))), MeshMaterial3d(grass), Transform::default()));
     let open = |e| ed.doors.get(&e).map_or(0.0, |d| d.0);
     let mut parts = ed.house.parts(ed.hide_upper.then_some(ed.level), &open);
     // la voiture conduite est affichée à part, avec ses roues animées
@@ -181,6 +175,47 @@ pub fn part_bundle(
         _ => lib.material(materials, p.color, p.texture),
     };
     (Mesh3d(mesh), MeshMaterial3d(mat), tf)
+}
+
+/// Sol : grille du relief (trouée sous les piscines) entourée d'une couronne plate jusqu'à l'horizon.
+fn terrain_mesh(h: &House) -> Mesh {
+    let t = &h.terrain;
+    let (mut pos, mut normals, mut uvs, mut idx) = (vec![], vec![], vec![], vec![]);
+    for j in 0..terrain::SIDE {
+        for i in 0..terrain::SIDE {
+            let p = Terrain::vertex(i, j);
+            let at = |di: isize, dj: isize| t.at(i.saturating_add_signed(di).min(terrain::N), j.saturating_add_signed(dj).min(terrain::N));
+            pos.push([p.x, t.at(i, j), p.y]);
+            normals.push(Vec3::new(at(-1, 0) - at(1, 0), 2.0, at(0, -1) - at(0, 1)).normalize().to_array());
+            uvs.push([p.x, p.y]);
+        }
+    }
+    let in_pool = |c: Vec2| h.pools.iter().any(|q| c.cmpgt(q.min).all() && c.cmplt(q.max).all());
+    for j in 0..terrain::N {
+        for i in 0..terrain::N {
+            if in_pool(Terrain::vertex(i, j) + 0.5) {
+                continue;
+            }
+            let v = |di: usize, dj: usize| ((j + dj) * terrain::SIDE + i + di) as u32;
+            // même diagonale (00–11) que Terrain::height
+            idx.extend([v(0, 0), v(1, 1), v(1, 0), v(0, 0), v(0, 1), v(1, 1)]);
+        }
+    }
+    let (a, b) = (Terrain::vertex(0, 0).x, 400.0);
+    for [x0, z0, x1, z1] in [[-b, -b, b, a], [-b, -a, b, b], [-b, a, a, -a], [-a, a, b, -a]] {
+        let n = pos.len() as u32;
+        for [x, z] in [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] {
+            pos.push([x, 0.0, z]);
+            normals.push([0.0, 1.0, 0.0]);
+            uvs.push([x, z]);
+        }
+        idx.extend([n, n + 2, n + 1, n, n + 3, n + 2]);
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_indices(bevy::render::mesh::Indices::U32(idx))
 }
 
 /// Toit en pente, faîtage le long de X. `size` = (longueur, hauteur, largeur).
