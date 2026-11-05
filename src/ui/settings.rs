@@ -240,20 +240,22 @@ fn terrain_settings(ui: &mut egui::Ui, ed: &mut Editor) {
         {
             let seed =
                 std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
-            // refus déjà affiché dans le message par Editor::apply
-            let _ = ed.apply([Command::GenerateTerrain {
-                seed,
-                amp: ed.gen_amp,
-                scale: ed.gen_scale,
-                mountains: ed.gen_mountains,
-            }]);
-            ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
+            generate_relief(ed, seed);
         }
         if ui.button("Tout aplanir").clicked() {
             // refus déjà affiché dans le message par Editor::apply
             let _ = ed.apply([Command::FlattenTerrain]);
         }
     });
+}
+
+/// Relief aléatoire selon les réglages du panneau.
+fn generate_relief(ed: &mut Editor, seed: u32) {
+    let cmd = Command::GenerateTerrain { seed, amp: ed.gen_amp, scale: ed.gen_scale, mountains: ed.gen_mountains };
+    // un refus garde le message posé par Editor::apply
+    if ed.apply([cmd]).is_ok() {
+        ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
+    }
 }
 
 pub(super) fn selection_section(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
@@ -376,4 +378,29 @@ fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thum
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::terrain::Terrain;
+
+    #[test]
+    fn generated_relief_can_be_undone() {
+        let mut ed = Editor::default();
+        generate_relief(&mut ed, 7);
+        assert_ne!(ed.house.terrain, Terrain::default());
+        assert!(ed.message.contains("Ctrl+Z"), "{}", ed.message);
+        ed.undo();
+        assert_eq!(ed.house.terrain, Terrain::default(), "Ctrl+Z rend le terrain plat");
+    }
+
+    #[test]
+    fn refused_relief_keeps_the_error_message() {
+        let mut ed = Editor::default();
+        ed.gen_amp = 100.0;
+        generate_relief(&mut ed, 7);
+        assert_eq!(ed.house.terrain, Terrain::default());
+        assert!(ed.message.contains("amp"), "le refus reste affiché : {}", ed.message);
+    }
 }
