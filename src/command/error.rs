@@ -109,3 +109,39 @@ impl std::fmt::Display for EditError {
 }
 
 impl std::error::Error for EditError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_error_has_a_message() {
+        let door = OpeningKind::Door;
+        let cases = [
+            (EditError::LevelOutOfRange(12), "Étage 12"),
+            (EditError::EmptyRect { min: Vec2::ONE, max: Vec2::ZERO }, "Rectangle vide"),
+            (EditError::NotFound(ElemRef::Wall(3), 0), "aucun élément"),
+            (EditError::NotFound(ElemRef::Wall(3), 2), "0 à 1"),
+            (EditError::WallTooShort, "Mur trop court"),
+            (EditError::PoolOffGrid, "au mètre"),
+            (EditError::RoadTooShort, "Route trop courte"),
+            (EditError::WallNotFound(4, 2), "il y a 2 murs"),
+            (EditError::OpeningOutsideWall { kind: door, t: 0.1, t_min: 2.0, t_max: 1.0, wall_len: 0.5 }, "trop court"),
+            (EditError::OpeningOutsideWall { kind: door, t: 0.1, t_min: 0.5, t_max: 3.5, wall_len: 4.0 }, "entre 0.50"),
+            (EditError::OpeningOverlaps { kind: door, t: 1.0, other: 0 }, "chevauche"),
+            (EditError::OpeningTooTall { top: 3.5, wall_height: 3.0 }, "trop haute"),
+            (EditError::OpeningNotDuplicable, "dupliquent"),
+            (EditError::NotRotatable, "pivotent"),
+            (EditError::OutOfWorld(Vec2::splat(99.0)), "hors du terrain"),
+            (EditError::OutOfRange { field: "amp", value: 99.0, min: 0.0, max: 60.0 }, "amp = 99"),
+            (EditError::BadColor([2.0, 0.0, 0.0]), "Couleur"),
+            (EditError::UnknownTexture { texture: 99, max: 40 }, "Texture 99"),
+            (EditError::BadFields("x".into()), "set : x"),
+            (EditError::TooMany { count: 500, max: 200 }, "500 objets"),
+        ];
+        for (e, needle) in cases {
+            let msg = e.to_string();
+            assert!(msg.contains(needle), "{e:?} → {msg}");
+        }
+    }
+}

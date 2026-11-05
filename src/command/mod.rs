@@ -279,12 +279,7 @@ impl House {
             Command::PlaceRow { kind, from, to, step, level, rot } => {
                 self.place_row(kind, (from, to), step, level, rot)
             }
-            Command::PlaceRoof { min, max, level, kind, texture } => {
-                let default = if kind == RoofKind::Flat { "Zinc" } else { "Tuiles terre cuite" };
-                let texture = texture.unwrap_or_else(|| find(default));
-                let height = if kind == RoofKind::Flat { 0.3 } else { 2.5 };
-                self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
-            }
+            Command::PlaceRoof { min, max, level, kind, texture } => self.place_roof((min, max), level, kind, texture),
             Command::AddWall(w) => self.add_wall(w),
             Command::AddSlab(s) => self.add_slab(s),
             Command::AddRoof(r) => self.add_roof(r),
@@ -294,10 +289,7 @@ impl House {
             Command::AddOpening { wall, opening } => self.add_opening(wall, opening),
             Command::AddStorey { level, min, max } => self.add_storey_checked(level, min.zip(max)),
             Command::GenerateTerrain { seed, amp, scale, mountains } => {
-                validate::range("amp", amp, 0.0, 60.0)?;
-                validate::range("scale", scale, 5.0, 200.0)?;
-                self.generate_terrain(seed, amp, scale, mountains);
-                Ok(None)
+                self.generate_checked(seed, amp, scale, mountains)
             }
             Command::FlattenTerrain => {
                 self.terrain = crate::terrain::Terrain::default();
@@ -308,20 +300,56 @@ impl House {
                 Ok(None)
             }
             Command::Move { target, by } => self.move_elem(target, by),
-            Command::Duplicate { target, by } => {
-                validate::offset(by)?;
-                let copy = self.duplicate(target, by).ok_or(EditError::OpeningNotDuplicable)?;
-                self.check_elem(copy).map(|()| Some(copy))
-            }
+            Command::Duplicate { target, by } => self.duplicate_checked(target, by),
             Command::Rotate { target, deg } => self.rotate(target, deg),
-            Command::Paint { target, color, texture } => {
-                color.map_or(Ok(()), validate::color)?;
-                texture.map_or(Ok(()), validate::texture)?;
-                self.paint(target, color, texture);
-                Ok(Some(target))
-            }
+            Command::Paint { target, color, texture } => self.paint_checked(target, color, texture),
             Command::Set { target, fields } => self.set(target, fields),
         }
+    }
+
+    /// Toit avec la hauteur et la matière par défaut de son type (zinc pour un toit plat).
+    fn place_roof(
+        &mut self,
+        (min, max): (Vec2, Vec2),
+        level: i32,
+        kind: RoofKind,
+        texture: Option<usize>,
+    ) -> Result<Option<ElemRef>, EditError> {
+        let flat = kind == RoofKind::Flat;
+        let texture = texture.unwrap_or_else(|| find(if flat { "Zinc" } else { "Tuiles terre cuite" }));
+        let height = if flat { 0.3 } else { 2.5 };
+        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
+    }
+
+    fn generate_checked(
+        &mut self,
+        seed: u32,
+        amp: f32,
+        scale: f32,
+        mountains: bool,
+    ) -> Result<Option<ElemRef>, EditError> {
+        validate::range("amp", amp, 0.0, 60.0)?;
+        validate::range("scale", scale, 5.0, 200.0)?;
+        self.generate_terrain(seed, amp, scale, mountains);
+        Ok(None)
+    }
+
+    fn duplicate_checked(&mut self, target: ElemRef, by: Vec2) -> Result<Option<ElemRef>, EditError> {
+        validate::offset(by)?;
+        let copy = self.duplicate(target, by).ok_or(EditError::OpeningNotDuplicable)?;
+        self.check_elem(copy).map(|()| Some(copy))
+    }
+
+    fn paint_checked(
+        &mut self,
+        target: ElemRef,
+        color: Option<Rgb>,
+        texture: Option<usize>,
+    ) -> Result<Option<ElemRef>, EditError> {
+        color.map_or(Ok(()), validate::color)?;
+        texture.map_or(Ok(()), validate::texture)?;
+        self.paint(target, color, texture);
+        Ok(Some(target))
     }
 
     fn add_room(

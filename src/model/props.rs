@@ -109,39 +109,41 @@ impl PropKind {
         Self::StreetLamp,
         Self::Shelf,
     ];
+    /// Libellés dans l'ordre de déclaration (indexés par la variante).
+    const NAMES: [&'static str; 30] = [
+        "Table",
+        "Chaise",
+        "Canapé",
+        "Lit",
+        "Armoire",
+        "Cuisine",
+        "Frigo",
+        "Baignoire",
+        "WC",
+        "Escalier",
+        "Pilier",
+        "Lampe sur pied",
+        "Plante",
+        "Arbre",
+        "Buisson",
+        "Sapin",
+        "Haie",
+        "Clôture",
+        "Voiture",
+        "Colimaçon",
+        "Quart tournant",
+        "Bouleau",
+        "Palmier",
+        "Cyprès",
+        "Pommier",
+        "Fleurs",
+        "Rosier",
+        "Tournesols",
+        "Lampadaire de rue",
+        "Étagère",
+    ];
     pub fn name(self) -> &'static str {
-        match self {
-            Self::Table => "Table",
-            Self::Chair => "Chaise",
-            Self::Sofa => "Canapé",
-            Self::Bed => "Lit",
-            Self::Wardrobe => "Armoire",
-            Self::Kitchen => "Cuisine",
-            Self::Fridge => "Frigo",
-            Self::Bathtub => "Baignoire",
-            Self::Toilet => "WC",
-            Self::Stairs => "Escalier",
-            Self::Pillar => "Pilier",
-            Self::Lamp => "Lampe sur pied",
-            Self::Plant => "Plante",
-            Self::Tree => "Arbre",
-            Self::Bush => "Buisson",
-            Self::Pine => "Sapin",
-            Self::Hedge => "Haie",
-            Self::Fence => "Clôture",
-            Self::Car => "Voiture",
-            Self::SpiralStairs => "Colimaçon",
-            Self::LStairs => "Quart tournant",
-            Self::Birch => "Bouleau",
-            Self::Palm => "Palmier",
-            Self::Cypress => "Cyprès",
-            Self::AppleTree => "Pommier",
-            Self::Flowers => "Fleurs",
-            Self::Rosebush => "Rosier",
-            Self::Sunflower => "Tournesols",
-            Self::StreetLamp => "Lampadaire de rue",
-            Self::Shelf => "Étagère",
-        }
+        Self::NAMES[self as usize]
     }
     /// Pousse dehors : posé sur le relief du terrain plutôt qu'à plat.
     pub fn outdoor(self) -> bool {
@@ -317,6 +319,14 @@ mod tests {
         assert!((hi - lo).abs_diff_eq(Vec2::new(2.0, 1.6), 0.05), "lit tourné : {lo} {hi}");
         let lamp = PropKind::StreetLamp.size();
         assert!(lamp.z > 4.0 && PropKind::StreetLamp.outdoor() && PropKind::Shelf.size().y < 0.5);
+    }
+    #[test]
+    fn names_follow_declaration_order() {
+        for (i, k) in PropKind::ALL.into_iter().enumerate() {
+            assert_eq!(k as usize, i, "{k:?} : ALL et NAMES doivent suivre l'ordre de déclaration");
+        }
+        assert_eq!((PropKind::Table.name(), PropKind::Shelf.name()), ("Table", "Étagère"));
+        assert_eq!(PropKind::Cypress.name(), "Cyprès");
     }
     #[test]
     fn stairs_reach_their_height() {
