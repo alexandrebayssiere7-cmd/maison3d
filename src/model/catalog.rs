@@ -202,6 +202,38 @@ catalog! {
     // ------------------------------------------------------------ bureau
 
     // ------------------------------------------------------------ garage
+    /// Établi d'atelier (1,8 × 0,7 m, plan à 90 cm) avec étau, tablette basse et panneau à outils
+    /// accroché au mur derrière (jusqu'à 1,8 m) ; dos contre un mur.
+    Workbench = "Établi", Garage, DEDANS;
+    /// Servante d'atelier à roulettes (70 × 47 × 103 cm), cinq tiroirs qui sortent vers l'avant ; près
+    /// de l'établi.
+    ToolChest = "Servante d'atelier", Garage, DEDANS;
+    /// Rayonnage métallique (1,2 × 0,5 × 1,9 m), cinq tablettes garnies de cartons, bacs et pots ; dos
+    /// contre un mur, à aligner tous les 1,2 m.
+    MetalShelf = "Rayonnage métallique", Garage, DEDANS;
+    /// Pile de quatre pneus couchés avec leurs jantes (62 cm de diamètre, 80 cm de haut) ; dans un
+    /// coin ou le long d'un mur.
+    TireStack = "Pile de pneus", Garage, DEDANS;
+    /// Trois bidons de 20 l côte à côte (deux rouges, un vert ; 57 × 35 × 50 cm) ; au pied d'un mur.
+    JerryCans = "Bidons", Garage, DEDANS;
+    /// Chauffe-eau de 200 l sur trépied (56 cm de diamètre, 2,1 m avec ses tuyaux) ; contre un mur,
+    /// dans le garage ou la buanderie.
+    WaterHeater = "Chauffe-eau", Garage, DEDANS;
+    /// Tondeuse à gazon poussée (0,6 × 1,05 m) : l'avant (carter) regarde +z, le guidon et le bac
+    /// sont à l'arrière ; rangée dans le garage ou posée sur la pelouse.
+    Lawnmower = "Tondeuse", Garage, DEDANS;
+    /// Escabeau ouvert (0,47 × 0,76 m, plateau à 1,46 m), marches à l'avant ; contre un mur ou
+    /// sous un plafond à repeindre.
+    Stepladder = "Escabeau", Garage, DEDANS;
+    /// Pile de cartons scotchés (environ 1 × 0,4 × 0,7 m) ; contre un mur ou sur un rayonnage vide.
+    Boxes = "Cartons", Garage, DEDANS;
+    /// Congélateur coffre (1,1 × 0,65 × 0,88 m), couvercle articulé à l'arrière qui se lève par
+    /// l'avant ; dos contre un mur, 1 m de dégagement devant.
+    ChestFreezer = "Congélateur coffre", Garage, DEDANS;
+    /// Pont élévateur deux colonnes (3,8 × 2 m bras compris, 2,8 m de haut) ; une voiture `Car` se gare entre
+    /// les colonnes en entrant par l'avant (+z), bras repliés de part et d'autre. Plafond de 2,8 m
+    /// au moins.
+    CarLift = "Pont élévateur", Garage, DEDANS;
 
     // ------------------------------------------------------------ magasin
     /// Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à

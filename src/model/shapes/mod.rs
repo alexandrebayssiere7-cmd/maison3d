@@ -6,6 +6,7 @@ use bevy::math::{Quat, Vec3};
 
 use super::{Category, PropKind, Shape, Slot};
 
+mod garage;
 mod garden;
 mod kitchen;
 mod living;
@@ -53,7 +54,8 @@ pub(super) fn prop_shapes(kind: PropKind, open: f32, height: f32) -> Vec<Piece> 
         Category::Garden | Category::Leisure => garden::shapes(kind, open, height),
         Category::Structure => structure::shapes(kind, open, height),
         Category::Vehicles => vehicles::shapes(kind, open, height),
-        Category::Office | Category::Garage | Category::Sport | Category::Markings => Vec::new(),
+        Category::Garage => garage::shapes(kind, open, height),
+        Category::Office | Category::Sport | Category::Markings => Vec::new(),
     }
 }
 
@@ -69,7 +71,8 @@ pub fn prop_slots(kind: PropKind) -> &'static [Slot] {
         Category::Garden | Category::Leisure => garden::slots(kind),
         Category::Structure => structure::slots(kind),
         Category::Vehicles => vehicles::slots(kind),
-        Category::Office | Category::Garage | Category::Sport | Category::Markings => const { &[] },
+        Category::Garage => garage::slots(kind),
+        Category::Office | Category::Sport | Category::Markings => const { &[] },
     }
 }
 
