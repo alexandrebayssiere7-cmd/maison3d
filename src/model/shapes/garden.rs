@@ -6,7 +6,9 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use bevy::math::{Quat, Vec3};
 
 use super::{Piece, ball, bx, clumps, cyl, door, light, span};
-use crate::model::{DARK, LEAF, METAL, PropKind, Rgb, Shape, Slot, WHITE};
+use crate::model::{Category, DARK, LEAF, METAL, PropKind, Rgb, Shape, Slot, WHITE};
+
+mod leisure;
 
 const WOOD: Rgb = [0.6, 0.42, 0.26];
 const DARK_WOOD: Rgb = [0.42, 0.29, 0.18];
@@ -14,6 +16,9 @@ const SOIL: Rgb = [0.33, 0.22, 0.14];
 const HOLE: Rgb = [0.08, 0.06, 0.05];
 
 pub(super) fn slots(kind: PropKind) -> &'static [Slot] {
+    if kind.category() == Category::Leisure {
+        return leisure::slots(kind);
+    }
     match kind {
         PropKind::Hedge => const { &[Slot::textured("Feuillage", "Feuillage")] },
         PropKind::Fence => const { &[Slot::plain("Bois", [0.6, 0.45, 0.3])] },
@@ -169,6 +174,9 @@ fn decor_slots(kind: PropKind) -> &'static [Slot] {
 }
 
 pub(super) fn shapes(kind: PropKind, open: f32, _height: f32) -> Vec<Piece> {
+    if kind.category() == Category::Leisure {
+        return leisure::shapes(kind, open);
+    }
     match kind {
         PropKind::Hedge => hedge(),
         PropKind::Fence => fence(),

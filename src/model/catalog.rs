@@ -318,6 +318,36 @@ catalog! {
     Birdhouse = "Nichoir", Garden, DEHORS;
 
     // ------------------------------------------------------------ terrasse et jeux
+    /// Table de jardin à lattes de 1,6 × 0,9 m (six couverts), 0,74 m de haut. Avec des `GardenChair` tournées vers elle, sur une terrasse ou sous une pergola.
+    GardenTable = "Table de jardin", Leisure, DEHORS;
+    /// Chaise de jardin à lattes ; l'avant est le côté où l'on s'assoit (dossier à l'arrière). À tourner vers la table de jardin.
+    GardenChair = "Chaise de jardin", Leisure, DEHORS;
+    /// Parasol de 2,8 m de diamètre et 2,5 m de haut sur pied lesté ; la toile penche légèrement vers l'avant (côté à ombrager). À côté d'une table, d'un transat ou d'un salon de jardin.
+    Parasol = "Parasol", Leisure, DEHORS;
+    /// Transat (bain de soleil) de 0,65 × 1,8 m, dossier relevé à l'arrière, pieds vers l'avant. Au bord d'une piscine, avant tourné vers l'eau ou le soleil ; plusieurs côte à côte tous les 0,9 m.
+    Lounger = "Transat", Leisure, DEHORS;
+    /// Salon de jardin de 2 × 1,7 m : canapé bas trois places à l'arrière, tourné vers l'avant, et table basse devant lui. Dos contre un mur de la maison ou une haie.
+    LoungeSet = "Salon de jardin", Leisure, DEHORS;
+    /// Barbecue boule à charbon de 0,6 m de diamètre et 1,1 m de haut, sur trois pieds. Sur la terrasse, à 3 m au moins des haies.
+    Barbecue = "Barbecue", Leisure, DEHORS;
+    /// Brasero : vasque d'acier de 0,85 m sur trois pieds, bûches et flammes qui éclairent réellement. Au centre d'un cercle de chaises ou de transats.
+    Firepit = "Brasero", Leisure, DEHORS;
+    /// Hamac tendu entre deux poteaux, 3,7 m de long (axe gauche-droite) sur 0,8 m. Laisser la place libre entre les poteaux.
+    Hammock = "Hamac", Leisure, DEHORS;
+    /// Spa carré de 2,1 m et 0,9 m de haut, rempli d'eau, quatre appuie-tête. Sur une terrasse, près de la maison.
+    HotTub = "Spa", Leisure, DEHORS;
+    /// Balançoire : portique en A de 2,9 × 1,7 m, poutre à 2,1 m, deux sièges suspendus. Laisser 2 m libres devant et derrière (axe avant-arrière) pour le balancement.
+    Swing = "Balançoire", Leisure, DEHORS;
+    /// Toboggan de 3,1 m de long : échelle à l'arrière, plateforme à 1,2 m, glissière qui descend vers l'avant. Laisser 1,5 m libre devant le bas de la glissière.
+    Slide = "Toboggan", Leisure, DEHORS;
+    /// Trampoline rond de 3 m de diamètre, toile à 0,87 m. À 2 m au moins des murs, arbres et clôtures.
+    Trampoline = "Trampoline", Leisure, DEHORS;
+    /// Bac à sable carré de 1,6 m à bordure de bois, sièges d'angle, seau et pelle.
+    Sandbox = "Bac à sable", Leisure, DEHORS;
+    /// Tape-cul (bascule) de 3 m de long (axe gauche-droite), un bout posé au sol, siège et poignée à chaque bout.
+    Seesaw = "Tape-cul", Leisure, DEHORS;
+    /// Cabane d'enfant en bois de 1,4 × 1,2 m, 1,85 m au faîte : porte à l'avant qui s'ouvre pendant la visite, fenêtre en façade. Laisser 1 m libre devant la porte.
+    PlayHouse = "Cabane d'enfant", Leisure, DEHORS;
 
     // ------------------------------------------------------------ sport
 
