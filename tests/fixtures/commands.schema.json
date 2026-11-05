@@ -1423,6 +1423,66 @@
           "const": "DrinkingFountain"
         },
         {
+          "description": "Feu tricolore sur mât (3,3 m) : rouge en haut, orange, vert en bas, chaque feu est une partie\nà part. L'avant (les feux) face aux véhicules qui arrivent, au bord de la chaussée avant un carrefour.",
+          "type": "string",
+          "const": "TrafficLight"
+        },
+        {
+          "description": "Panneau stop : octogone rouge de 64 cm sur poteau (2,3 m), face vers l'avant à tourner vers\nles véhicules qui arrivent, au bord droit de la chaussée juste avant l'intersection.",
+          "type": "string",
+          "const": "StopSign"
+        },
+        {
+          "description": "Cédez le passage : triangle de 80 cm pointe en bas, bordure rouge, sur poteau (2,4 m) ; face\nvers l'avant, tournée vers les véhicules qui arrivent.",
+          "type": "string",
+          "const": "YieldSign"
+        },
+        {
+          "description": "Sens interdit : disque rouge de 60 cm à barre blanche sur poteau (2,3 m), face vers les\nvéhicules à qui l'entrée est interdite.",
+          "type": "string",
+          "const": "NoEntrySign"
+        },
+        {
+          "description": "Limitation de vitesse à 50 : disque blanc cerclé de rouge sur poteau (2,3 m), face vers les\nvéhicules qui arrivent, à l'entrée d'une agglomération ou d'une zone.",
+          "type": "string",
+          "const": "SpeedLimitSign"
+        },
+        {
+          "description": "Panneau carré bleu de passage piéton (60 cm) sur poteau (2,35 m), à poser au bord de la\nchaussée, face aux véhicules, à côté d'un `Crosswalk`.",
+          "type": "string",
+          "const": "PedestrianSign"
+        },
+        {
+          "description": "Passage piéton plat : bandes blanches de 2,5 m parallèles à la route (axe gauche-droite de\nl'objet), répétées vers l'avant sur `height` mètres, la largeur de chaussée à traverser\n(3 m par défaut). Centrer sur l'axe de la route : `rot` 0 pour une route est-ouest, 90\npour une route nord-sud.",
+          "type": "string",
+          "const": "Crosswalk"
+        },
+        {
+          "description": "Trait de ligne discontinue plat de 3 m × 15 cm (axe gauche-droite) : aligner avec\n`place_row` sur l'axe de la route, `step` 6 (3 m de trait, 3 m d'espace) en ville ou 13 sur\nroute ; `rot` 90 pour une route nord-sud.",
+          "type": "string",
+          "const": "RoadDash"
+        },
+        {
+          "description": "Marquage plat de place de parking en U (2,5 × 5 m), ouvert vers l'avant par où entre la\nvoiture. Aligner avec `place_row` tous les 2,5 m, les lignes voisines se superposent.",
+          "type": "string",
+          "const": "ParkingSpot"
+        },
+        {
+          "description": "Cône de chantier orange de 53 cm à deux bandes réfléchissantes, sur socle carré ; en ligne\ntous les 1 à 2 m pour baliser une zone.",
+          "type": "string",
+          "const": "TrafficCone"
+        },
+        {
+          "description": "Barrière de chantier de 1,5 m (axe gauche-droite) à lisses rouges et blanches et feu\nclignotant ; bout à bout tous les 1,5 m avec `place_row` pour fermer une tranchée.",
+          "type": "string",
+          "const": "WorkBarrier"
+        },
+        {
+          "description": "Ralentisseur modulaire noir et jaune de 4 × 0,9 m, haut de 7 cm, posé en travers de la\nroute (axe gauche-droite de l'objet) : `rot` 0 pour une route nord-sud, 90 pour une route est-ouest.",
+          "type": "string",
+          "const": "SpeedBump"
+        },
+        {
           "description": "Arbre feuillu.",
           "type": "string",
           "const": "Tree"

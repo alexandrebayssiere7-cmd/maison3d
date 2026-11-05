@@ -1,11 +1,13 @@
-//! Mobilier urbain (bancs, éclairage, abris, conteneurs…) et signalisation.
+//! Mobilier urbain (bancs, éclairage, abris, conteneurs…) ; la signalisation est dans `signs`.
 
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::math::{Quat, Vec3};
 
 use super::{Piece, ball, bx, cyl, door, light, span};
-use crate::model::{DARK, METAL, PropKind, Shape, Slot, WHITE};
+use crate::model::{Category, DARK, METAL, PropKind, Shape, Slot, WHITE};
+
+mod signs;
 
 const TYRES: Slot = Slot::plain("Roues", [0.08, 0.08, 0.09]);
 
@@ -93,6 +95,9 @@ const DRINKING_FOUNTAIN: &[Slot] = &[
 ];
 
 pub(super) fn slots(kind: PropKind) -> &'static [Slot] {
+    if kind.category() == Category::Signage {
+        return signs::slots(kind);
+    }
     match kind {
         PropKind::StreetLamp => STREET_LAMP,
         PropKind::Lantern => LANTERN,
@@ -116,7 +121,10 @@ pub(super) fn slots(kind: PropKind) -> &'static [Slot] {
     }
 }
 
-pub(super) fn shapes(kind: PropKind, open: f32, _height: f32) -> Vec<Piece> {
+pub(super) fn shapes(kind: PropKind, open: f32, height: f32) -> Vec<Piece> {
+    if kind.category() == Category::Signage {
+        return signs::shapes(kind, height);
+    }
     match kind {
         PropKind::StreetLamp => street_lamp(),
         PropKind::Lantern => lantern(),

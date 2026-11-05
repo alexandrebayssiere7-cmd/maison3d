@@ -337,6 +337,45 @@ catalog! {
     DrinkingFountain = "Fontaine à boire", Street, DEHORS;
 
     // ------------------------------------------------------------ signalisation
+    /// Feu tricolore sur mât (3,3 m) : rouge en haut, orange, vert en bas, chaque feu est une partie
+    /// à part. L'avant (les feux) face aux véhicules qui arrivent, au bord de la chaussée avant un carrefour.
+    TrafficLight = "Feu tricolore", Signage, DEHORS;
+    /// Panneau stop : octogone rouge de 64 cm sur poteau (2,3 m), face vers l'avant à tourner vers
+    /// les véhicules qui arrivent, au bord droit de la chaussée juste avant l'intersection.
+    StopSign = "Panneau stop", Signage, DEHORS;
+    /// Cédez le passage : triangle de 80 cm pointe en bas, bordure rouge, sur poteau (2,4 m) ; face
+    /// vers l'avant, tournée vers les véhicules qui arrivent.
+    YieldSign = "Cédez le passage", Signage, DEHORS;
+    /// Sens interdit : disque rouge de 60 cm à barre blanche sur poteau (2,3 m), face vers les
+    /// véhicules à qui l'entrée est interdite.
+    NoEntrySign = "Sens interdit", Signage, DEHORS;
+    /// Limitation de vitesse à 50 : disque blanc cerclé de rouge sur poteau (2,3 m), face vers les
+    /// véhicules qui arrivent, à l'entrée d'une agglomération ou d'une zone.
+    SpeedLimitSign = "Limitation de vitesse", Signage, DEHORS;
+    /// Panneau carré bleu de passage piéton (60 cm) sur poteau (2,35 m), à poser au bord de la
+    /// chaussée, face aux véhicules, à côté d'un `Crosswalk`.
+    PedestrianSign = "Panneau passage piéton", Signage, DEHORS;
+    /// Passage piéton plat : bandes blanches de 2,5 m parallèles à la route (axe gauche-droite de
+    /// l'objet), répétées vers l'avant sur `height` mètres, la largeur de chaussée à traverser
+    /// (3 m par défaut). Centrer sur l'axe de la route : `rot` 0 pour une route est-ouest, 90
+    /// pour une route nord-sud.
+    Crosswalk = "Passage piéton", Signage, DEHORS, "longueur";
+    /// Trait de ligne discontinue plat de 3 m × 15 cm (axe gauche-droite) : aligner avec
+    /// `place_row` sur l'axe de la route, `step` 6 (3 m de trait, 3 m d'espace) en ville ou 13 sur
+    /// route ; `rot` 90 pour une route nord-sud.
+    RoadDash = "Ligne discontinue", Signage, DEHORS;
+    /// Marquage plat de place de parking en U (2,5 × 5 m), ouvert vers l'avant par où entre la
+    /// voiture. Aligner avec `place_row` tous les 2,5 m, les lignes voisines se superposent.
+    ParkingSpot = "Place de parking", Signage, DEHORS;
+    /// Cône de chantier orange de 53 cm à deux bandes réfléchissantes, sur socle carré ; en ligne
+    /// tous les 1 à 2 m pour baliser une zone.
+    TrafficCone = "Cône de chantier", Signage, DEHORS;
+    /// Barrière de chantier de 1,5 m (axe gauche-droite) à lisses rouges et blanches et feu
+    /// clignotant ; bout à bout tous les 1,5 m avec `place_row` pour fermer une tranchée.
+    WorkBarrier = "Barrière de chantier", Signage, DEHORS;
+    /// Ralentisseur modulaire noir et jaune de 4 × 0,9 m, haut de 7 cm, posé en travers de la
+    /// route (axe gauche-droite de l'objet) : `rot` 0 pour une route nord-sud, 90 pour une route est-ouest.
+    SpeedBump = "Ralentisseur", Signage, DEHORS;
 
     // ------------------------------------------------------------ arbres
     /// Arbre feuillu.
