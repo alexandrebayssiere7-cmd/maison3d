@@ -239,6 +239,49 @@ catalog! {
     /// Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à
     /// dos avec une autre pour former un rayon.
     Shelf = "Étagère", Store, DEDANS;
+    /// Caisse de supermarché (2 × 1,2 m) : tapis roulant, scanner et terminal de paiement côté
+    /// client à l'avant (+z), écran et siège du caissier à l'arrière. Près de la sortie, plusieurs
+    /// caisses en batterie avec `place_row` tous les 2,2 m dans le sens avant-arrière, même `rot`.
+    Checkout = "Caisse", Store, DEDANS;
+    /// Meuble réfrigéré ouvert à l'avant (2 × 0,9 × 2 m) : bac et trois tablettes de produits frais.
+    /// Dos contre un mur ; aligner bout à bout tous les 2 m avec `place_row` pour un linéaire.
+    FridgeCase = "Meuble réfrigéré", Store, DEDANS;
+    /// Congélateur vertical (2,1 × 0,8 × 2,1 m) à trois portes vitrées qui s'ouvrent pendant la
+    /// visite, surgelés derrière le verre. Dos contre un mur, 1 m de dégagement devant ; bout à
+    /// bout tous les 2,1 m.
+    FreezerCase = "Congélateur vitré", Store, DEDANS;
+    /// Étal de fruits et légumes (2 × 1,2 × 1,1 m) : deux gradins de cagettes colorées inclinées vers
+    /// l'avant, côté client. Dos contre un mur ou en îlot à l'entrée du magasin.
+    ProduceStand = "Étal de fruits et légumes", Store, DEDANS;
+    /// Chariot de supermarché (0,6 × 1 × 1 m) en tubes grillagés sur roulettes ; l'avant (+z) est le
+    /// nez du chariot, la poignée à l'arrière. En file près de l'entrée, ou dans les allées.
+    ShoppingCart = "Chariot", Store, DEDANS;
+    /// Pile de six paniers à provisions emboîtés (0,5 × 0,4 × 0,6 m), à poser à l'entrée.
+    BasketStack = "Pile de paniers", Store, DEDANS;
+    /// Gondole double face de 2 × 1 m, haute de 1,8 m (2,3 m avec son panneau en tête) : produits à
+    /// l'avant et à l'arrière. Aligner bout à bout tous les 2 m (`place_row`) pour former un rayon,
+    /// avec des allées de 1,8 à 2,5 m entre deux rayons.
+    Gondola = "Gondole", Store, DEDANS;
+    /// Palette Europe (1,2 × 0,8 m) chargée de cartons filmés, haute de 1,3 m ; réserve, quai ou
+    /// promotion en bout d'allée.
+    Pallet = "Palette de marchandises", Store, DEDANS;
+    /// Panneau de rayon (1,2 m de large) suspendu par deux câbles au plafond d'un étage de 3 m : la
+    /// plaque pend entre 2,2 et 2,6 m. À poser au-dessus d'une allée, pas d'un meuble (sinon
+    /// chevauchement signalé) ; lisible devant et derrière, donc `rot` 0 pour une allée nord-sud.
+    AisleSign = "Panneau de rayon", Store, DEDANS;
+    /// Vitrine réfrigérée de boulangerie-pâtisserie (1,6 × 0,85 × 1,3 m) : vitre inclinée côté client
+    /// (avant), pains et viennoiseries sur le plateau, gâteaux et tartes sur la clayette. Le vendeur
+    /// se tient derrière ; à aligner avec un comptoir ou une caisse.
+    DisplayCase = "Vitrine de boulangerie", Store, DEDANS;
+    /// Portique antivol (1,1 × 0,6 × 1,6 m) : deux panneaux encadrant un passage de 0,9 m que l'on
+    /// franchit selon l'axe avant-arrière. À poser juste derrière la porte d'entrée du magasin.
+    SecurityGate = "Portique antivol", Store, DEDANS;
+    /// Portant chromé de vêtements (1,5 × 0,55 × 1,6 m), vêtements alignés le long de la barre
+    /// (axe gauche-droite). En rangs espacés de 1,2 m dans une boutique.
+    ClothesRack = "Portant de vêtements", Store, DEDANS;
+    /// Mannequin de vitrine en robe sur pied (1,8 m), tourné vers l'avant ; derrière une vitrine ou
+    /// à l'entrée d'une boutique, face à la rue.
+    Mannequin = "Mannequin", Store, DEDANS;
 
     // ------------------------------------------------------------ mobilier urbain
     /// Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet
