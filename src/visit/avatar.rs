@@ -279,4 +279,43 @@ mod tests {
         v.third = false;
         assert!(!v.avatar_visible());
     }
+
+    /// Le personnage construit a chaque articulation une fois, et toutes suivent la pose.
+    #[test]
+    fn spawned_avatar_has_every_joint_and_follows_the_visitor() {
+        let pose = Pose {
+            hips_y: 0.9,
+            lie: 0.0,
+            spine: 0.1,
+            head: 0.2,
+            sh: [0.3, 0.35],
+            el: [0.4, 0.45],
+            hip: [0.5, 0.55],
+            kn: [0.6, 0.65],
+        };
+        let v = Visitor { active: true, third: true, boom_cur: 1.0, root: Vec3::new(1.0, 0.0, 2.0), pose, ..default() };
+        let mut app = App::new();
+        app.init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .insert_resource(v)
+            .add_systems(Startup, spawn_avatar)
+            .add_systems(Update, animate_avatar);
+        app.update();
+
+        let world = app.world_mut();
+        let mut angles: Vec<f32> =
+            world.query::<(&Joint, &Transform)>().iter(world).map(|(_, t)| t.rotation.to_axis_angle().1).collect();
+        angles.sort_by(f32::total_cmp);
+        let want = [0.0, 0.1, 0.2, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65];
+        assert_eq!(angles.len(), want.len(), "{angles:?}");
+        assert!(angles.iter().zip(want).all(|(a, w)| (a - w).abs() < 1e-5), "{angles:?}");
+        let (tf, vis) = world.query_filtered::<(&Transform, &Visibility), With<AvatarRoot>>().single(world).unwrap();
+        assert_eq!((tf.translation, *vis), (Vec3::new(1.0, 0.0, 2.0), Visibility::Visible));
+
+        app.world_mut().resource_mut::<Visitor>().third = false;
+        app.update();
+        let world = app.world_mut();
+        let vis = world.query_filtered::<&Visibility, With<AvatarRoot>>().single(world).unwrap();
+        assert_eq!(*vis, Visibility::Hidden, "caché en première personne");
+    }
 }
