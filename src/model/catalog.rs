@@ -534,6 +534,21 @@ catalog! {
     // ------------------------------------------------------------ véhicules
     /// Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.
     Car = "Voiture", Vehicles, DEHORS;
+    /// Moto routière de 2,1 m (0,7 m de large, 1 m de haut), l'avant vers +z ; décor, ne se
+    /// conduit pas. Garée le long d'un trottoir ou dans une allée, en épi.
+    Motorcycle = "Moto", Vehicles, DEHORS;
+    /// Vélo de ville de 1,75 m (0,5 m de large au guidon, 1 m de haut), l'avant vers +z ; décor. Contre
+    /// un mur, près d'une porte, ou en rangée tous les 0,7 m devant un arceau.
+    Bicycle = "Vélo", Vehicles, DEHORS;
+    /// Camionnette utilitaire de 5,3 m (2,4 m de large rétroviseurs compris, 2,4 m de haut), l'avant
+    /// vers +z ; décor. Sur une route, une allée ou devant un commerce.
+    Van = "Camionnette", Vehicles, DEHORS;
+    /// Bus urbain de 12 m (3 m de large rétroviseurs compris, 3 m de haut), l'avant vers +z, portes
+    /// du côté droit (-x local) ; décor. Sur une chaussée, portes tournées vers le trottoir.
+    Bus = "Bus", Vehicles, DEHORS;
+    /// Camion porteur de 8,5 m à caisse fourgon (2,9 m de large rétroviseurs compris, 3,8 m de
+    /// haut), l'avant vers +z ; décor. Sur une route, devant un quai de livraison ou un magasin.
+    Truck = "Camion", Vehicles, DEHORS;
 }
 
 impl PropKind {
