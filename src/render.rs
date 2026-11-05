@@ -21,9 +21,9 @@ pub struct MainCamera;
 #[derive(Component)]
 pub struct Sun;
 
-/// Entités générées depuis la maison, détruites à chaque reconstruction.
+/// Entités générées depuis la maison, avec leur élément d'origine, détruites à chaque reconstruction.
 #[derive(Component)]
-pub struct Built;
+pub struct Built(ElemRef);
 
 /// Maillage du relief, gardé tant que le terrain et les piscines ne changent pas.
 #[derive(Component)]
@@ -132,31 +132,36 @@ pub fn setup_scene(
 /// Relief et piscines du dernier maillage de sol.
 type GroundCache = Option<(Terrain, Vec<Pool>)>;
 
-/// Recrée toutes les entités de la maison quand elle a changé.
+/// Recrée les entités de la maison quand elle a changé, ou seulement celles des éléments animés.
 pub fn rebuild(
     mut commands: Commands,
     mut ed: ResMut<Editor>,
     mut lib: ResMut<Library>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    old: Query<Entity, With<Built>>,
+    old: Query<(Entity, &Built)>,
     old_ground: Query<Entity, With<Ground>>,
     mut ground: Local<GroundCache>,
 ) {
-    if !ed.dirty {
+    let moved = std::mem::take(&mut ed.moved);
+    let full = std::mem::take(&mut ed.dirty);
+    if !full && moved.is_empty() {
         return;
     }
-    ed.dirty = false;
-    for e in &old {
-        commands.entity(e).despawn();
+    let redo = |e: &ElemRef| full || moved.contains(e);
+    for (e, Built(owner)) in &old {
+        if redo(owner) {
+            commands.entity(e).despawn();
+        }
     }
     // le maillage du relief est lourd : on ne le refait que si le relief ou les piscines ont changé
-    if ground_changed(&ground, &ed.house) {
+    if full && ground_changed(&ground, &ed.house) {
         respawn_ground(&mut commands, &old_ground, &mut lib, &mut meshes, &mut materials, &ed.house);
         *ground = Some((ed.house.terrain.clone(), ed.house.pools.clone()));
     }
+    // toutes les pièces sont recalculées (sélection par rayon) mais seules celles à refaire sont recréées
     let parts = shown_parts(&ed);
-    spawn_parts(&mut commands, &mut lib, &mut meshes, &mut materials, &parts);
+    spawn_parts(&mut commands, &mut lib, &mut meshes, &mut materials, parts.iter().filter(|p| redo(&p.owner)));
     ed.parts = parts;
 }
 
@@ -190,23 +195,23 @@ fn shown_parts(ed: &Editor) -> Vec<Part> {
     parts
 }
 
-fn spawn_parts(
+fn spawn_parts<'a>(
     commands: &mut Commands,
     lib: &mut Library,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    parts: &[Part],
+    parts: impl Iterator<Item = &'a Part>,
 ) {
     for p in parts {
         if p.shape == Shape::Light {
             let c = Color::srgb(p.color[0], p.color[1], p.color[2]);
             commands.spawn((
-                Built,
+                Built(p.owner),
                 PointLight { color: c, intensity: 300_000.0, range: 15.0, ..default() },
                 p.tf.with_scale(Vec3::ONE),
             ));
         } else {
-            commands.spawn((Built, part_bundle(lib, meshes, materials, p)));
+            commands.spawn((Built(p.owner), part_bundle(lib, meshes, materials, p)));
         }
     }
 }
@@ -409,8 +414,8 @@ mod tests {
         assert!(!crate::model::prop_parts(&stairs, ElemRef::Prop(0), 0.0, 0.0).is_empty());
     }
 
-    #[test]
-    fn rebuild_spawns_the_house_once_per_change() {
+    /// Monde de test avec la maison de démo et le système `rebuild` enregistré.
+    fn demo_world() -> (World, bevy::ecs::system::SystemId) {
         let mut world = World::new();
         world.insert_resource(Library::empty());
         world.init_resource::<Assets<Mesh>>();
@@ -419,6 +424,42 @@ mod tests {
         ed.house = demo_house();
         world.insert_resource(ed);
         let id = world.register_system(rebuild);
+        (world, id)
+    }
+
+    fn owners(world: &mut World) -> HashMap<Entity, ElemRef> {
+        world.query::<(Entity, &Built)>().iter(world).map(|(e, b)| (e, b.0)).collect()
+    }
+
+    #[test]
+    fn animating_a_door_respawns_only_its_parts() {
+        let (mut world, id) = demo_world();
+        world.run_system(id).unwrap();
+        let ed = world.resource::<Editor>();
+        let (wi, w) = ed.house.walls.iter().enumerate().find(|(_, w)| !w.openings.is_empty()).unwrap();
+        let oi = w.openings.iter().position(|o| o.kind == crate::model::OpeningKind::Door).unwrap();
+        let door = ElemRef::Opening(wi, oi);
+        let door_tfs = |ed: &Editor| ed.parts.iter().filter(|p| p.owner == door).map(|p| p.tf).collect::<Vec<_>>();
+        let (closed, before) = (door_tfs(ed), owners(&mut world));
+        let mut ed = world.resource_mut::<Editor>();
+        ed.toggle_door(door);
+        ed.animate_doors(0.2);
+        world.run_system(id).unwrap();
+        let after = owners(&mut world);
+        let others = |m: &HashMap<Entity, ElemRef>| m.iter().filter(|(_, o)| **o != door).map(|(e, _)| *e).collect();
+        let kept: std::collections::HashSet<Entity> = others(&before);
+        assert_eq!(kept, others(&after), "le reste de la maison n'est pas recréé");
+        let count = |m: &HashMap<Entity, ElemRef>| m.values().filter(|o| **o == door).count();
+        assert_eq!(count(&before), count(&after));
+        assert!(after.iter().any(|(e, o)| *o == door && !before.contains_key(e)), "la porte est recréée");
+        let ed = world.resource::<Editor>();
+        assert_ne!(door_tfs(ed), closed, "la sélection voit la porte ouverte");
+        assert!(ed.moved.is_empty());
+    }
+
+    #[test]
+    fn rebuild_spawns_the_house_once_per_change() {
+        let (mut world, id) = demo_world();
         world.run_system(id).unwrap();
         let built = world.query_filtered::<(), With<Built>>().iter(&world).count();
         assert!(built > 50, "{built}");

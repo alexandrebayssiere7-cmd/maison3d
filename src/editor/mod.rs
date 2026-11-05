@@ -3,7 +3,7 @@
 mod input;
 mod tools;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::prelude::*;
 
@@ -67,6 +67,8 @@ pub struct Editor {
     undo: VecDeque<House>,
     redo: Vec<House>,
     pub dirty: bool,
+    /// Éléments animés (portes) dont seules les pièces sont à refaire, sans toute la maison.
+    pub moved: HashSet<ElemRef>,
     /// Pièces actuellement affichées (pour la sélection par rayon).
     pub parts: Vec<Part>,
     pub tool: Tool,
@@ -144,6 +146,7 @@ impl Default for Editor {
             undo: VecDeque::new(),
             redo: vec![],
             dirty: true,
+            moved: HashSet::new(),
             parts: vec![],
             tool: Tool::Select,
             level: 0,
@@ -296,11 +299,11 @@ impl Editor {
 
     /// Fait pivoter progressivement les portes vers leur état demandé.
     pub fn animate_doors(&mut self, dt: f32) {
-        for (cur, open) in self.doors.values_mut() {
+        for (e, (cur, open)) in &mut self.doors {
             // cur reste dans [0, 1] : il bouge tant qu il n a pas atteint la borne visée
             if (*open && *cur < 1.0) || (!*open && *cur > 0.0) {
                 *cur = if *open { (*cur + dt * 2.5).min(1.0) } else { (*cur - dt * 2.5).max(0.0) };
-                self.dirty = true;
+                self.moved.insert(*e);
             }
         }
     }
@@ -492,8 +495,10 @@ mod tests {
 
         let door = ElemRef::Opening(0, 0);
         ed.toggle_door(door);
+        ed.dirty = false;
         ed.animate_doors(0.2);
         assert_eq!(ed.doors[&door], (0.5, true));
+        assert!(!ed.dirty && ed.moved.contains(&door), "seule la porte est à refaire");
         ed.animate_doors(1.0);
         assert_eq!(ed.doors[&door].0, 1.0);
         ed.toggle_door(door);
