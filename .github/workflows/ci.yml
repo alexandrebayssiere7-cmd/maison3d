@@ -22,9 +22,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy, llvm-tools-preview
+      # version et composants lus dans rust-toolchain.toml : une seule source de vérité
+      - name: Toolchain Rust
+        run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
 
