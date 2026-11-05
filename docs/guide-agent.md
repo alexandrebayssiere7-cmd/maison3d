@@ -113,13 +113,24 @@ Exemples complets et testés dans `docs/exemples/` :
   décor, parcourir la catégorie voulue plutôt que deviner un nom.
 - Les objets `outdoor` du rez-de-chaussée se posent sur le relief.
 - `dim` dit ce que règle le champ `height` d'un objet : la hauteur d'un escalier ou d'un pilier,
-  la longueur d'une ligne, le rayon d'un cercle. `null` : le champ ne sert pas.
+  la longueur d'une ligne, le rayon d'un cercle. `null` : le champ ne sert pas. Il vaut 3 m par
+  défaut (un étage), 0,5 m pour `StoneSteps` et `Ramp`.
+- La doc de chaque sorte (`schema`, enum `PropKind`) donne ses dimensions, son avant et comment
+  la placer : modules à aligner tous les 2 m (`Fence`, `Railing`, `Cubicle`…), objets muraux
+  posés en hauteur (`WallCabinet`, `Mirror`, `RangeHood`), objets suspendus au plafond
+  (`CeilingLamp`, `AisleSign`). Un objet mural ou suspendu au-dessus d'un meuble ne compte pas
+  comme un chevauchement.
+- Tracés de terrain (`Markings`) : `FieldLine`, `FieldArc`, `FieldQuarterArc`, `FieldCircle`
+  (longueur ou rayon par `height`) pour des limites sur mesure, ou un terrain complet aux cotes
+  officielles (`SoccerPitch`, `BasketCourt`, `TennisCourt`…). Aplanir le relief dessous. Les
+  marquages et objets posés sur une route (`Crosswalk`, `RoadDash`, voitures) se posent sur
+  la chaussée.
 - Chaque objet et chaque ouverture a des **parties** (`parts` dans `catalog`) : tissu et pieds
   d'un canapé, battant, cadre et poignée d'une porte… `paint` avec `"part": n` ne peint que la
   partie n ; sans `part`, c'est la partie 0, qui est aussi `color` / `texture` de l'élément.
   Exemple : `{"op": "paint", "target": {"Prop": 3}, "part": 1, "color": [0.1, 0.1, 0.1]}`.
-- Éclairage public : `StreetLamp` (4,5 m). `Lamp` est une lampe d'intérieur.
-- Rayonnages : `Shelf`.
+- Éclairage public : `StreetLamp` (4,5 m) ou `Lantern` (réverbère). `Lamp` et `CeilingLamp`
+  éclairent l'intérieur.
 - Pour une rangée régulière (haie, clôture, arbres, lampadaires), utiliser `place_row`.
 - Pour changer un champ d'un objet déjà posé (hauteur d'un pilier, longueur d'une route,
   rotation…), utiliser `set`, qui garde les indices.
@@ -129,6 +140,14 @@ Exemples complets et testés dans `docs/exemples/` :
 `place_roof` couvre l'emprise des murs (`min` / `max` égaux à ceux de la `room`) et se pose au
 `level` **au-dessus** des murs couverts : 1 pour une maison de plain-pied, 2 pour un étage. Le
 faîtage suit le grand côté. Un toit plat est en zinc par défaut ; `texture` change la matière.
+Formes : deux pans, quatre pans, plat, monopente, pyramide, mansarde, comble de grange
+(`Gambrel`), `Saltbox`, papillon, sheds (dents de scie, toit d'usine ou de supermarché), voûte,
+dôme, toit asiatique (`Pagoda`) et conique (tourelle).
+
+Ouvertures : outre portes et fenêtres, des portes coulissantes (`SlidingDoor`, `Shoji`,
+`PocketDoor`, `BarnDoor`, `AutoDoor`), battantes (`GlassDoor`, `DoubleDoor`), une porte de
+garage basculante (`GarageDoor`) et une fenêtre coulissante, qui s'ouvrent toutes pendant la
+visite. La baie vitrée, la vitre fixe et les fenêtres classiques restent fermées.
 
 Pour un abri sur piliers : des `Pillar` de 3 m (un étage) et un toit `Flat` à `level` 1.
 
