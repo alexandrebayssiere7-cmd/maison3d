@@ -287,6 +287,54 @@ catalog! {
     /// Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet
     /// (à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.
     StreetLamp = "Lampadaire de rue", Street, DEHORS;
+    /// Réverbère de style ancien en fonte (3,9 m) dont la lanterne à quatre vitres éclaire
+    /// réellement. Places, parcs, rues piétonnes : un tous les 10 à 15 m (`place_row`).
+    Lantern = "Réverbère", Street, DEHORS;
+    /// Banc public en lattes de bois sur piètement en fonte (1,8 × 0,65 m) ; l'avant est l'assise,
+    /// dossier à l'arrière : à tourner vers l'allée, la place ou la vue.
+    Bench = "Banc public", Street, DEHORS;
+    /// Poubelle de rue cylindrique sur pied (0,5 m, 1 m de haut), ouverture à l'avant ; au bord
+    /// d'un trottoir, près d'un banc ou d'un arrêt de bus.
+    TrashCan = "Poubelle de rue", Street, DEHORS;
+    /// Trois conteneurs de tri roulants côte à côte (jaune, vert, bleu ; 2 × 0,8 × 1,05 m),
+    /// couvercles et roues ; l'avant est le côté des couvercles à soulever, dos contre un mur ou une haie.
+    RecyclingBins = "Conteneurs de tri", Street, DEHORS;
+    /// Benne à ordures de 1 100 l (1,4 × 1,1 × 1,2 m) sur quatre roulettes ; son couvercle se
+    /// soulève vers l'arrière pendant la visite. Dans une cour, une ruelle ou derrière un commerce.
+    Dumpster = "Benne à ordures", Street, DEHORS;
+    /// Abribus (4,1 × 1,6 × 2,75 m) : toit, parois vitrées au fond et à l'ouest, caisson publicitaire
+    /// à l'est, banc. L'avant ouvert donne sur la chaussée : poser au bord du trottoir, avant vers la route.
+    BusStop = "Abribus", Street, DEHORS;
+    /// Borne d'incendie rouge (0,9 m) à trois sorties, au bord d'un trottoir tous les 100 à 200 m.
+    FireHydrant = "Borne incendie", Street, DEHORS;
+    /// Potelet anti-stationnement (1 m) à bande réfléchissante ; en ligne au bord d'un trottoir,
+    /// tous les 1,5 m avec `place_row`.
+    Bollard = "Potelet", Street, DEHORS;
+    /// Boîte aux lettres de rue jaune sur pied (1,45 m), fente à l'avant : tourner l'avant vers le trottoir.
+    Mailbox = "Boîte aux lettres", Street, DEHORS;
+    /// Horodateur (1,65 m) à écran, clavier et panneau solaire ; l'avant (écran) vers le trottoir,
+    /// au bord des places de stationnement.
+    ParkingMeter = "Horodateur", Street, DEHORS;
+    /// Cabine téléphonique vitrée (1,1 × 1,1 × 2,5 m), porte vitrée à l'avant qui s'ouvre pendant
+    /// la visite ; avant vers le trottoir.
+    PhoneBooth = "Cabine téléphonique", Street, DEHORS;
+    /// Trois arceaux à vélos en U renversé (1,85 × 0,75 m), espacés de 0,9 m ; les vélos se rangent
+    /// dans l'axe avant-arrière, de part et d'autre de chaque arceau.
+    BikeRack = "Arceaux à vélos", Street, DEHORS;
+    /// Panneau publicitaire de 4 × 3 m sur un pied (6,4 m de haut), affiche et projecteurs à
+    /// l'avant : tourner l'avant vers la route.
+    Billboard = "Panneau publicitaire", Street, DEHORS;
+    /// Poteau électrique en bois de 8 m, traverse de 2 m (axe gauche-droite) et trois isolateurs ;
+    /// la ligne court vers l'avant et l'arrière : aligner tous les 30 à 40 m le long d'une route.
+    UtilityPole = "Poteau électrique", Street, DEHORS;
+    /// Plaque d'égout ronde de 75 cm, plate (2 cm) : à poser sur une chaussée ou un trottoir.
+    Manhole = "Plaque d'égout", Street, DEHORS;
+    /// Kiosque à journaux (2,9 × 2,3 × 3,3 m) au toit bombé en zinc ; comptoir et journaux à
+    /// l'avant, magazines sur les côtés. Sur une place ou un large trottoir, avant vers les passants.
+    Kiosk = "Kiosque à journaux", Street, DEHORS;
+    /// Fontaine à boire sur colonne (0,5 m, 1,1 m de haut), bouton poussoir à l'avant ; dans un
+    /// parc, sur une place ou près d'un terrain de sport.
+    DrinkingFountain = "Fontaine à boire", Street, DEHORS;
 
     // ------------------------------------------------------------ signalisation
 
