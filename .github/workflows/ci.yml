@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# moindre privilège : le jeton GITHUB_TOKEN ne fait que lire le dépôt
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -11,7 +15,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Bevy instrumenté pour la couverture remplit le disque du runner : on retire les SDK inutiles
       - name: Libère de la place disque
@@ -26,11 +30,13 @@ jobs:
       - name: Toolchain Rust
         run: rustup toolchain install
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-llvm-cov
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
@@ -49,6 +55,6 @@ jobs:
 
       - name: Score CRAP (échec au-delà de 30)
         run: |
-          pip install git+https://github.com/unclebob/crapper
+          pip install git+https://github.com/unclebob/crapper@6fd92c4c9bcc56efb64a2f8743d5a2993bcfd42d
           # fichiers passés explicitement : crapper ignore les chemins contenant un dossier test
           crapper --use-existing-coverage --threshold 30 $(find src -name '*.rs')
