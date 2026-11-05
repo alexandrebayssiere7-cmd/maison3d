@@ -146,7 +146,7 @@ catalog! {
     Fireplace = "Cheminée", Living, DEDANS;
     /// Piano droit (1,5 × 0,55 × 1,25 m) ; clavier vers l'avant, dos contre un mur.
     Piano = "Piano droit", Living, DEDANS;
-    /// Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; au-dessus d'une table, ce qui donne une alerte de chevauchement sans gravité.
+    /// Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; se pose au-dessus d'une table sans alerte.
     CeilingLamp = "Suspension", Living, DEDANS;
     /// Aquarium de 1,2 m sur son meuble (1,2 × 0,45 × 1,3 m), avec eau, plantes et poissons ; vitre avant vers l'avant, dos contre un mur.
     Aquarium = "Aquarium", Living, DEDANS;
@@ -712,11 +712,11 @@ catalog! {
     Ladder = "Échelle de meunier", Structure, DEDANS, "hauteur";
     /// Escalier suspendu droit qui monte vers l'avant sur `height` mètres : marches épaisses sans contremarche scellées dans un limon côté -x local (l'ouest à rot 0), à placer contre un mur.
     FloatingStairs = "Escalier suspendu", Structure, DEDANS, "hauteur";
-    /// Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil : 0,5 m donne 3 marches, 0,65 m en donne 4.
+    /// Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil (0,5 m par défaut, 3 marches ; 0,65 m en donne 4).
     StoneSteps = "Perron", Structure, DEHORS, "hauteur";
     /// Escalator qui monte vers l'avant sur `height` mètres à 30°, avec un palier d'un mètre en bas et en haut, balustrades vitrées et mains courantes (centre commercial, gare).
     Escalator = "Escalator", Structure, DEDANS, "hauteur";
-    /// Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m.
+    /// Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m (0,5 par défaut).
     Ramp = "Rampe d'accès", Structure, DEHORS, "hauteur";
     /// Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).
     Pillar = "Pilier", Structure, DEDANS, "hauteur";

@@ -72,9 +72,9 @@ fn parts_rows(
     changed
 }
 
-/// Plage du curseur de la dimension réglable : les tracés de terrain vont jusqu'à 110 m.
+/// Plage du curseur de la dimension réglable : les tracés de terrain traversent tout le monde.
 fn dim_range(kind: PropKind) -> std::ops::RangeInclusive<f32> {
-    if kind.category() == Category::Markings { 0.5..=110.0 } else { 0.4..=8.0 }
+    if kind.category() == Category::Markings { 0.5..=160.0 } else { 0.1..=8.0 }
 }
 
 pub(super) fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {

@@ -16,6 +16,14 @@ impl PropKind {
     pub fn default_color(self) -> Rgb {
         self.slots().first().map_or(WHITE, |s| s.color)
     }
+    /// Valeur d'origine du champ `height` : 3 m (un étage), 0,5 m pour un perron ou une rampe
+    /// qui montent à une porte.
+    pub fn default_height(self) -> f32 {
+        match self {
+            Self::StoneSteps | Self::Ramp => 0.5,
+            _ => LEVEL_H,
+        }
+    }
     /// Posé à plat au sol (moins de 5 cm : tapis, tracé, plaque) : les autres objets vont dessus.
     pub fn flat(self) -> bool {
         self.size().z < 0.05
@@ -47,7 +55,7 @@ pub struct Prop {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
-    /// Dimension réglable en mètres (3 par défaut) : hauteur montée par un escalier, hauteur d'un
+    /// Dimension réglable en mètres (3 par défaut, 0,5 pour `StoneSteps` et `Ramp`) : hauteur montée par un escalier, hauteur d'un
     /// pilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée
     /// pour les autres objets.
     #[serde(default = "level_h")]
@@ -59,10 +67,10 @@ pub struct Prop {
 }
 
 impl Prop {
-    /// Objet aux finitions d'origine de sa sorte, de hauteur 3 m.
+    /// Objet aux finitions et à la dimension d'origine de sa sorte.
     pub fn new(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Self {
-        let (color, texture) = (kind.default_color(), kind.default_texture());
-        Prop { kind, pos, level, rot, color, texture, height: LEVEL_H, finishes: vec![] }
+        let (color, texture, height) = (kind.default_color(), kind.default_texture(), kind.default_height());
+        Prop { kind, pos, level, rot, color, texture, height, finishes: vec![] }
     }
     /// Finition de la partie `slot` (0 = `color` et `texture`).
     pub fn finish(&self, slot: usize) -> Finish {
@@ -154,6 +162,8 @@ mod tests {
         assert_eq!(car.finish(3), PropKind::Car.slots()[3].finish());
         assert_eq!(car.finish(6).texture, 3);
         assert_eq!(car.finish(9), car.finish(0), "partie inconnue : la principale");
+        assert!((Prop::new(PropKind::Ramp, Vec2::ZERO, 0, 0.0).height - 0.5).abs() < 1e-6);
+        assert!((Prop::new(PropKind::Stairs, Vec2::ZERO, 0, 0.0).height - LEVEL_H).abs() < 1e-6);
         let trunk = Prop::new(PropKind::Tree, Vec2::ZERO, 0, 0.0).finish(1);
         assert_eq!(trunk.texture, crate::textures::find("Écorce"));
     }

@@ -543,7 +543,7 @@
               "default": 0
             },
             "height": {
-              "description": "Dimension réglable en mètres (3 par défaut) : hauteur montée par un escalier, hauteur d'un\npilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée\npour les autres objets.",
+              "description": "Dimension réglable en mètres (3 par défaut, 0,5 pour `StoneSteps` et `Ramp`) : hauteur montée par un escalier, hauteur d'un\npilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée\npour les autres objets.",
               "type": "number",
               "format": "float",
               "default": 3.0
@@ -1138,7 +1138,7 @@
           "const": "Piano"
         },
         {
-          "description": "Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; au-dessus d'une table, ce qui donne une alerte de chevauchement sans gravité.",
+          "description": "Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; se pose au-dessus d'une table sans alerte.",
           "type": "string",
           "const": "CeilingLamp"
         },
@@ -2168,7 +2168,7 @@
           "const": "FloatingStairs"
         },
         {
-          "description": "Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil : 0,5 m donne 3 marches, 0,65 m en donne 4.",
+          "description": "Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil (0,5 m par défaut, 3 marches ; 0,65 m en donne 4).",
           "type": "string",
           "const": "StoneSteps"
         },
@@ -2178,7 +2178,7 @@
           "const": "Escalator"
         },
         {
-          "description": "Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m.",
+          "description": "Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m (0,5 par défaut).",
           "type": "string",
           "const": "Ramp"
         },
