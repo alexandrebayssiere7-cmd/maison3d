@@ -1508,6 +1508,96 @@
           "const": "PlayHouse"
         },
         {
+          "description": "Cage de foot à 11 (7,32 × 2,44 m entre les poteaux, filet profond de 2 m). Les poteaux sont\n1 m devant `pos`, l'ouverture vers l'avant : `pos` 1 m derrière la ligne de but, tournée vers\nle terrain (pour un `SoccerPitch` : x = -53,5 et `rot` 90, x = 53,5 et `rot` 270).",
+          "type": "string",
+          "const": "SoccerGoal"
+        },
+        {
+          "description": "But de handball ou de futsal (3 × 2 m, poteaux rayés, filet profond de 1 m). Poteaux 0,5 m\ndevant `pos`, ouverture vers l'avant : `pos` 0,5 m derrière la ligne de but (x = ±20,5 pour\nun `HandballCourt` ou un `SoccerPitch5`), tourné vers le terrain.",
+          "type": "string",
+          "const": "HandballGoal"
+        },
+        {
+          "description": "Ballon de foot (22 cm).",
+          "type": "string",
+          "const": "SoccerBall"
+        },
+        {
+          "description": "Ballon de basket (24 cm).",
+          "type": "string",
+          "const": "Basketball"
+        },
+        {
+          "description": "Panier de basket sur pied : socle et pied à l'arrière, planche de 1,8 m dont la face est\n0,375 m devant `pos`, cercle à 3,05 m. Pour un `BasketCourt` : x = -13,18 et `rot` 90,\nx = 13,18 et `rot` 270 (planche à 1,2 m de la ligne de fond).",
+          "type": "string",
+          "const": "BasketHoop"
+        },
+        {
+          "description": "Filet de tennis de 12,8 m le long de l'axe x (poteaux à ±6,4 m), haut de 1,07 m aux poteaux\net de 0,914 m au centre. Au centre d'un `TennisCourt` : même `pos`, `rot` du court + 90.",
+          "type": "string",
+          "const": "TennisNet"
+        },
+        {
+          "description": "Filet de volley de 10 m le long de l'axe x, haut de 2,43 m, poteaux à ±5,5 m, antennes à\n±4,5 m. Au centre d'un `VolleyCourt` : même `pos`, `rot` du terrain + 90.",
+          "type": "string",
+          "const": "VolleyNet"
+        },
+        {
+          "description": "Poteaux de rugby en H le long de l'axe x (5,6 m entre les poteaux, barre à 3 m, 11 m de\nhaut), centrés sur la ligne de but.",
+          "type": "string",
+          "const": "RugbyPosts"
+        },
+        {
+          "description": "Table de ping-pong (2,74 × 1,525 m, plateau à 76 cm), filet le long de l'axe z au centre.\nLaisser 2 m libres à chaque bout (axe x).",
+          "type": "string",
+          "const": "PingPongTable"
+        },
+        {
+          "description": "Gradins de 6 × 4 m, cinq rangs qui montent vers l'arrière jusqu'à 3 m (garde-corps) ; les\nspectateurs regardent l'avant : à tourner vers le terrain, l'arrière contre une clôture.",
+          "type": "string",
+          "const": "Bleachers"
+        },
+        {
+          "description": "Banc de touche abrité (4 × 1,5 × 2,2 m), vitré au fond et sur les côtés, six sièges, ouvert\nvers l'avant : le long d'une ligne de touche, l'avant vers le terrain, à 2 ou 3 m de la ligne.",
+          "type": "string",
+          "const": "DugoutBench"
+        },
+        {
+          "description": "Drapeau de corner (mât de 1,5 m en `pos`, fanion vers +x). Sur chaque coin d'un terrain de foot.",
+          "type": "string",
+          "const": "CornerFlag"
+        },
+        {
+          "description": "Mât d'éclairage de stade de 20 m, rampe de six projecteurs tournés vers l'avant et vers le\nbas, qui éclaire réellement. Hors du terrain, l'avant vers le terrain, un à chaque coin.",
+          "type": "string",
+          "const": "Floodlight"
+        },
+        {
+          "description": "Tableau d'affichage sur deux pieds (écran de 4 × 2 m entre 3 et 5 m), l'écran vers l'avant.\nDerrière un but ou au milieu d'une tribune, tourné vers le terrain.",
+          "type": "string",
+          "const": "Scoreboard"
+        },
+        {
+          "description": "Banc de musculation plat avec chandelles et barre chargée (2,2 m de large) ; la barre est à\nl'arrière, on s'allonge la tête vers l'arrière.",
+          "type": "string",
+          "const": "WeightBench"
+        },
+        {
+          "description": "Tapis de course (0,8 × 1,9 m), console à l'arrière (peut aller contre un mur), on monte par l'avant.",
+          "type": "string",
+          "const": "Treadmill"
+        },
+        {
+          "description": "Sac de frappe de 1,2 m suspendu à sa potence (sac à l'avant, mât à l'arrière). Laisser 1 m\nlibre autour du sac.",
+          "type": "string",
+          "const": "PunchingBag"
+        },
+        {
+          "description": "Haie d'athlétisme (1,18 m de large, barre à 1,067 m) en travers d'un couloir (axe x) ; les\npieds pointent vers l'avant, d'où arrivent les coureurs. Tous les 9,14 m sur 110 m haies.",
+          "type": "string",
+          "const": "Hurdle"
+        },
+        {
           "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
           "type": "string",
           "const": "Stairs"

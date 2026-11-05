@@ -350,6 +350,59 @@ catalog! {
     PlayHouse = "Cabane d'enfant", Leisure, DEHORS;
 
     // ------------------------------------------------------------ sport
+    /// Cage de foot à 11 (7,32 × 2,44 m entre les poteaux, filet profond de 2 m). Les poteaux sont
+    /// 1 m devant `pos`, l'ouverture vers l'avant : `pos` 1 m derrière la ligne de but, tournée vers
+    /// le terrain (pour un `SoccerPitch` : x = -53,5 et `rot` 90, x = 53,5 et `rot` 270).
+    SoccerGoal = "Cage de foot", Sport, DEHORS;
+    /// But de handball ou de futsal (3 × 2 m, poteaux rayés, filet profond de 1 m). Poteaux 0,5 m
+    /// devant `pos`, ouverture vers l'avant : `pos` 0,5 m derrière la ligne de but (x = ±20,5 pour
+    /// un `HandballCourt` ou un `SoccerPitch5`), tourné vers le terrain.
+    HandballGoal = "But de hand et futsal", Sport, DEHORS;
+    /// Ballon de foot (22 cm).
+    SoccerBall = "Ballon de foot", Sport, DEHORS;
+    /// Ballon de basket (24 cm).
+    Basketball = "Ballon de basket", Sport, DEHORS;
+    /// Panier de basket sur pied : socle et pied à l'arrière, planche de 1,8 m dont la face est
+    /// 0,375 m devant `pos`, cercle à 3,05 m. Pour un `BasketCourt` : x = -13,18 et `rot` 90,
+    /// x = 13,18 et `rot` 270 (planche à 1,2 m de la ligne de fond).
+    BasketHoop = "Panier de basket", Sport, DEHORS;
+    /// Filet de tennis de 12,8 m le long de l'axe x (poteaux à ±6,4 m), haut de 1,07 m aux poteaux
+    /// et de 0,914 m au centre. Au centre d'un `TennisCourt` : même `pos`, `rot` du court + 90.
+    TennisNet = "Filet de tennis", Sport, DEHORS;
+    /// Filet de volley de 10 m le long de l'axe x, haut de 2,43 m, poteaux à ±5,5 m, antennes à
+    /// ±4,5 m. Au centre d'un `VolleyCourt` : même `pos`, `rot` du terrain + 90.
+    VolleyNet = "Filet de volley", Sport, DEHORS;
+    /// Poteaux de rugby en H le long de l'axe x (5,6 m entre les poteaux, barre à 3 m, 11 m de
+    /// haut), centrés sur la ligne de but.
+    RugbyPosts = "Poteaux de rugby", Sport, DEHORS;
+    /// Table de ping-pong (2,74 × 1,525 m, plateau à 76 cm), filet le long de l'axe z au centre.
+    /// Laisser 2 m libres à chaque bout (axe x).
+    PingPongTable = "Table de ping-pong", Sport, DEDANS;
+    /// Gradins de 6 × 4 m, cinq rangs qui montent vers l'arrière jusqu'à 3 m (garde-corps) ; les
+    /// spectateurs regardent l'avant : à tourner vers le terrain, l'arrière contre une clôture.
+    Bleachers = "Gradins", Sport, DEHORS;
+    /// Banc de touche abrité (4 × 1,5 × 2,2 m), vitré au fond et sur les côtés, six sièges, ouvert
+    /// vers l'avant : le long d'une ligne de touche, l'avant vers le terrain, à 2 ou 3 m de la ligne.
+    DugoutBench = "Banc de touche", Sport, DEHORS;
+    /// Drapeau de corner (mât de 1,5 m en `pos`, fanion vers +x). Sur chaque coin d'un terrain de foot.
+    CornerFlag = "Drapeau de corner", Sport, DEHORS;
+    /// Mât d'éclairage de stade de 20 m, rampe de six projecteurs tournés vers l'avant et vers le
+    /// bas, qui éclaire réellement. Hors du terrain, l'avant vers le terrain, un à chaque coin.
+    Floodlight = "Projecteur de stade", Sport, DEHORS;
+    /// Tableau d'affichage sur deux pieds (écran de 4 × 2 m entre 3 et 5 m), l'écran vers l'avant.
+    /// Derrière un but ou au milieu d'une tribune, tourné vers le terrain.
+    Scoreboard = "Tableau d'affichage", Sport, DEHORS;
+    /// Banc de musculation plat avec chandelles et barre chargée (2,2 m de large) ; la barre est à
+    /// l'arrière, on s'allonge la tête vers l'arrière.
+    WeightBench = "Banc de musculation", Sport, DEDANS;
+    /// Tapis de course (0,8 × 1,9 m), console à l'arrière (peut aller contre un mur), on monte par l'avant.
+    Treadmill = "Tapis de course", Sport, DEDANS;
+    /// Sac de frappe de 1,2 m suspendu à sa potence (sac à l'avant, mât à l'arrière). Laisser 1 m
+    /// libre autour du sac.
+    PunchingBag = "Sac de frappe", Sport, DEDANS;
+    /// Haie d'athlétisme (1,18 m de large, barre à 1,067 m) en travers d'un couloir (axe x) ; les
+    /// pieds pointent vers l'avant, d'où arrivent les coureurs. Tous les 9,14 m sur 110 m haies.
+    Hurdle = "Haie d'athlétisme", Sport, DEHORS;
 
     // ------------------------------------------------------------ tracés de terrain
 
