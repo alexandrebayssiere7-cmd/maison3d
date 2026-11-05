@@ -10,6 +10,7 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `maison3d help <op>` | Détail d'une commande : description, chaque champ, ses bornes et sa valeur par défaut. |
 | `maison3d schema` | Schéma JSON complet (31 Ko). |
 | `maison3d catalog` | Objets (rangés par catégorie), ouvertures et toits disponibles, avec leurs dimensions réelles et leurs parties colorables. |
+| `maison3d search mots [--room R] [--placement P] [--limit N]` | Les objets qui répondent aux mots (français ou anglais, sans souci d'accents ni de pluriel), les plus pertinents d'abord : nom, taille, pose, dégagement, pièces, objets associés. `--room Kitchen` (ou `--room cuisine`) et `--placement AgainstWall` filtrent ; sans mots, liste ce qui passe les filtres. 10 résultats par défaut, `--limit N` pour en voir plus. Trouve les objets, pas les ouvertures ni les toits (voir `catalog`). |
 | `maison3d textures` | Numéros des matières (champ `texture`). |
 | `maison3d apply monde.json cmds.json [--new] [--quiet] [--dry-run] [--out autre.json] [--json]` | Applique une liste de commandes. |
 | `maison3d describe monde.json` | Résumé texte par étage, avec l'indice, le type JSON et l'emprise au sol de chaque élément. |
@@ -47,7 +48,8 @@ ne s'ouvre, en 2 à 3 secondes) et écrit sur la sortie standard le chemin de ch
 
 ## Boucle de travail
 
-1. Lire `schema --brief`, puis `catalog` ; `help <op>` au besoin.
+1. Lire `schema --brief` ; `help <op>` au besoin. Pour trouver un objet, `search` plutôt que
+   lire tout `catalog` (`search lit`, `search --room Bathroom`).
 2. Écrire un lot de commandes cohérent (une pièce et ses ouvertures, un étage…), puis `apply`.
    Pour les répétitions, générer le JSON avec un petit script.
 3. Lire la sortie :

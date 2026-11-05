@@ -9,6 +9,8 @@
 //! maison3d help <op>                    détail d'une commande et de ses champs
 //! maison3d textures                     indices des matières
 //! maison3d catalog                      objets, ouvertures et toits avec leurs dimensions
+//! maison3d search [mots] [--room R] [--placement P] [--limit N]
+//!                                       objets qui répondent aux mots, les plus pertinents d'abord
 //! maison3d guide                        mode d'emploi pour un agent (docs/guide-agent.md)
 //! maison3d shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1]
 //!                                        [--size LxH] [--only 3/4|plan]
@@ -19,7 +21,7 @@ use std::fmt::Write;
 use bevy::math::Vec3;
 
 use crate::command::{Command, EditError};
-use crate::model::{ElemRef, House, OpeningKind, PropKind, RoofKind, Slot, WorldError};
+use crate::model::{ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, Room, Slot, WorldError, search};
 
 mod describe;
 mod shot;
@@ -56,7 +58,7 @@ enum CliError {
 const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
 [--out <autre.json>] [--json] | describe <monde.json> | \
 check <monde.json> | schema [--brief] | help <op> | textures | catalog | guide | \
-shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1] [--size LxH] [--only 3/4|plan]";
+search [mots] [--room R] [--placement P] [--limit N] | shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1] [--size LxH] [--only 3/4|plan]";
 
 impl std::fmt::Display for CliError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -128,6 +130,11 @@ fn run(args: &[&str]) -> Result<(), CliError> {
         ["schema"] => {
             only(&["--brief"])?;
             println!("{}", if has("--brief") { schema_brief() } else { schema_text() });
+            Ok(())
+        }
+        ["search", words @ ..] => {
+            only(&["--room", "--placement", "--limit"])?;
+            print!("{}", search_text(&words.join(" "), &flags)?);
             Ok(())
         }
         rest => {
@@ -366,6 +373,70 @@ fn part_names(slots: &[Slot]) -> Vec<&'static str> {
     slots.iter().map(|s| s.name).collect()
 }
 
+/// Valeur d'une option parmi `all`, sans tenir compte de la casse (`--room kitchen`).
+fn choice<T: Copy + std::fmt::Debug>(
+    flags: &[(&str, Option<&str>)],
+    name: &str,
+    all: &[T],
+) -> Result<Option<T>, CliError> {
+    let Some((_, v)) = flags.iter().find(|(n, _)| *n == name) else { return Ok(None) };
+    let bad = || {
+        let names: Vec<String> = all.iter().map(|x| format!("{x:?}")).collect();
+        CliError::BadOption(format!("{name} {} (valeurs : {})", v.unwrap_or(""), names.join(", ")))
+    };
+    let v = v.ok_or_else(bad)?;
+    all.iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(v)).map(|x| Some(*x)).ok_or_else(bad)
+}
+
+/// Une ligne par objet trouvé : ce qu'il faut pour le choisir et le poser.
+fn search_text(query: &str, flags: &[(&str, Option<&str>)]) -> Result<String, CliError> {
+    let room = match flags.iter().find(|(n, _)| *n == "--room") {
+        Some((_, v)) => Some(v.and_then(Room::parse).ok_or_else(|| {
+            let names: Vec<String> = Room::ALL.iter().map(|r| format!("{r:?}")).collect();
+            CliError::BadOption(format!(
+                "--room {} (valeurs : {}, ou leur nom français)",
+                v.unwrap_or(""),
+                names.join(", ")
+            ))
+        })?),
+        None => None,
+    };
+    let placement = choice(flags, "--placement", &Placement::ALL)?;
+    let limit = match flags.iter().find(|(n, _)| *n == "--limit") {
+        Some((_, v)) => v
+            .and_then(|v| v.parse().ok())
+            .filter(|&n| n > 0)
+            .ok_or_else(|| CliError::BadOption("--limit N (N ≥ 1)".into()))?,
+        None => 10,
+    };
+    let hits = search(query, room, placement);
+    if hits.is_empty() {
+        return Ok("aucun objet : essayer un synonyme, un mot anglais, ou parcourir `maison3d catalog`\n".into());
+    }
+    let mut out = String::new();
+    for &k in hits.iter().take(limit) {
+        // `search` ne renvoie que des sortes annotées
+        let (s, Some(a)) = (k.size(), k.annotation()) else { continue };
+        let with: Vec<String> = a.goes_with.iter().map(|k| format!("{k:?}")).collect();
+        let _ = writeln!(
+            out,
+            "{k:?}\t{}\t{:.2} x {:.2} x {:.2} m\t{:?}\tdevant {:.1} m\t{:?}\tavec {}",
+            k.name(),
+            s.x,
+            s.y,
+            s.z,
+            a.placement,
+            a.front,
+            a.rooms,
+            with.join(", "),
+        );
+    }
+    if hits.len() > limit {
+        let _ = writeln!(out, "… {} autres (--limit {})", hits.len() - limit, hits.len());
+    }
+    Ok(out)
+}
+
 /// Dimensions par défaut de tout ce que les commandes `place_*` savent poser.
 fn catalog() -> serde_json::Value {
     // en f64 pour que le JSON affiche 1.6 et non 1.600000023841858
@@ -537,6 +608,18 @@ mod tests {
         assert!(matches!(run(&["describe", "/nulle/part.json"]), Err(CliError::World(WorldError::Io(_)))));
         assert!(matches!(run(&["schema", "--new"]), Err(CliError::BadOption(_))));
         assert!(matches!(run(&["shot", "a.json", "b.png", "--from", "haut"]), Err(CliError::BadOption(_))));
+        assert!(run(&["search", "frigo"]).is_ok() && run(&["search", "--room", "Salle de bain"]).is_ok());
+        assert_eq!(Room::parse("séjour"), Some(Room::Living));
+        assert_eq!(Room::parse("kitchen"), Some(Room::Kitchen));
+        assert!(matches!(run(&["search", "x", "--limit", "0"]), Err(CliError::BadOption(_))));
+        for bad in [
+            &["search", "--room", "cave"][..],
+            &["search", "--placement"],
+            &["search", "--limit", "x"],
+            &["search", "--new"],
+        ] {
+            assert!(matches!(run(bad), Err(CliError::BadOption(_))), "{bad:?}");
+        }
         for bad in [&["inconnu"][..], &["apply", "un"], &["shot", "a"]] {
             let err = run(bad).unwrap_err();
             assert!(matches!(err, CliError::Usage), "{bad:?}");

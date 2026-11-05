@@ -17,6 +17,7 @@ mod props;
 mod roofs;
 mod shapes;
 
+pub use annotations::{Placement, Room, search};
 pub use catalog::{Category, PropKind};
 pub use demo::demo_house;
 pub use geometry::{pick, pick_part, ray_obb};

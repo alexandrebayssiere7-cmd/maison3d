@@ -215,6 +215,19 @@ fn apply_json_prints_one_line_per_command_then_a_summary() {
 }
 
 #[test]
+fn search_finds_props_by_word_and_filters() {
+    let o = run(&["search", "chaise", "de", "bureau", "--limit", "2"]);
+    assert!(o.status.success());
+    let out = stdout(&o);
+    assert!(out.starts_with("OfficeChair\t"), "{out}");
+    assert!(out.lines().last().is_some_and(|l| l.contains("--limit")), "{out}");
+    let wall = stdout(&run(&["search", "--room", "kitchen", "--placement", "onwall"]));
+    assert!(wall.contains("WallCabinet") && !wall.contains("Fridge"));
+    assert!(stdout(&run(&["search", "zzzz"])).starts_with("aucun objet"));
+    assert!(!run(&["search", "x", "--room", "cave"]).status.success());
+}
+
+#[test]
 fn check_brief_and_help_for_agents() {
     let dir = tmp_dir("check");
     let world = world_with_room(&dir);
