@@ -223,7 +223,7 @@
           ]
         },
         {
-          "description": "Toit de 2,5 m de haut avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir\ndes murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.",
+          "description": "Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit\nplat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir\ndes murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.",
           "type": "object",
           "properties": {
             "op": {

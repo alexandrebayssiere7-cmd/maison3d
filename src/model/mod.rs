@@ -139,7 +139,8 @@ impl Opening {
     /// Ouverture aux dimensions et aux finitions d'origine de son type, centrée en `t`.
     pub fn new(kind: OpeningKind, t: f32) -> Self {
         let (width, height, sill) = kind.default_dims();
-        Self { kind, t, width, height, sill, color: kind.default_color(), texture: 0, finishes: vec![] }
+        let Finish { color, texture } = kind.slots()[0].finish();
+        Self { kind, t, width, height, sill, color, texture, finishes: vec![] }
     }
     pub fn finish(&self, slot: usize) -> Finish {
         finish_at(Finish { color: self.color, texture: self.texture }, &self.finishes, self.kind.slots(), slot)

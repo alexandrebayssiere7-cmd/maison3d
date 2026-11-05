@@ -3,7 +3,7 @@
 
 use bevy::math::Vec2;
 
-use super::{House, OpeningKind, Prop, PropKind, Slab, Wall};
+use super::{House, Prop, PropKind, Slab, Wall};
 
 /// Chevauchement toléré entre deux emprises (contact, approximations de géométrie).
 const SLACK: f32 = 0.03;
@@ -92,8 +92,8 @@ impl House {
                 out.push(format!("Wall {i} est enterré : le relief dépasse 30 cm à son pied"));
             }
             for (j, o) in w.openings.iter().enumerate() {
-                let door = matches!(o.kind, OpeningKind::Door | OpeningKind::FrenchDoor | OpeningKind::Bay);
-                if door && w.level != 0 {
+                // toute ouverture qui part du sol est une porte, battante ou coulissante
+                if o.sill < 0.05 && w.level != 0 {
                     let at = w.a + w.dir() * o.t;
                     let n = w.dir().perp() * (w.thick / 2.0 + 0.4);
                     if !(self.on_floor(w.level, at + n) && self.on_floor(w.level, at - n)) {
@@ -179,7 +179,7 @@ fn segments_cross(p: Vec2, p2: Vec2, q: Vec2, q2: Vec2) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{LEVEL_H, Opening, Pool, Road, Roof, RoofKind, WHITE, room_walls};
+    use super::super::{LEVEL_H, Opening, OpeningKind, Pool, Road, Roof, RoofKind, WHITE, room_walls};
     use super::*;
 
     fn prop(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Prop {
@@ -274,22 +274,15 @@ mod tests {
         });
         let mut up = h.walls[1].clone();
         up.level = 1;
-        up.openings.push(Opening {
-            kind: OpeningKind::Door,
-            t: 3.0,
-            width: 0.9,
-            height: 2.1,
-            sill: 0.0,
-            color: WHITE,
-            texture: 0,
-            finishes: vec![],
-        });
+        up.openings.push(Opening::new(OpeningKind::Door, 3.0));
+        up.openings.push(Opening::new(OpeningKind::GarageDoor, 6.0));
         h.walls.push(up);
         h.pools.push(Pool { min: Vec2::new(2.0, 2.0), max: Vec2::new(4.0, 4.0), depth: 1.5, color: WHITE, texture: 0 });
         h.roads.push(Road { a: Vec2::new(4.0, -5.0), b: Vec2::new(4.0, 10.0), width: 3.0, color: WHITE, texture: 0 });
         assert!(has(&h, "Wall 4 est en double avec le mur 0"));
         assert!(has(&h, "Roof 0 est posé au pied du mur 0"));
         assert!(has(&h, "Opening [5, 0] (Door) donne sur le vide"));
+        assert!(has(&h, "Opening [5, 1] (GarageDoor) donne sur le vide"), "une porte de garage aussi");
         assert!(has(&h, "Pool 0 est sous le sol 0"));
         assert!(has(&h, "Road 0 traverse le mur 0"));
     }

@@ -109,7 +109,8 @@ pub enum Command {
         #[serde(default)]
         rot: Option<f32>,
     },
-    /// Toit de 2,5 m de haut avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
+    /// Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit
+    /// plat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
     /// des murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.
     PlaceRoof {
         /// Coin nord-ouest de l'emprise des murs ; le débord est ajouté autour.

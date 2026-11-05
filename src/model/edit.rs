@@ -26,7 +26,11 @@ impl House {
             .map(|w| {
                 let mut w = w.clone();
                 w.level += 1;
-                w.openings.retain(|o| o.kind != OpeningKind::Door);
+                // pas de porte à l'étage, sauf les baies vitrées (balcon)
+                w.openings.retain(|o| {
+                    o.sill >= 0.05
+                        || matches!(o.kind, OpeningKind::FrenchDoor | OpeningKind::Bay | OpeningKind::SlidingDoor)
+                });
                 w
             })
             .collect();
@@ -222,6 +226,16 @@ mod tests {
             h.walls.iter().filter(|w| w.level == 1).all(|w| w.openings.iter().all(|o| o.kind != OpeningKind::Door))
         );
         assert_eq!(h.roofs[0].level, 2);
+        // portes de toute sorte retirées, baies et fenêtres gardées
+        let mut g = House::default();
+        g.walls.push(wall(12.0));
+        g.walls[0].openings =
+            [(OpeningKind::GarageDoor, 2.0), (OpeningKind::SlidingDoor, 6.0), (OpeningKind::Window, 10.0)]
+                .map(|(k, t)| Opening::new(k, t))
+                .to_vec();
+        g.add_storey(0, None);
+        let up: Vec<_> = g.walls[1].openings.iter().map(|o| o.kind).collect();
+        assert_eq!(up, [OpeningKind::SlidingDoor, OpeningKind::Window]);
         // le parquet est copié, pas la terrasse
         assert_eq!(h.slabs.iter().filter(|s| s.level == 1).count(), 1);
     }

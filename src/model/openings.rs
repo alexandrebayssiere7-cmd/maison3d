@@ -121,7 +121,7 @@ impl OpeningKind {
             Self::Window | Self::Bay | Self::Fixed | Self::Grid | Self::SlidingWindow => &[FRAME, SILL],
             Self::SlidingDoor | Self::GlassDoor => &[ALU, KNOB],
             Self::Shoji => {
-                const { &[Slot::plain("Cadre", [0.8, 0.64, 0.44]), Slot::textured("Papier", "Papier de riz")] }
+                const { &[Slot::new("Cadre", [1.0, 0.92, 0.8], "Bois clair"), Slot::textured("Papier", "Papier de riz")] }
             }
             Self::PocketDoor => const { &[Slot::plain("Battant", [0.9, 0.88, 0.84]), FRAME, KNOB] },
             Self::BarnDoor => {
