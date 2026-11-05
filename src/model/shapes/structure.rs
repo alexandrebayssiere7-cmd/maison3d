@@ -4,9 +4,11 @@
 //! (ou de dalles penchées assez courtes pour que leur boîte reste une petite marche), les pièces
 //! penchées longues (limons, verre, mains courantes) restent sur les côtés du passage.
 
-use bevy::math::Vec3;
+use std::f32::consts::PI;
 
-use super::{Piece, bx, cyl, span};
+use bevy::math::{Quat, Vec3};
+
+use super::{Piece, ball, bx, cyl, span};
 use crate::model::{DARK, METAL, PropKind, Shape, Slot};
 
 const STEPS: [f32; 3] = [0.6, 0.45, 0.3];
@@ -48,6 +50,18 @@ pub(super) fn slots(kind: PropKind) -> &'static [Slot] {
             }
         }
         PropKind::Pillar => const { &[Slot::plain("Pilier", [0.85, 0.85, 0.8])] },
+        PropKind::Column => {
+            const { &[Slot::textured("Fût", "Marbre blanc"), Slot::plain("Base et chapiteau", [0.88, 0.86, 0.8])] }
+        }
+        PropKind::Railing => {
+            const { &[Slot::plain("Barreaux", [0.16, 0.16, 0.18]), Slot::textured("Main courante", "Bois clair")] }
+        }
+        PropKind::Balustrade => {
+            const { &[Slot::textured("Socle et tablette", "Pierre de taille"), Slot::plain("Balustres", [0.86, 0.83, 0.76])] }
+        }
+        PropKind::Arch => {
+            const { &[Slot::textured("Pierre", "Pierre de taille"), Slot::plain("Impostes et clé", [0.8, 0.76, 0.68])] }
+        }
         _ => const { &[] },
     }
 }
@@ -66,6 +80,10 @@ pub(super) fn shapes(kind: PropKind, _open: f32, height: f32) -> Vec<Piece> {
         PropKind::Escalator => escalator(n, rise),
         PropKind::Ramp => ramp(height),
         PropKind::Pillar => vec![bx(0.0, 0.0, 0.3, 0.3, 0.0, height, 0)],
+        PropKind::Column => column(height),
+        PropKind::Railing => railing(),
+        PropKind::Balustrade => balustrade(),
+        PropKind::Arch => arch(),
         _ => Vec::new(),
     }
 }
@@ -250,6 +268,67 @@ fn ramp(height: f32) -> Vec<Piece> {
     v
 }
 
+/// Colonne ronde : plinthe et tore, fût, astragale, échine et abaque, jusqu'à `h` exactement.
+fn column(h: f32) -> Vec<Piece> {
+    let e = (h * 0.04).min(0.08);
+    vec![
+        bx(0.0, 0.0, 0.5, 0.5, 0.0, e, 1),
+        cyl(0.0, 0.0, 0.44, e, 2.0 * e, 1),
+        cyl(0.0, 0.0, 0.34, 2.0 * e, h - 2.0 * e, 0),
+        cyl(0.0, 0.0, 0.38, h - 2.5 * e, h - 2.0 * e, 1),
+        cyl(0.0, 0.0, 0.44, h - 2.0 * e, h - e, 1),
+        bx(0.0, 0.0, 0.5, 0.5, h - e, h, 1),
+    ]
+}
+
+/// Garde-corps de 2 m selon x : deux montants, lisse basse, barreaux tous les 11 cm, main courante à 1 m.
+fn railing() -> Vec<Piece> {
+    let mut v = vec![bx(-0.97, 0.0, 0.05, 0.05, 0.0, 0.95, 0), bx(0.97, 0.0, 0.05, 0.05, 0.0, 0.95, 0)];
+    v.push(bx(0.0, 0.0, 1.9, 0.03, 0.05, 0.09, 0));
+    v.extend((0..17).map(|i| cyl(-0.88 + i as f32 * 0.11, 0.0, 0.016, 0.09, 0.95, 0)));
+    v.push(bx(0.0, 0.0, 2.0, 0.07, 0.95, 1.0, 1));
+    v
+}
+
+/// Balustrade de 2 m selon x : socle, dés aux deux bouts, six balustres (pied, panse, col, tête), tablette.
+fn balustrade() -> Vec<Piece> {
+    let mut v = vec![bx(0.0, 0.0, 2.0, 0.34, 0.0, 0.15, 0), bx(0.0, 0.0, 2.0, 0.36, 0.78, 0.9, 0)];
+    for x in [-0.9, 0.9] {
+        v.push(bx(x, 0.0, 0.2, 0.3, 0.15, 0.78, 0));
+    }
+    for i in 0..6 {
+        let x = -0.625 + i as f32 * 0.25;
+        v.push(bx(x, 0.0, 0.13, 0.13, 0.15, 0.21, 1));
+        v.push(ball([x, 0.36, 0.0], [0.16, 0.3, 0.16], 1));
+        v.push(cyl(x, 0.0, 0.08, 0.2, 0.72, 1));
+        v.push(bx(x, 0.0, 0.12, 0.12, 0.72, 0.78, 1));
+    }
+    v
+}
+
+/// Arche en plein cintre : deux jambages sur leur base, impostes, et neuf voussoirs tournés autour
+/// de l'axe avant-arrière (rayon intérieur 0,6 m, naissance à 2,1 m), la clé au milieu. Les
+/// voussoirs alternent d'épaisseur pour que leurs faces ne se confondent pas.
+fn arch() -> Vec<Piece> {
+    let (r, ring, spring, n) = (0.6, 0.3, 2.1, 9);
+    let mut v = Vec::new();
+    for x in [-0.8, 0.8] {
+        v.push(bx(x, 0.0, 0.5, 0.5, 0.0, 0.15, 0));
+        v.push(bx(x, 0.0, 0.4, 0.4, 0.15, spring - 0.12, 0));
+        v.push(bx(x, 0.0, 0.5, 0.46, spring - 0.12, spring, 1));
+    }
+    let chord = 2.0 * (r + ring) * (PI / (2.0 * n as f32)).sin();
+    for i in 0..n {
+        let a = PI * (i as f32 + 0.5) / n as f32;
+        let key = i == n / 2;
+        let (depth, radial) = if key { (0.44, ring + 0.08) } else { (0.4 - 0.03 * (i % 2) as f32, ring) };
+        let at = Vec3::new(a.cos(), a.sin(), 0.0) * (r + ring / 2.0) + Vec3::Y * spring;
+        let piece = Piece::new(Shape::Cube, at, Vec3::new(chord, radial, depth), usize::from(key));
+        v.push(piece.turn(Quat::from_rotation_z(a - PI / 2.0)));
+    }
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::math::{Mat3, Vec2};
@@ -322,6 +401,26 @@ mod tests {
                 assert!((top - height).abs() < 1e-3, "{kind:?} {height} → {top}");
             }
         }
+    }
+
+    #[test]
+    fn one_walks_under_the_arch_and_columns_reach_their_height() {
+        assert_eq!(walk(PropKind::Arch, 3.0, &[[0.0, -1.0], [0.0, 1.0]]), 0.0);
+        for h in [0.1, 1.0, 3.0, 4.5] {
+            let pieces = shapes(PropKind::Column, 0.0, h);
+            assert!((bounds(&pieces).1.y - h).abs() < 1e-4, "colonne de {h} m");
+            assert!(pieces.iter().all(|p| p.size.min_element() > 0.0), "colonne de {h} m : pièce retournée");
+        }
+    }
+
+    #[test]
+    fn railings_are_two_metre_modules_at_guard_height() {
+        for kind in [PropKind::Railing, PropKind::Balustrade] {
+            let size = kind.size();
+            assert!((size.x - 2.0).abs() < 0.01 && (0.85..=1.0).contains(&size.z), "{kind:?} {size}");
+            assert!(!kind.climbs() && kind.dim().is_none());
+        }
+        assert!(!PropKind::Column.climbs() && !PropKind::Arch.climbs());
     }
 
     #[test]

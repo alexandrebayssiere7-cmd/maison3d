@@ -306,6 +306,14 @@ catalog! {
     Ramp = "Rampe d'accès", Structure, DEHORS, "hauteur";
     /// Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).
     Pillar = "Pilier", Structure, DEDANS, "hauteur";
+    /// Colonne ronde de 34 cm, avec base et chapiteau, haute de `height` mètres (portique, péristyle, entrée). Pour un poteau carré : `Pillar`.
+    Column = "Colonne", Structure, DEDANS, "hauteur";
+    /// Module de garde-corps de 2 m le long de l'axe gauche-droite de l'objet (main courante à 1 m, barreaux tous les 11 cm). À aligner tous les 2 m au bord d'une mezzanine, d'un balcon ou d'une trémie ; `rot` 90 pour un bord nord-sud.
+    Railing = "Garde-corps", Structure, DEDANS;
+    /// Module de balustrade en pierre de 2 m le long de l'axe gauche-droite de l'objet (balustres entre un socle et une tablette, 90 cm de haut), à aligner tous les 2 m comme la haie : terrasse, perron, balcon.
+    Balustrade = "Balustrade", Structure, DEHORS;
+    /// Arche décorative en pierre en plein cintre, 2,1 m de large et 3 m de haut : un passage de 1,2 m sous un arc qui naît à 2,1 m. On la traverse selon l'axe avant-arrière (entrée de jardin, allée).
+    Arch = "Arche", Structure, DEHORS;
 
     // ------------------------------------------------------------ véhicules
     /// Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.
