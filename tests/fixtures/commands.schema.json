@@ -1308,6 +1308,76 @@
           "const": "Hamper"
         },
         {
+          "description": "Bureau droit (1,4 × 0,7 m, plateau à 75 cm) ; on s'assoit côté avant, voile de fond à l'arrière, contre un mur ou une cloison.",
+          "type": "string",
+          "const": "Desk"
+        },
+        {
+          "description": "Poste informatique (1,4 × 0,7 m) : écran, clavier, souris et unité centrale ; l'écran regarde l'avant, où l'on s'assoit.",
+          "type": "string",
+          "const": "ComputerDesk"
+        },
+        {
+          "description": "Fauteuil de bureau à piétement étoile sur roulettes (Ø 0,64 m, 1,1 m de haut) ; l'avant est l'assise, à placer devant un bureau, tourné vers lui.",
+          "type": "string",
+          "const": "OfficeChair"
+        },
+        {
+          "description": "Caisson à trois tiroirs (0,42 × 0,57 × 0,6 m), s'ouvre pendant la visite ; sous un bureau, à côté du fauteuil.",
+          "type": "string",
+          "const": "FilingCabinet"
+        },
+        {
+          "description": "Armoire de bureau à deux portes et classeurs (0,9 × 0,5 × 1,95 m), s'ouvre pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "OfficeCabinet"
+        },
+        {
+          "description": "Table de réunion ovale (2,4 × 1,1 m) pour huit ; chaises tout autour, tournées vers elle.",
+          "type": "string",
+          "const": "MeetingTable"
+        },
+        {
+          "description": "Module de cloison d'open space de 1,6 m de long sur l'axe gauche-droite (1,5 m de haut, 7 cm d'épaisseur). Aligner des modules tous les 1,6 m ; `rot` 90 pour une cloison nord-sud ; bureaux de part et d'autre.",
+          "type": "string",
+          "const": "Cubicle"
+        },
+        {
+          "description": "Tableau blanc sur pied à roulettes (1,6 × 0,6 × 1,9 m) ; face écrite vers l'avant.",
+          "type": "string",
+          "const": "Whiteboard"
+        },
+        {
+          "description": "Photocopieur (0,72 × 0,62 × 1,1 m) ; pupitre et bacs vers l'avant, dos à un mur.",
+          "type": "string",
+          "const": "Copier"
+        },
+        {
+          "description": "Fontaine à eau à bonbonne bleue (0,32 × 0,37 × 1,42 m) ; robinets vers l'avant, dos contre un mur.",
+          "type": "string",
+          "const": "WaterCooler"
+        },
+        {
+          "description": "Vestiaire de quatre casiers métalliques (1,2 × 0,58 × 1,8 m) dont les portes s'ouvrent pendant la visite ; dos contre un mur, à aligner tous les 1,2 m.",
+          "type": "string",
+          "const": "Lockers"
+        },
+        {
+          "description": "Banque d'accueil (2 × 0,85 × 1,2 m) : comptoir haut côté public (avant), plan de travail et écran côté hôtesse (arrière) ; avant tourné vers l'entrée.",
+          "type": "string",
+          "const": "ReceptionDesk"
+        },
+        {
+          "description": "Portemanteau sur pied (1,86 m) avec un manteau et un chapeau ; près d'une entrée.",
+          "type": "string",
+          "const": "CoatRack"
+        },
+        {
+          "description": "Baie serveur (0,6 × 1,1 × 2 m) à porte vitrée qui s'ouvre pendant la visite, serveurs aux voyants allumés ; porte vers l'avant, à aligner côte à côte tous les 0,6 m.",
+          "type": "string",
+          "const": "ServerRack"
+        },
+        {
           "description": "Établi d'atelier (1,8 × 0,7 m, plan à 90 cm) avec étau, tablette basse et panneau à outils\naccroché au mur derrière (jusqu'à 1,8 m) ; dos contre un mur.",
           "type": "string",
           "const": "Workbench"

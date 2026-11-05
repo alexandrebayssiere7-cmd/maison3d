@@ -240,6 +240,34 @@ catalog! {
     Hamper = "Panier à linge", Bathroom, DEDANS;
 
     // ------------------------------------------------------------ bureau
+    /// Bureau droit (1,4 × 0,7 m, plateau à 75 cm) ; on s'assoit côté avant, voile de fond à l'arrière, contre un mur ou une cloison.
+    Desk = "Bureau", Office, DEDANS;
+    /// Poste informatique (1,4 × 0,7 m) : écran, clavier, souris et unité centrale ; l'écran regarde l'avant, où l'on s'assoit.
+    ComputerDesk = "Bureau informatique", Office, DEDANS;
+    /// Fauteuil de bureau à piétement étoile sur roulettes (Ø 0,64 m, 1,1 m de haut) ; l'avant est l'assise, à placer devant un bureau, tourné vers lui.
+    OfficeChair = "Fauteuil de bureau", Office, DEDANS;
+    /// Caisson à trois tiroirs (0,42 × 0,57 × 0,6 m), s'ouvre pendant la visite ; sous un bureau, à côté du fauteuil.
+    FilingCabinet = "Caisson à tiroirs", Office, DEDANS;
+    /// Armoire de bureau à deux portes et classeurs (0,9 × 0,5 × 1,95 m), s'ouvre pendant la visite ; dos contre un mur.
+    OfficeCabinet = "Armoire de bureau", Office, DEDANS;
+    /// Table de réunion ovale (2,4 × 1,1 m) pour huit ; chaises tout autour, tournées vers elle.
+    MeetingTable = "Table de réunion", Office, DEDANS;
+    /// Module de cloison d'open space de 1,6 m de long sur l'axe gauche-droite (1,5 m de haut, 7 cm d'épaisseur). Aligner des modules tous les 1,6 m ; `rot` 90 pour une cloison nord-sud ; bureaux de part et d'autre.
+    Cubicle = "Cloison d'open space", Office, DEDANS;
+    /// Tableau blanc sur pied à roulettes (1,6 × 0,6 × 1,9 m) ; face écrite vers l'avant.
+    Whiteboard = "Tableau blanc", Office, DEDANS;
+    /// Photocopieur (0,72 × 0,62 × 1,1 m) ; pupitre et bacs vers l'avant, dos à un mur.
+    Copier = "Photocopieur", Office, DEDANS;
+    /// Fontaine à eau à bonbonne bleue (0,32 × 0,37 × 1,42 m) ; robinets vers l'avant, dos contre un mur.
+    WaterCooler = "Fontaine à eau", Office, DEDANS;
+    /// Vestiaire de quatre casiers métalliques (1,2 × 0,58 × 1,8 m) dont les portes s'ouvrent pendant la visite ; dos contre un mur, à aligner tous les 1,2 m.
+    Lockers = "Vestiaire", Office, DEDANS;
+    /// Banque d'accueil (2 × 0,85 × 1,2 m) : comptoir haut côté public (avant), plan de travail et écran côté hôtesse (arrière) ; avant tourné vers l'entrée.
+    ReceptionDesk = "Banque d'accueil", Office, DEDANS;
+    /// Portemanteau sur pied (1,86 m) avec un manteau et un chapeau ; près d'une entrée.
+    CoatRack = "Portemanteau", Office, DEDANS;
+    /// Baie serveur (0,6 × 1,1 × 2 m) à porte vitrée qui s'ouvre pendant la visite, serveurs aux voyants allumés ; porte vers l'avant, à aligner côte à côte tous les 0,6 m.
+    ServerRack = "Baie serveur", Office, DEDANS;
 
     // ------------------------------------------------------------ garage
     /// Établi d'atelier (1,8 × 0,7 m, plan à 90 cm) avec étau, tablette basse et panneau à outils

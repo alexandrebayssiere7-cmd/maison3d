@@ -10,6 +10,7 @@ mod garage;
 mod garden;
 mod kitchen;
 mod living;
+mod office;
 mod plants;
 mod sport;
 mod store;
@@ -55,9 +56,9 @@ pub(super) fn prop_shapes(kind: PropKind, open: f32, height: f32) -> Vec<Piece> 
         Category::Garden | Category::Leisure => garden::shapes(kind, open, height),
         Category::Structure => structure::shapes(kind, open, height),
         Category::Vehicles => vehicles::shapes(kind, open, height),
+        Category::Office => office::shapes(kind, open, height),
         Category::Garage => garage::shapes(kind, open, height),
         Category::Sport | Category::Markings => sport::shapes(kind, open, height),
-        Category::Office => Vec::new(),
     }
 }
 
@@ -73,9 +74,9 @@ pub fn prop_slots(kind: PropKind) -> &'static [Slot] {
         Category::Garden | Category::Leisure => garden::slots(kind),
         Category::Structure => structure::slots(kind),
         Category::Vehicles => vehicles::slots(kind),
+        Category::Office => office::slots(kind),
         Category::Garage => garage::slots(kind),
         Category::Sport | Category::Markings => sport::slots(kind),
-        Category::Office => const { &[] },
     }
 }
 
