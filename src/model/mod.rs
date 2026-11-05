@@ -11,6 +11,7 @@ mod check;
 mod demo;
 mod edit;
 mod geometry;
+mod openings;
 mod props;
 mod shapes;
 
@@ -18,6 +19,7 @@ pub use catalog::{Category, PropKind};
 pub use demo::demo_house;
 pub use geometry::{pick, pick_part, ray_obb, roof_tris};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
+pub use openings::OpeningKind;
 pub use props::{Prop, prop_parts};
 
 use crate::terrain::Terrain;
@@ -106,61 +108,6 @@ fn finish_at_mut<'a>(
 }
 
 // ---------------------------------------------------------------- éléments
-
-/// Type d'ouverture dans un mur ; dimensions par défaut dans `maison3d catalog`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, JsonSchema)]
-pub enum OpeningKind {
-    /// Porte pleine en bois (0,9 × 2,1 m), qui s'ouvre pendant la visite.
-    Door,
-    /// Fenêtre (1,2 × 1,2 m, allège 0,9 m).
-    Window,
-    /// Baie vitrée (2,4 × 2,2 m, au sol), pour un séjour qui donne sur le jardin.
-    Bay,
-    /// Porte-fenêtre à deux battants (1,4 × 2,15 m, au sol), qui s'ouvre pendant la visite.
-    FrenchDoor,
-    /// Grande vitre fixe (2 × 2,4 m, allège 0,3 m), ne s'ouvre pas.
-    Fixed,
-    /// Fenêtre à petits carreaux, style ancien (1 × 1,3 m, allège 0,9 m).
-    Grid,
-}
-
-impl OpeningKind {
-    pub const ALL: [OpeningKind; 6] = [Self::Door, Self::Window, Self::Bay, Self::FrenchDoor, Self::Fixed, Self::Grid];
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Door => "Porte",
-            Self::Window => "Fenêtre",
-            Self::Bay => "Baie vitrée",
-            Self::FrenchDoor => "Porte-fenêtre",
-            Self::Fixed => "Vitre fixe",
-            Self::Grid => "Fenêtre à carreaux",
-        }
-    }
-    /// (largeur, hauteur, allège)
-    pub fn default_dims(self) -> (f32, f32, f32) {
-        match self {
-            Self::Door => (0.9, 2.1, 0.0),
-            Self::Window => (1.2, 1.2, 0.9),
-            Self::Bay => (2.4, 2.2, 0.0),
-            Self::FrenchDoor => (1.4, 2.15, 0.0),
-            Self::Fixed => (2.0, 2.4, 0.3),
-            Self::Grid => (1.0, 1.3, 0.9),
-        }
-    }
-    /// Parties colorables ; la partie 0 reçoit `color` et `texture` de l'ouverture. Le verre ne se peint pas.
-    pub fn slots(self) -> &'static [Slot] {
-        const FRAME: Slot = Slot::plain("Cadre", WHITE);
-        const SILL: Slot = Slot::plain("Appui", WHITE);
-        match self {
-            Self::Door => const { &[Slot::plain("Battant", [0.5, 0.33, 0.2]), FRAME, Slot::plain("Poignée", METAL)] },
-            Self::FrenchDoor => &[FRAME],
-            Self::Window | Self::Bay | Self::Fixed | Self::Grid => &[FRAME, SILL],
-        }
-    }
-    pub fn default_color(self) -> Rgb {
-        self.slots()[0].color
-    }
-}
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

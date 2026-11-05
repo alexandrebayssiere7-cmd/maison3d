@@ -3,9 +3,9 @@
 use bevy::math::{Quat, Vec2, Vec3};
 use bevy::transform::components::Transform;
 
+use super::openings::opening_parts;
 use super::{
-    ElemRef, Finish, OpenFn, OpeningKind, Part, Pool, Road, Roof, RoofKind, Shape, Terrain, WHITE, Wall, cube, elev,
-    local_box,
+    ElemRef, Finish, OpenFn, Part, Pool, Road, Roof, RoofKind, Shape, Terrain, WHITE, Wall, cube, elev, local_box,
 };
 
 pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>) {
@@ -41,62 +41,7 @@ pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>)
         x = x1;
 
         let own = ElemRef::Opening(wi, oi);
-        let f = 0.07;
-        let fd = th + 0.04;
-        // le cadre est la partie 1 d'une porte (le battant la 0), la partie 0 des autres
-        let fr = usize::from(o.kind == OpeningKind::Door);
-        push(local_box(x0, x0 + f, o.sill, top, fd), Shape::Cube, own, fr);
-        push(local_box(x1 - f, x1, o.sill, top, fd), Shape::Cube, own, fr);
-        push(local_box(x0, x1, top - f, top, fd), Shape::Cube, own, fr);
-        match o.kind {
-            OpeningKind::FrenchDoor => {
-                // deux battants vitrés qui s'ouvrent vers l'intérieur
-                let pw = (x1 - x0 - 2.0 * f) / 2.0;
-                for (hx, side) in [(x0 + f, 1.0), (x1 - f, -1.0)] {
-                    let hinge =
-                        Transform::from_xyz(hx, 0.0, 0.0).with_rotation(Quat::from_rotation_y(-side * open(own) * 1.6));
-                    let mut leaf = |a: f32, b: f32, y0: f32, y1: f32, d: f32, shape: Shape| {
-                        let (a, b) = if side > 0.0 { (a, b) } else { (-b, -a) };
-                        push(local_box(a, b, y0, y1, d).map(|b| hinge.mul_transform(b)), shape, own, 0);
-                    };
-                    leaf(0.0, f, 0.0, top - f, 0.06, Shape::Cube);
-                    leaf(pw - f, pw, 0.0, top - f, 0.06, Shape::Cube);
-                    leaf(0.0, pw, top - 2.0 * f, top - f, 0.06, Shape::Cube);
-                    leaf(0.0, pw, 0.0, 0.15, 0.06, Shape::Cube);
-                    leaf(f, pw - f, 0.15, top - 2.0 * f, 0.02, Shape::Glass);
-                }
-            }
-            OpeningKind::Door => {
-                // le battant pivote autour de sa charnière (montant gauche)
-                let hinge =
-                    Transform::from_xyz(x0 + f, 0.0, 0.0).with_rotation(Quat::from_rotation_y(-open(own) * 1.6));
-                let pw = x1 - x0 - 2.0 * f;
-                push(local_box(0.0, pw, 0.0, top - f, 0.05).map(|b| hinge.mul_transform(b)), Shape::Cube, own, 0);
-                let knob = local_box(pw - 0.13, pw - 0.06, 0.98, 1.04, 0.14).map(|b| hinge.mul_transform(b));
-                push(knob, Shape::Cube, own, 2);
-            }
-            OpeningKind::Window | OpeningKind::Bay | OpeningKind::Fixed | OpeningKind::Grid => {
-                push(local_box(x0, x1, o.sill, o.sill + f, fd), Shape::Cube, own, 0);
-                if o.sill > 0.0 {
-                    let sill = local_box(x0 - 0.05, x1 + 0.05, o.sill - 0.04, o.sill, th + 0.12);
-                    push(sill, Shape::Cube, own, 1);
-                }
-                if o.kind == OpeningKind::Bay {
-                    let m = o.t;
-                    push(local_box(m - f / 2.0, m + f / 2.0, o.sill, top, fd), Shape::Cube, own, 0);
-                }
-                if o.kind == OpeningKind::Grid {
-                    // petits bois : un montant et deux traverses
-                    let (m, b) = (o.t, 0.015);
-                    push(local_box(m - b, m + b, o.sill, top, 0.06), Shape::Cube, own, 0);
-                    for k in [1.0, 2.0] {
-                        let y = o.sill + f + (top - o.sill - 2.0 * f) * k / 3.0;
-                        push(local_box(x0, x1, y - b, y + b, 0.06), Shape::Cube, own, 0);
-                    }
-                }
-                push(local_box(x0 + f, x1 - f, o.sill + f, top - f, 0.02), Shape::Glass, own, 0);
-            }
-        }
+        opening_parts(o, (x0, x1, top), th, open(own), &mut |b, shape, slot| push(b, shape, own, slot));
     }
     push(local_box(x, len + th / 2.0, 0.0, h, th), Shape::Cube, owner, 0);
 }

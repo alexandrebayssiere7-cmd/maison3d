@@ -137,11 +137,21 @@ fn roof_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
     finish_row(ui, "t_toit", &mut ed.roof_color, &mut ed.roof_texture, thumbs);
 }
 
-fn opening_settings(ui: &mut egui::Ui, ed: &mut Editor, k: OpeningKind) {
+fn opening_settings(ui: &mut egui::Ui, ed: &mut Editor, mut k: OpeningKind) {
+    ui.horizontal_wrapped(|ui| {
+        for o in OpeningKind::ALL {
+            if ui.selectable_label(o == k, o.name()).clicked() {
+                ed.set_tool(Tool::Opening(o));
+                k = o;
+            }
+        }
+    });
+    ui.separator();
     let (w, h, s) = &mut ed.op_dims[k as usize];
     ui.add(Slider::new(w, 0.3..=6.0).text("largeur").suffix(" m"));
     ui.add(Slider::new(h, 0.3..=4.0).text("hauteur").suffix(" m"));
-    if matches!(k, OpeningKind::Window | OpeningKind::Grid | OpeningKind::Fixed) {
+    // les fenêtres ont une allège, les portes partent du sol
+    if k.default_dims().2 > 0.0 {
         ui.add(Slider::new(s, 0.0..=2.5).text("allège").suffix(" m"));
     }
     color_row(ui, "Couleur", &mut ed.op_colors[k as usize]);

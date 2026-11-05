@@ -71,11 +71,9 @@ impl House {
     /// Peut-on l'ouvrir pendant la visite (porte, armoire, frigo, placards) ?
     pub fn openable(&self, e: ElemRef) -> bool {
         match e {
-            ElemRef::Opening(w, o) => self
-                .walls
-                .get(w)
-                .and_then(|w| w.openings.get(o))
-                .is_some_and(|o| matches!(o.kind, OpeningKind::Door | OpeningKind::FrenchDoor)),
+            ElemRef::Opening(w, o) => self.walls.get(w).and_then(|w| w.openings.get(o)).is_some_and(|o| {
+                !matches!(o.kind, OpeningKind::Window | OpeningKind::Bay | OpeningKind::Fixed | OpeningKind::Grid)
+            }),
             ElemRef::Prop(i) => self.props.get(i).is_some_and(|p| p.kind.openable()),
             _ => false,
         }
