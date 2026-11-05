@@ -6,7 +6,18 @@ use serde::{Deserialize, Serialize};
 /// Cases de 1 m par côté, centrées sur l'origine ; au-delà, le sol reste plat à 0.
 pub const N: usize = 160;
 pub const SIDE: usize = N + 1;
-const HALF: f32 = N as f32 / 2.0;
+/// Demi-côté du terrain en mètres : il couvre x et z de -HALF à HALF.
+pub const HALF: f32 = N as f32 / 2.0;
+
+fn smooth(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
+/// 0 dans le rectangle et jusqu'à 3 m autour, puis remonte vers 1 sur 15 m.
+fn flat_weight(p: Vec2, lo: Vec2, hi: Vec2) -> f32 {
+    smooth((p.distance(p.clamp(lo, hi)) - 3.0) / 15.0)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Brush {
@@ -85,7 +96,9 @@ impl Terrain {
                 Brush::Raise => h + amount * w,
                 Brush::Lower => h - amount * w,
                 Brush::Flatten => h + (target - h) * k,
-                Brush::Smooth => h + ((t.at(i - 1, j) + t.at(i + 1, j) + t.at(i, j - 1) + t.at(i, j + 1)) / 4.0 - h) * k,
+                Brush::Smooth => {
+                    h + ((t.at(i - 1, j) + t.at(i + 1, j) + t.at(i, j - 1) + t.at(i, j + 1)) / 4.0 - h) * k
+                }
                 Brush::Noise => h + amount * w * (2.0 * fbm(Self::vertex(i, j) / 5.0, seed) - 1.0) * 2.0,
             }
         });
@@ -120,20 +133,23 @@ impl Terrain {
     /// Relief aléatoire : collines douces ou montagnes à crêtes, de taille `scale` (m).
     /// La zone `keep` (la maison) reste plate, et le terrain retombe à 0 sur les bords.
     pub fn generate(&mut self, seed: u32, amp: f32, scale: f32, mountains: bool, keep: Option<(Vec2, Vec2)>) {
-        let smooth = |x: f32| {
-            let x = x.clamp(0.0, 1.0);
-            x * x * (3.0 - 2.0 * x)
-        };
         self.h = (0..SIDE * SIDE)
             .map(|k| {
                 let p = Self::vertex(k % SIDE, k / SIDE);
                 let n = fbm(p / scale, seed);
                 let shape = if mountains { (1.0 - (2.0 * n - 1.0).abs()).powi(3) * 2.0 } else { 2.0 * n - 0.8 };
                 let edge = smooth((HALF - p.abs().max_element()) / 15.0);
-                let near = keep.map_or(1.0, |(lo, hi)| smooth((p.distance(p.clamp(lo, hi)) - 3.0) / 15.0));
+                let near = keep.map_or(1.0, |(lo, hi)| flat_weight(p, lo, hi));
                 amp * shape * edge * near
             })
             .collect();
+    }
+
+    /// Ramène en douceur le relief à 0 autour du rectangle `lo`–`hi` (un bâtiment posé après le relief).
+    pub fn keep_flat(&mut self, lo: Vec2, hi: Vec2) {
+        for (k, y) in self.h.iter_mut().enumerate() {
+            *y *= flat_weight(Self::vertex(k % SIDE, k / SIDE), lo, hi);
+        }
     }
 
     /// Premier point du terrain touché par un rayon.
@@ -155,7 +171,7 @@ impl Terrain {
             if above(t + step) <= 0.0 {
                 let (mut a, mut b) = (t, t + step);
                 for _ in 0..12 {
-                    let m = (a + b) / 2.0;
+                    let m = f32::midpoint(a, b);
                     if above(m) > 0.0 { a = m } else { b = m }
                 }
                 return Some(o + d * b);
@@ -167,7 +183,8 @@ impl Terrain {
 }
 
 fn hash(i: i32, j: i32, s: u32) -> f32 {
-    let mut h = (i as u32).wrapping_mul(374_761_393) ^ (j as u32).wrapping_mul(668_265_263) ^ s.wrapping_mul(2_246_822_519);
+    let mut h =
+        (i as u32).wrapping_mul(374_761_393) ^ (j as u32).wrapping_mul(668_265_263) ^ s.wrapping_mul(2_246_822_519);
     h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
     (h ^ (h >> 16)) as f32 / u32::MAX as f32
 }
@@ -231,6 +248,6 @@ mod tests {
         let (a, b) = (Vec2::new(-60.0, -40.0), Vec2::new(-20.0, -40.0));
         t.grade(a, b, 4.0);
         let mid = t.height(Vec2::new(-40.0, -40.0));
-        assert!((mid - (t.height(a) + t.height(b)) / 2.0).abs() < 0.05);
+        assert!((mid - f32::midpoint(t.height(a), t.height(b))).abs() < 0.05);
     }
 }

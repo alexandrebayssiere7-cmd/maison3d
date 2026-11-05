@@ -1,0 +1,15 @@
+[
+  {"op": "room", "min": [0, 0], "max": [8, 6], "level": 0},
+  {"op": "place_opening", "wall": 2, "kind": "Door", "t": 2},
+  {"op": "place_opening", "wall": 2, "kind": "Window", "t": 5.5},
+  {"op": "place_opening", "wall": 0, "kind": "Window", "t": 2},
+  {"op": "place_opening", "wall": 0, "kind": "Window", "t": 6},
+  {"op": "place_opening", "wall": 1, "kind": "Bay", "t": 3},
+  {"op": "place_prop", "kind": "Sofa", "pos": [4, 0.55], "level": 0, "rot": 0},
+  {"op": "place_prop", "kind": "Kitchen", "pos": [0.45, 3], "level": 0, "rot": 90},
+  {"op": "place_prop", "kind": "Table", "pos": [3.5, 3.5], "level": 0},
+  {"op": "place_prop", "kind": "Chair", "pos": [3.1, 2.8], "level": 0, "rot": 0},
+  {"op": "place_prop", "kind": "Chair", "pos": [3.9, 4.2], "level": 0, "rot": 180},
+  {"op": "place_prop", "kind": "Lamp", "pos": [7.4, 0.6], "level": 0},
+  {"op": "place_roof", "min": [0, 0], "max": [8, 6], "level": 1, "kind": "Gable"}
+]

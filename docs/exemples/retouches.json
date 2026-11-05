@@ -1,0 +1,21 @@
+[
+  {"op": "room", "min": [0, 0], "max": [5, 4], "level": 0},
+  {"op": "add_slab", "min": [5, 0], "max": [8, 4], "level": 0, "color": [1, 1, 1], "texture": 44},
+  {"op": "add_wall", "a": [8, 0], "b": [8, 4], "level": 0, "height": 1, "thick": 0.2, "color": [1, 1, 1], "openings": [], "texture": 7},
+  {"op": "add_opening", "wall": 0, "opening": {"kind": "Grid", "t": 2.5, "width": 1, "height": 1.3, "sill": 0.9, "color": [0.2, 0.3, 0.2]}},
+  {"op": "place_opening", "wall": 1, "kind": "FrenchDoor", "t": 2},
+  {"op": "add_roof", "min": [0, 0], "max": [5, 4], "level": 1, "kind": "Flat", "height": 0.3, "overhang": 0.2, "color": [1, 1, 1], "texture": 55},
+  {"op": "add_prop", "kind": "Table", "pos": [6.5, 2], "level": 0, "rot": 0, "color": [0.9, 0.9, 0.9], "texture": 0, "height": 3},
+  {"op": "add_prop", "kind": "Pillar", "pos": [7.8, 0.2], "level": 0, "rot": 0, "color": [1, 1, 1], "texture": 7, "height": 1.2},
+  {"op": "add_road", "a": [5, 6], "b": [15, 6], "width": 3, "color": [1, 1, 1], "texture": 43},
+  {"op": "duplicate", "target": {"Prop": 0}, "by": [0, 1.5]},
+  {"op": "rotate", "target": {"Prop": 2}, "deg": 45},
+  {"op": "move", "target": {"Prop": 2}, "by": [0.5, 0]},
+  {"op": "paint", "target": {"Wall": 1}, "color": [0.9, 0.85, 0.7], "texture": 12},
+  {"op": "paint", "target": {"Opening": [1, 0]}, "color": [0.2, 0.3, 0.2]},
+  {"op": "remove", "target": {"Wall": 4}},
+  {"op": "set", "target": {"Prop": 1}, "fields": {"height": 2.4, "texture": 9}},
+  {"op": "room", "min": [-6, 0], "max": [-2, 4], "level": 0, "height": 2.5, "thick": 0.3, "wall_texture": 17, "floor_texture": 31},
+  {"op": "place_prop", "kind": "Shelf", "pos": [-4, 0.35], "level": 0},
+  {"op": "flatten_terrain"}
+]

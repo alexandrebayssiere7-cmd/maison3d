@@ -1,0 +1,15 @@
+[
+  {"op": "room", "min": [0, 0], "max": [10, 6], "level": 0},
+  {"op": "add_wall", "a": [6, 0], "b": [6, 6], "level": 0, "height": 3, "thick": 0.1, "color": [1, 1, 1], "openings": [], "texture": 21},
+  {"op": "place_opening", "wall": 4, "kind": "Door", "t": 4.5},
+  {"op": "place_opening", "wall": 2, "kind": "Door", "t": 7},
+  {"op": "place_opening", "wall": 0, "kind": "Window", "t": 3},
+  {"op": "place_opening", "wall": 0, "kind": "Window", "t": 8},
+  {"op": "place_opening", "wall": 1, "kind": "Window", "t": 3},
+  {"op": "place_prop", "kind": "Bed", "pos": [8, 1.1], "level": 0, "rot": 0},
+  {"op": "place_prop", "kind": "Wardrobe", "pos": [6.4, 1.6], "level": 0, "rot": 90},
+  {"op": "place_prop", "kind": "Sofa", "pos": [3, 0.55], "level": 0, "rot": 0},
+  {"op": "place_prop", "kind": "Kitchen", "pos": [0.45, 3], "level": 0, "rot": 90},
+  {"op": "place_prop", "kind": "Plant", "pos": [5.5, 5.5], "level": 0},
+  {"op": "place_roof", "min": [0, 0], "max": [10, 6], "level": 1, "kind": "Hip"}
+]

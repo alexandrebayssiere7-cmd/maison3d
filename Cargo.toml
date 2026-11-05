@@ -6,8 +6,12 @@ edition = "2024"
 [dependencies]
 bevy = { version = "0.16", features = ["serialize"] }
 bevy_egui = "0.34"
+schemars = "1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+
+[dev-dependencies]
+proptest = "1"
 
 # bevy est inutilisable en debug sans optimiser les dépendances
 [profile.dev]
@@ -15,3 +19,18 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# systèmes Bevy : Res/Query/Commands passés par valeur, requêtes et signatures longues
+needless_pass_by_value = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"
+# géométrie : conversions grille <-> mètres et noms courts (a, b, x, y, h...)
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+# ressources de réglages avec plusieurs bascules
+struct_excessive_bools = "allow"

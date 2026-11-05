@@ -1,0 +1,1369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Array_of_Command",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/Command"
+  },
+  "$defs": {
+    "Command": {
+      "description": "Une modification du monde. En JSON : `{\"op\": \"add_wall\", \"a\": [0, 0], \"b\": [4, 0], ...}`.\n\nConventions : mètres et degrés. Un point au sol est `[x, z]` (y est la verticale) ; la vue de\ndessus de `maison3d shot` met -z (le nord) en haut. `level` va de -1 (sous-sol) à 9 et chaque\nétage fait 3 m : le sol de `level` est à `3 × level` m. `color` est `[r, g, b]` entre 0 et 1\n(`[1, 1, 1]` montre la texture telle quelle) ; `texture` vaut 0 (aucune) ou un indice de\n`maison3d textures`. Tout point doit rester sur le terrain : x et z entre -80 et 80 m.\nUn champ inconnu (faute de frappe) fait refuser la commande.\n\nLes éléments sont désignés par leur indice dans leur liste (`{\"Wall\": 0}`,\n`{\"Opening\": [mur, n]}`), affiché par `maison3d describe` ; `apply` affiche ceux que crée\nchaque commande. Une suppression décale les indices suivants de la même liste.\n\nPréférer `room` et les `place_*`, qui remplissent dimensions et matières par défaut\n(`maison3d catalog` les liste) ; les `add_*` demandent tous les champs.",
+      "oneOf": [
+        {
+          "description": "Pièce rectangulaire : 4 murs (centrés sur le bord du rectangle) et un sol. Crée les murs\ndans l'ordre nord (z = min), est (x = max), sud (z = max), ouest (x = min), chacun de `a`\nvers `b` dans le sens horaire vu du dessus, puis le sol. Deux pièces accolées ont chacune\nleur mur sur la cloison commune : pour un logement à plusieurs pièces, une `room` pour\nl'enveloppe puis des `add_wall` pour les cloisons.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "room"
+            },
+            "min": {
+              "description": "Coin nord-ouest `[x, z]` (plus petites coordonnées).",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "max": {
+              "description": "Coin sud-est `[x, z]`, strictement plus grand que `min` sur chaque axe.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage (-1 à 9).",
+              "type": "integer",
+              "format": "int32"
+            },
+            "height": {
+              "description": "Hauteur des murs en mètres, 0,1 à 30 (3 par défaut : un étage plein).",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "thick": {
+              "description": "Épaisseur des murs en mètres, 0,02 à 3 (0,2 par défaut).",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "wall_texture": {
+              "description": "Matière des murs (`maison3d textures`, « Crépi blanc » par défaut).",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint",
+              "minimum": 0,
+              "default": null
+            },
+            "floor_texture": {
+              "description": "Matière du sol (« Parquet chêne clair » par défaut).",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint",
+              "minimum": 0,
+              "default": null
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "min",
+            "max",
+            "level"
+          ]
+        },
+        {
+          "description": "Porte ou fenêtre aux dimensions et à la couleur par défaut de son type (`maison3d catalog`).\nRefusée si elle chevauche une autre ouverture ou sort de la plage permise : 5 cm plus la\ndemi-épaisseur du mur à chaque bout (le message donne la plage de `t` valide).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "place_opening"
+            },
+            "wall": {
+              "description": "Indice du mur (`Wall n` dans `describe`).",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "kind": {
+              "$ref": "#/$defs/OpeningKind"
+            },
+            "t": {
+              "description": "Position du centre de l'ouverture, en mètres depuis l'extrémité `a` du mur.",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "wall",
+            "kind",
+            "t"
+          ]
+        },
+        {
+          "description": "Meuble, escalier, végétal, lampadaire ou voiture, avec sa couleur et sa matière par défaut.\nLes éléments d'extérieur du rez-de-chaussée se posent sur le relief.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "place_prop"
+            },
+            "kind": {
+              "$ref": "#/$defs/PropKind"
+            },
+            "pos": {
+              "description": "Centre de l'objet `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage (-1 à 9).",
+              "type": "integer",
+              "format": "int32"
+            },
+            "rot": {
+              "description": "Rotation en degrés autour de la verticale (0 par défaut). À 0 l'avant de l'objet\nregarde +z (le sud) ; plus généralement l'avant pointe vers `[sin rot, cos rot]`.\n90 = vers +x (l'est), 180 = vers -z (le nord), 270 = vers -x (l'ouest).",
+              "type": "number",
+              "format": "float",
+              "default": 0.0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "kind",
+            "pos",
+            "level"
+          ]
+        },
+        {
+          "description": "Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`\nmètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "place_row"
+            },
+            "kind": {
+              "$ref": "#/$defs/PropKind"
+            },
+            "from": {
+              "description": "Centre du premier objet `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "to": {
+              "description": "Centre du dernier objet `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "step": {
+              "description": "Espacement en mètres, 0,1 ou plus (2 pour des modules de haie ou de clôture jointifs) ;\n200 objets au plus.",
+              "type": "number",
+              "format": "float"
+            },
+            "level": {
+              "description": "Étage (-1 à 9).",
+              "type": "integer",
+              "format": "int32"
+            },
+            "rot": {
+              "description": "Rotation en degrés. Absente : l'axe gauche-droite des objets suit la rangée (modules\nde haie et de clôture bout à bout ; l'avant d'un lampadaire regarde à droite de la\ndirection `from` → `to`).",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "kind",
+            "from",
+            "to",
+            "step",
+            "level"
+          ]
+        },
+        {
+          "description": "Toit de 2,5 m de haut avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir\ndes murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "place_roof"
+            },
+            "min": {
+              "description": "Coin nord-ouest de l'emprise des murs ; le débord est ajouté autour.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "max": {
+              "description": "Coin sud-est de l'emprise des murs.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage sur lequel repose le toit : celui juste au-dessus des murs couverts.",
+              "type": "integer",
+              "format": "int32"
+            },
+            "kind": {
+              "$ref": "#/$defs/RoofKind"
+            },
+            "texture": {
+              "description": "Matière (« Tuiles terre cuite » par défaut, « Zinc » pour un toit plat).",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint",
+              "minimum": 0,
+              "default": null
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "min",
+            "max",
+            "level",
+            "kind"
+          ]
+        },
+        {
+          "description": "Mur droit, tous champs explicites. Pour une cloison intérieure, mettre ses extrémités sur\nles murs existants. Au rez-de-chaussée, le relief est aplani autour.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_wall"
+            },
+            "a": {
+              "description": "Extrémité de départ `[x, z]` ; les positions `t` des ouvertures se mesurent depuis elle.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "b": {
+              "description": "Extrémité d'arrivée `[x, z]` ; au moins 5 cm de `a`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage (-1 à 9) : le mur part du sol de cet étage.",
+              "type": "integer",
+              "format": "int32"
+            },
+            "height": {
+              "description": "Hauteur en mètres (3 = un étage plein).",
+              "type": "number",
+              "format": "float"
+            },
+            "thick": {
+              "description": "Épaisseur en mètres (0,2 pour un mur extérieur, 0,1 pour une cloison).",
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "description": "Teinte `[r, g, b]`, multipliée par la texture.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "openings": {
+              "description": "Portes et fenêtres ; `[]` puis `place_opening` est plus simple.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Opening"
+              }
+            },
+            "texture": {
+              "description": "Matière (`maison3d textures`), 0 = aucune.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "a",
+            "b",
+            "level",
+            "height",
+            "thick",
+            "color",
+            "openings"
+          ]
+        },
+        {
+          "description": "Sol rectangulaire (plancher, dalle, terrasse) posé au niveau de `level`. Au\nrez-de-chaussée, le relief est aplani autour. Pour une trémie d'escalier, juxtaposer\nplusieurs sols autour du trou.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_slab"
+            },
+            "min": {
+              "description": "Coin nord-ouest `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "max": {
+              "description": "Coin sud-est `[x, z]`, strictement plus grand que `min`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage (-1 à 9).",
+              "type": "integer",
+              "format": "int32"
+            },
+            "color": {
+              "description": "Teinte `[r, g, b]`, multipliée par la texture.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Matière (`maison3d textures`), 0 = aucune.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "min",
+            "max",
+            "level",
+            "color"
+          ]
+        },
+        {
+          "description": "Toit, tous champs explicites (voir `place_roof`).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_roof"
+            },
+            "min": {
+              "description": "Coin nord-ouest de l'emprise des murs couverts.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "max": {
+              "description": "Coin sud-est de l'emprise des murs couverts.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage où repose le toit : 1 pour couvrir des murs du rez-de-chaussée.",
+              "type": "integer",
+              "format": "int32"
+            },
+            "kind": {
+              "$ref": "#/$defs/RoofKind"
+            },
+            "height": {
+              "description": "Hauteur du faîtage au-dessus de la base, en mètres (2,5 par défaut).",
+              "type": "number",
+              "format": "float"
+            },
+            "overhang": {
+              "description": "Débord en mètres ajouté de chaque côté de l'emprise (0,5 par défaut).",
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "description": "Teinte `[r, g, b]`, multipliée par la texture.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Matière (`maison3d textures`), 0 = aucune.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "min",
+            "max",
+            "level",
+            "kind",
+            "height",
+            "overhang",
+            "color"
+          ]
+        },
+        {
+          "description": "Objet, tous champs explicites (voir `place_prop`).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_prop"
+            },
+            "kind": {
+              "$ref": "#/$defs/PropKind"
+            },
+            "pos": {
+              "description": "Centre de l'objet `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "level": {
+              "description": "Étage (-1 à 9). Au rez-de-chaussée, les objets d'extérieur se posent sur le relief.",
+              "type": "integer",
+              "format": "int32"
+            },
+            "rot": {
+              "description": "Rotation en degrés autour de la verticale : l'avant pointe vers `[sin rot, cos rot]`\n(0 = sud/+z, 90 = est/+x, 180 = nord/-z, 270 = ouest/-x).",
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "description": "Teinte `[r, g, b]` des parties principales (feuillage, tissu, bois).",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Matière (`maison3d textures`), 0 = aucune.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
+            },
+            "height": {
+              "description": "Hauteur montée par un escalier ou hauteur d'un pilier, en mètres (3 par défaut) ;\nignorée pour les autres objets.",
+              "type": "number",
+              "format": "float",
+              "default": 3.0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "kind",
+            "pos",
+            "level",
+            "rot",
+            "color"
+          ]
+        },
+        {
+          "description": "Piscine creusée au rez-de-chaussée. Coins en mètres entiers (grille du relief) ; le\nterrain est aplani dessous.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_pool"
+            },
+            "min": {
+              "description": "Coin nord-ouest `[x, z]`, en mètres entiers.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "max": {
+              "description": "Coin sud-est `[x, z]`, en mètres entiers, strictement plus grand que `min`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "depth": {
+              "description": "Profondeur d'eau en mètres (1,5 par défaut dans l'éditeur).",
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "description": "Teinte du bassin `[r, g, b]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Matière du bassin (`maison3d textures`, « Mosaïque bleue » dans l'éditeur).",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "min",
+            "max",
+            "depth",
+            "color",
+            "texture"
+          ]
+        },
+        {
+          "description": "Tronçon de route droit au rez-de-chaussée ; le terrain est terrassé dessous. Enchaîner\nplusieurs tronçons qui partagent leurs extrémités pour un tracé courbe. Une allée qui\nrejoint une route s'arrête à son bord (à `width / 2` de son axe).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_road"
+            },
+            "a": {
+              "description": "Début `[x, z]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "b": {
+              "description": "Fin `[x, z]`, au moins 5 cm de `a`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "width": {
+              "description": "Largeur en mètres (4 par défaut dans l'éditeur, 3 pour une allée).",
+              "type": "number",
+              "format": "float"
+            },
+            "color": {
+              "description": "Teinte `[r, g, b]`.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Matière (`maison3d textures`, « Béton brut » dans l'éditeur).",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "a",
+            "b",
+            "width",
+            "color",
+            "texture"
+          ]
+        },
+        {
+          "description": "Ouverture aux dimensions choisies (voir `place_opening` pour les règles de place).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_opening"
+            },
+            "wall": {
+              "description": "Indice du mur.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "opening": {
+              "$ref": "#/$defs/Opening"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "wall",
+            "opening"
+          ]
+        },
+        {
+          "description": "Insère un étage au-dessus de `level` : copie ses murs (fenêtres, baies et\nportes-fenêtres comprises, sans les portes `Door`) et ses sols intérieurs, pas les objets ;\nremonte de 3 m tout ce qui était plus haut, toits compris. Les indices existants ne\nchangent pas ; les copies sont ajoutées à la fin, dans l'ordre des originaux. Dans un\nmonde à plusieurs bâtiments, donner `min` et `max` pour n'agir que sur l'un d'eux.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "add_storey"
+            },
+            "level": {
+              "description": "Étage à copier ; `level + 1` doit rester ≤ 9.",
+              "type": "integer",
+              "format": "int32"
+            },
+            "min": {
+              "description": "Coin nord-ouest de la zone concernée (absent : tout le monde).",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "default": null
+            },
+            "max": {
+              "description": "Coin sud-est de la zone concernée.",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "default": null
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "level"
+          ]
+        },
+        {
+          "description": "Remplace le relief par un relief aléatoire. Le rectangle qui englobe tous les murs et sols\nreste plat, ainsi que 3 m autour, puis le relief monte sur 15 m ; routes et piscines sont\nterrassées à nouveau. Le relief retombe à 0 sur les bords du terrain. Un bâtiment ajouté\nensuite aplanit lui aussi le relief autour de lui.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "generate_terrain"
+            },
+            "seed": {
+              "description": "Graine : la même graine redonne le même relief.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "amp": {
+              "description": "Amplitude en mètres, 0 à 60 (l'éditeur propose 8).",
+              "type": "number",
+              "format": "float"
+            },
+            "scale": {
+              "description": "Taille typique d'une colline en mètres, 5 à 200 (l'éditeur propose 40).",
+              "type": "number",
+              "format": "float"
+            },
+            "mountains": {
+              "description": "`true` : montagnes à crêtes ; `false` : collines douces.",
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "seed",
+            "amp",
+            "scale",
+            "mountains"
+          ]
+        },
+        {
+          "description": "Remet tout le terrain à plat, à l'altitude 0.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "flatten_terrain"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Supprime un élément (un mur emporte ses ouvertures). Décale de 1 les indices suivants\nde la même liste : dans un lot, supprimer du plus grand indice au plus petit.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "remove"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target"
+          ]
+        },
+        {
+          "description": "Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de\n`by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une\npiscine se déplace par mètres entiers (`by` arrondi).",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "move"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            },
+            "by": {
+              "description": "Décalage `[dx, dz]` en mètres.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target",
+            "by"
+          ]
+        },
+        {
+          "description": "Copie un élément (pas une ouverture) décalé de `by` ; renvoie la référence de la copie.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "duplicate"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            },
+            "by": {
+              "description": "Décalage de la copie `[dx, dz]` en mètres.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target",
+            "by"
+          ]
+        },
+        {
+          "description": "Fait tourner un objet (`Prop` uniquement) sur lui-même. Pour un mur, utiliser `set` sur\n`a` et `b`.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "rotate"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            },
+            "deg": {
+              "description": "Degrés ajoutés à sa rotation actuelle (voir `place_prop.rot` pour le sens).",
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target",
+            "deg"
+          ]
+        },
+        {
+          "description": "Change la couleur et/ou la matière d'un élément.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "paint"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            },
+            "color": {
+              "description": "Nouvelle couleur `[r, g, b]` (0 à 1) ; absente ou `null` : inchangée.",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "texture": {
+              "description": "Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.\nIgnoré pour une ouverture, qui n'a pas de matière.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target"
+          ]
+        },
+        {
+          "description": "Modifie des champs d'un élément existant, sans changer son indice : par exemple\n`{\"op\": \"set\", \"target\": {\"Prop\": 3}, \"fields\": {\"height\": 4.5}}`. Les noms et les bornes\nsont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de\nl'ouverture ; le résultat est validé comme un ajout. Routes et piscines sont terrassées à\nnouveau.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "set"
+            },
+            "target": {
+              "$ref": "#/$defs/ElemRef"
+            },
+            "fields": {
+              "description": "Champs à remplacer et leur nouvelle valeur.",
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "target",
+            "fields"
+          ]
+        }
+      ]
+    },
+    "OpeningKind": {
+      "description": "Type d'ouverture dans un mur ; dimensions par défaut dans `maison3d catalog`.",
+      "oneOf": [
+        {
+          "description": "Porte pleine en bois (0,9 × 2,1 m), qui s'ouvre pendant la visite.",
+          "type": "string",
+          "const": "Door"
+        },
+        {
+          "description": "Fenêtre (1,2 × 1,2 m, allège 0,9 m).",
+          "type": "string",
+          "const": "Window"
+        },
+        {
+          "description": "Baie vitrée (2,4 × 2,2 m, au sol), pour un séjour qui donne sur le jardin.",
+          "type": "string",
+          "const": "Bay"
+        },
+        {
+          "description": "Porte-fenêtre à deux battants (1,4 × 2,15 m, au sol), qui s'ouvre pendant la visite.",
+          "type": "string",
+          "const": "FrenchDoor"
+        },
+        {
+          "description": "Grande vitre fixe (2 × 2,4 m, allège 0,3 m), ne s'ouvre pas.",
+          "type": "string",
+          "const": "Fixed"
+        },
+        {
+          "description": "Fenêtre à petits carreaux, style ancien (1 × 1,3 m, allège 0,9 m).",
+          "type": "string",
+          "const": "Grid"
+        }
+      ]
+    },
+    "PropKind": {
+      "description": "Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Encombrement, hauteur\net extérieur ou non : `maison3d catalog`.",
+      "oneOf": [
+        {
+          "description": "Table de repas rectangulaire.",
+          "type": "string",
+          "const": "Table"
+        },
+        {
+          "description": "Chaise ; l'avant est le côté où l'on s'assoit (dossier à l'arrière). À tourner vers la table.",
+          "type": "string",
+          "const": "Chair"
+        },
+        {
+          "description": "Canapé trois places ; l'avant est l'assise, à tourner vers la pièce ou la télé, dossier contre un mur.",
+          "type": "string",
+          "const": "Sofa"
+        },
+        {
+          "description": "Lit double ; la tête est à l'arrière (à coller au mur), les pieds vers l'avant.",
+          "type": "string",
+          "const": "Bed"
+        },
+        {
+          "description": "Armoire, s'ouvre pendant la visite ; dos contre un mur, portes vers l'avant.",
+          "type": "string",
+          "const": "Wardrobe"
+        },
+        {
+          "description": "Bloc cuisine (meubles bas, évier, plaques), placards ouvrables ; dos contre un mur.",
+          "type": "string",
+          "const": "Kitchen"
+        },
+        {
+          "description": "Réfrigérateur, s'ouvre pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "Fridge"
+        },
+        {
+          "description": "Baignoire.",
+          "type": "string",
+          "const": "Bathtub"
+        },
+        {
+          "description": "WC ; réservoir à l'arrière, contre un mur.",
+          "type": "string",
+          "const": "Toilet"
+        },
+        {
+          "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
+          "type": "string",
+          "const": "Stairs"
+        },
+        {
+          "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
+          "type": "string",
+          "const": "Pillar"
+        },
+        {
+          "description": "Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.",
+          "type": "string",
+          "const": "Lamp"
+        },
+        {
+          "description": "Plante d'intérieur en pot.",
+          "type": "string",
+          "const": "Plant"
+        },
+        {
+          "description": "Arbre feuillu.",
+          "type": "string",
+          "const": "Tree"
+        },
+        {
+          "description": "Buisson rond.",
+          "type": "string",
+          "const": "Bush"
+        },
+        {
+          "description": "Sapin.",
+          "type": "string",
+          "const": "Pine"
+        },
+        {
+          "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
+          "type": "string",
+          "const": "Hedge"
+        },
+        {
+          "description": "Module de clôture de 2 m de long, à aligner comme la haie.",
+          "type": "string",
+          "const": "Fence"
+        },
+        {
+          "description": "Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.",
+          "type": "string",
+          "const": "Car"
+        },
+        {
+          "description": "Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.",
+          "type": "string",
+          "const": "SpiralStairs"
+        },
+        {
+          "description": "Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.",
+          "type": "string",
+          "const": "LStairs"
+        },
+        {
+          "description": "Bouleau.",
+          "type": "string",
+          "const": "Birch"
+        },
+        {
+          "description": "Palmier.",
+          "type": "string",
+          "const": "Palm"
+        },
+        {
+          "description": "Cyprès, haut et étroit (alignements, bords de terrain).",
+          "type": "string",
+          "const": "Cypress"
+        },
+        {
+          "description": "Pommier.",
+          "type": "string",
+          "const": "AppleTree"
+        },
+        {
+          "description": "Massif de fleurs.",
+          "type": "string",
+          "const": "Flowers"
+        },
+        {
+          "description": "Rosier.",
+          "type": "string",
+          "const": "Rosebush"
+        },
+        {
+          "description": "Tournesols.",
+          "type": "string",
+          "const": "Sunflower"
+        },
+        {
+          "description": "Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet\n(à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.",
+          "type": "string",
+          "const": "StreetLamp"
+        },
+        {
+          "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",
+          "type": "string",
+          "const": "Shelf"
+        }
+      ]
+    },
+    "RoofKind": {
+      "description": "Forme de toit. Le faîtage suit toujours le grand côté de l'emprise.",
+      "oneOf": [
+        {
+          "description": "Deux pans, pignons sur les petits côtés : la maison classique.",
+          "type": "string",
+          "const": "Gable"
+        },
+        {
+          "description": "Quatre pans, sans pignon.",
+          "type": "string",
+          "const": "Hip"
+        },
+        {
+          "description": "Toit-terrasse plat de 30 cm (`height` ignorée).",
+          "type": "string",
+          "const": "Flat"
+        },
+        {
+          "description": "Un seul pan incliné (garage, extension).",
+          "type": "string",
+          "const": "Shed"
+        },
+        {
+          "description": "Quatre pans jusqu'à un sommet unique, pour une emprise presque carrée.",
+          "type": "string",
+          "const": "Pyramid"
+        },
+        {
+          "description": "Mansarde : pans brisés, raides en bas, doux en haut.",
+          "type": "string",
+          "const": "Mansard"
+        }
+      ]
+    },
+    "Opening": {
+      "description": "Porte ou fenêtre percée dans un mur.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OpeningKind"
+        },
+        "t": {
+          "description": "Position du centre le long du mur, en mètres depuis son extrémité `a`.",
+          "type": "number",
+          "format": "float"
+        },
+        "width": {
+          "description": "Largeur en mètres.",
+          "type": "number",
+          "format": "float"
+        },
+        "height": {
+          "description": "Hauteur en mètres ; le haut est coupé à la hauteur du mur.",
+          "type": "number",
+          "format": "float"
+        },
+        "sill": {
+          "description": "Allège : hauteur du bas de l'ouverture au-dessus du sol de l'étage (0 pour une porte).",
+          "type": "number",
+          "format": "float"
+        },
+        "color": {
+          "description": "Couleur du cadre et du battant `[r, g, b]`.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "t",
+        "width",
+        "height",
+        "sill",
+        "color"
+      ]
+    },
+    "ElemRef": {
+      "description": "Référence vers un élément par son indice dans sa liste, comme l'affiche `maison3d describe`.\nEn JSON : `{\"Wall\": 0}`, `{\"Opening\": [mur, n]}`, `{\"Prop\": 3}`…",
+      "oneOf": [
+        {
+          "description": "Mur n.",
+          "type": "object",
+          "properties": {
+            "Wall": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Wall"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Ouverture : `[indice du mur, indice de l'ouverture dans ce mur]`.",
+          "type": "object",
+          "properties": {
+            "Opening": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0
+                },
+                {
+                  "type": "integer",
+                  "format": "uint",
+                  "minimum": 0
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "Opening"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Sol n.",
+          "type": "object",
+          "properties": {
+            "Slab": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Slab"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Toit n.",
+          "type": "object",
+          "properties": {
+            "Roof": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Roof"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Objet n (meuble, escalier, végétal, voiture).",
+          "type": "object",
+          "properties": {
+            "Prop": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Prop"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Piscine n.",
+          "type": "object",
+          "properties": {
+            "Pool": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Pool"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Tronçon de route n.",
+          "type": "object",
+          "properties": {
+            "Road": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "Road"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

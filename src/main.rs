@@ -1,3 +1,4 @@
+mod agent;
 mod camera;
 mod command;
 mod editor;
@@ -6,20 +7,27 @@ mod model;
 mod render;
 mod terrain;
 mod textures;
-mod visit;
 mod ui;
+mod visit;
 
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 
 fn main() {
+    if let Some(code) = agent::cli() {
+        std::process::exit(code);
+    }
     // la maison d'exemple sert de décor derrière les menus
     let mut ed = editor::Editor::default();
     ed.house = model::demo_house();
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window { title: "Maison 3D".into(), resolution: (1600.0_f32, 950.0_f32).into(), ..default() }),
+            primary_window: Some(Window {
+                title: "Maison 3D".into(),
+                resolution: (1600.0_f32, 950.0_f32).into(),
+                ..default()
+            }),
             // la fermeture passe par menu::save_on_close
             close_when_requested: false,
             ..default()

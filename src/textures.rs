@@ -15,10 +15,18 @@ pub struct Tex {
 
 /// Identifiant de texture d'un élément : 0 = aucune, sinon index dans `catalog()` + 1.
 pub fn find(name: &str) -> usize {
+    names().iter().position(|n| *n == name).map_or(0, |i| i + 1)
+}
+
+/// Nombre de matières : les indices valides vont de 0 (aucune) à `count()`.
+pub fn count() -> usize {
+    names().len()
+}
+
+fn names() -> &'static [&'static str] {
     // appelé à chaque reconstruction (écorce des troncs) : noms calculés une seule fois
     static NAMES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-    let names = NAMES.get_or_init(|| catalog().iter().map(|t| t.name).collect());
-    names.iter().position(|n| *n == name).map_or(0, |i| i + 1)
+    NAMES.get_or_init(|| catalog().iter().map(|t| t.name).collect())
 }
 
 fn tex(name: &'static str, scale: f32, f: impl Fn(f32, f32) -> Rgb + 'static) -> Tex {
@@ -26,7 +34,7 @@ fn tex(name: &'static str, scale: f32, f: impl Fn(f32, f32) -> Rgb + 'static) ->
 }
 
 pub fn catalog() -> Vec<Tex> {
-    let rgb = |r: u8, g: u8, b: u8| [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0];
+    let rgb = |r: u8, g: u8, b: u8| [f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0];
     vec![
         // murs
         tex("Brique rouge", 1.0, bricks(14.0, 4.0, rgb(150, 62, 42), rgb(200, 195, 185), 0.18, 1)),
@@ -44,7 +52,11 @@ pub fn catalog() -> Vec<Tex> {
         tex("Crépi ocre", 1.0, plain(rgb(214, 170, 110), 0.12, 24, 13)),
         tex("Crépi rose", 1.0, plain(rgb(225, 180, 165), 0.12, 24, 14)),
         tex("Enduit gris", 1.0, plain(rgb(170, 170, 168), 0.15, 16, 15)),
-        tex("Béton brut", 2.4, tiles(2.0, rgb(160, 158, 152), rgb(160, 158, 152), rgb(120, 118, 115), 0.004, false, 0.04, 16)),
+        tex(
+            "Béton brut",
+            2.4,
+            tiles(2.0, rgb(160, 158, 152), rgb(160, 158, 152), rgb(120, 118, 115), 0.004, false, 0.04, 16),
+        ),
         tex("Bardage bois", 1.0, siding(8.0, rgb(160, 115, 75), false, 17)),
         tex("Bardage vertical", 1.0, siding(8.0, rgb(150, 105, 70), true, 18)),
         tex("Bardage gris", 1.0, siding(8.0, rgb(140, 140, 138), false, 19)),
@@ -52,7 +64,11 @@ pub fn catalog() -> Vec<Tex> {
         tex("Plâtre", 1.0, plain(rgb(245, 244, 240), 0.05, 8, 21)),
         tex("Papier peint rayé", 0.5, stripes(6.0, rgb(230, 225, 210), rgb(200, 210, 200))),
         tex("Papier peint bleu", 0.5, stripes(10.0, rgb(180, 195, 220), rgb(160, 178, 210))),
-        tex("Faïence blanche", 0.6, tiles(6.0, rgb(245, 245, 245), rgb(245, 245, 245), rgb(190, 190, 190), 0.004, false, 0.03, 24)),
+        tex(
+            "Faïence blanche",
+            0.6,
+            tiles(6.0, rgb(245, 245, 245), rgb(245, 245, 245), rgb(190, 190, 190), 0.004, false, 0.03, 24),
+        ),
         tex("Carreaux métro", 0.6, bricks(8.0, 4.0, rgb(240, 240, 238), rgb(170, 170, 170), 0.03, 25)),
         // sols
         tex("Parquet chêne clair", 2.0, planks(14.0, 2.0, rgb(215, 180, 135), 0.12, 26)),
@@ -61,20 +77,44 @@ pub fn catalog() -> Vec<Tex> {
         tex("Parquet wengé", 2.0, planks(14.0, 2.0, rgb(65, 45, 35), 0.15, 29)),
         tex("Parquet gris vieilli", 2.0, planks(14.0, 2.0, rgb(165, 155, 140), 0.12, 30)),
         tex("Plancher brut", 2.0, planks(8.0, 1.0, rgb(170, 125, 80), 0.25, 31)),
-        tex("Carrelage blanc", 1.2, tiles(2.0, rgb(235, 233, 228), rgb(235, 233, 228), rgb(180, 178, 172), 0.003, false, 0.03, 32)),
-        tex("Carrelage gris", 1.2, tiles(2.0, rgb(140, 140, 140), rgb(140, 140, 140), rgb(100, 100, 100), 0.003, false, 0.05, 33)),
-        tex("Carrelage noir", 1.2, tiles(2.0, rgb(40, 40, 42), rgb(40, 40, 42), rgb(90, 90, 90), 0.003, false, 0.05, 34)),
-        tex("Damier noir et blanc", 1.2, tiles(4.0, rgb(235, 235, 235), rgb(30, 30, 30), rgb(120, 120, 120), 0.002, true, 0.02, 35)),
+        tex(
+            "Carrelage blanc",
+            1.2,
+            tiles(2.0, rgb(235, 233, 228), rgb(235, 233, 228), rgb(180, 178, 172), 0.003, false, 0.03, 32),
+        ),
+        tex(
+            "Carrelage gris",
+            1.2,
+            tiles(2.0, rgb(140, 140, 140), rgb(140, 140, 140), rgb(100, 100, 100), 0.003, false, 0.05, 33),
+        ),
+        tex(
+            "Carrelage noir",
+            1.2,
+            tiles(2.0, rgb(40, 40, 42), rgb(40, 40, 42), rgb(90, 90, 90), 0.003, false, 0.05, 34),
+        ),
+        tex(
+            "Damier noir et blanc",
+            1.2,
+            tiles(4.0, rgb(235, 235, 235), rgb(30, 30, 30), rgb(120, 120, 120), 0.002, true, 0.02, 35),
+        ),
         tex("Tomettes", 1.0, tiles(5.0, rgb(175, 85, 55), rgb(175, 85, 55), rgb(200, 190, 175), 0.006, false, 0.2, 36)),
         tex("Marbre blanc", 2.0, marble(rgb(238, 236, 232), rgb(150, 150, 155), 2.0, 37)),
         tex("Marbre noir", 2.0, marble(rgb(30, 30, 33), rgb(200, 200, 200), 2.0, 38)),
-        tex("Mosaïque bleue", 0.6, tiles(16.0, rgb(40, 110, 170), rgb(40, 110, 170), rgb(225, 225, 225), 0.003, false, 0.35, 39)),
+        tex(
+            "Mosaïque bleue",
+            0.6,
+            tiles(16.0, rgb(40, 110, 170), rgb(40, 110, 170), rgb(225, 225, 225), 0.003, false, 0.35, 39),
+        ),
         tex("Moquette beige", 1.0, plain(rgb(200, 185, 160), 0.2, 96, 40)),
         tex("Moquette grise", 1.0, plain(rgb(120, 120, 125), 0.2, 96, 41)),
         tex("Béton ciré", 3.0, plain(rgb(175, 172, 165), 0.18, 4, 42)),
         // extérieur
         tex("Pavés", 1.0, bricks(8.0, 4.0, rgb(130, 128, 125), rgb(80, 78, 75), 0.25, 43)),
-        tex("Dalles de jardin", 1.2, tiles(2.0, rgb(200, 192, 175), rgb(200, 192, 175), rgb(110, 105, 95), 0.01, false, 0.1, 44)),
+        tex(
+            "Dalles de jardin",
+            1.2,
+            tiles(2.0, rgb(200, 192, 175), rgb(200, 192, 175), rgb(110, 105, 95), 0.01, false, 0.1, 44),
+        ),
         tex("Gravier", 1.0, stones(28.0, rgb(175, 168, 155), rgb(90, 85, 80), 0.45, 45)),
         tex("Herbe", 1.0, grass()),
         tex("Sable", 1.0, plain(rgb(225, 205, 160), 0.2, 64, 47)),
@@ -136,7 +176,8 @@ pub fn pixels_with_mips(t: &Tex) -> (Vec<u8>, u32) {
 // ---------------------------------------------------------------- bruit
 
 fn hash(x: i32, y: i32, s: u32) -> f32 {
-    let mut h = (x as u32).wrapping_mul(0x8da6_b343) ^ (y as u32).wrapping_mul(0xd816_3841) ^ s.wrapping_mul(0xcb1a_b31f);
+    let mut h =
+        (x as u32).wrapping_mul(0x8da6_b343) ^ (y as u32).wrapping_mul(0xd816_3841) ^ s.wrapping_mul(0xcb1a_b31f);
     h ^= h >> 13;
     h = h.wrapping_mul(0x5bd1_e995);
     h ^= h >> 15;
@@ -198,7 +239,16 @@ fn bricks(rows: f32, cols: f32, brick: Rgb, mortar: Rgb, var: f32, s: u32) -> im
     }
 }
 
-fn tiles(n: f32, a: Rgb, b: Rgb, joint_c: Rgb, joint: f32, checker: bool, var: f32, s: u32) -> impl Fn(f32, f32) -> Rgb {
+fn tiles(
+    n: f32,
+    a: Rgb,
+    b: Rgb,
+    joint_c: Rgb,
+    joint: f32,
+    checker: bool,
+    var: f32,
+    s: u32,
+) -> impl Fn(f32, f32) -> Rgb {
     move |u, v| {
         let (i, j) = ((u * n).floor() as i32, (v * n).floor() as i32);
         let (fu, fv) = ((u * n).fract(), (v * n).fract());
@@ -366,7 +416,7 @@ mod tests {
         let c = catalog();
         assert!(c.len() >= 50, "{} textures", c.len());
         let mut names: Vec<_> = c.iter().map(|t| t.name).collect();
-        names.sort();
+        names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), c.len(), "noms en double");
         assert_eq!(find("Brique rouge"), 1);
@@ -383,9 +433,16 @@ mod tests {
             let f = &t.color;
             let jump = |horizontal: bool, i: usize| -> f32 {
                 let j = (i + 1) % SIZE;
-                (0..SIZE).step_by(4).map(|k| {
-                    if horizontal { diff(f(px(i), px(k)), f(px(j), px(k))) } else { diff(f(px(k), px(i)), f(px(k), px(j))) }
-                }).sum()
+                (0..SIZE)
+                    .step_by(4)
+                    .map(|k| {
+                        if horizontal {
+                            diff(f(px(i), px(k)), f(px(j), px(k)))
+                        } else {
+                            diff(f(px(k), px(i)), f(px(k), px(j)))
+                        }
+                    })
+                    .sum()
             };
             for horizontal in [true, false] {
                 let worst_inside = (0..SIZE - 1).map(|i| jump(horizontal, i)).fold(0.0, f32::max);
