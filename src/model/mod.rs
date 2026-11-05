@@ -495,9 +495,29 @@ impl House {
         out
     }
 
-    /// Altitude de base d'un objet : les végétaux du rez-de-chaussée suivent le relief.
+    /// Altitude de base d'un objet : au rez-de-chaussée, les objets d'extérieur suivent le relief,
+    /// ou le dessus de la route (marquages, voitures).
     pub fn prop_y(&self, p: &Prop) -> f32 {
-        if p.level == 0 && p.kind.outdoor() { self.terrain.height(p.pos) } else { elev(p.level) }
+        if p.level == 0 && p.kind.outdoor() {
+            self.road_top(p.pos).unwrap_or_else(|| self.terrain.height(p.pos))
+        } else {
+            elev(p.level)
+        }
+    }
+
+    /// Dessus de la plus haute route qui passe en `p` (voir `road_part` : 6 cm au-dessus de la
+    /// droite qui relie ses deux bouts sur le relief).
+    fn road_top(&self, p: Vec2) -> Option<f32> {
+        self.roads
+            .iter()
+            .filter(|r| r.a.distance_squared(r.b) > 1e-6)
+            .filter_map(|r| {
+                let d = r.b - r.a;
+                let t = ((p - r.a).dot(d) / d.length_squared()).clamp(0.0, 1.0);
+                let (ya, yb) = (self.terrain.height(r.a), self.terrain.height(r.b));
+                (p.distance(r.a + d * t) <= r.width / 2.0).then_some(ya + (yb - ya) * t + 0.06)
+            })
+            .reduce(f32::max)
     }
 
     /// Altitude du sol nu ; dans une piscine, très bas : c'est son fond qui porte.
@@ -591,6 +611,16 @@ mod tests {
         assert_eq!(h.prop_y(tree), h.terrain.height(tree.pos));
         let sofa = h.props.iter().find(|p| p.kind == PropKind::Sofa).unwrap();
         assert_eq!(h.prop_y(sofa), 0.0);
+    }
+    #[test]
+    fn outdoor_props_sit_on_roads() {
+        let mut h = House::default();
+        h.roads.push(Road { a: Vec2::new(-10.0, 0.0), b: Vec2::new(10.0, 0.0), width: 6.0, color: WHITE, texture: 0 });
+        h.roads.push(Road { a: Vec2::ZERO, b: Vec2::ZERO, width: 6.0, color: WHITE, texture: 0 });
+        let at = |kind, z: f32| h.prop_y(&Prop::new(kind, Vec2::new(0.0, z), 0, 0.0));
+        assert!((at(PropKind::Crosswalk, 2.9) - 0.06).abs() < 1e-5, "sur la chaussée");
+        assert_eq!(at(PropKind::Crosswalk, 3.5), 0.0, "à côté de la route");
+        assert_eq!(at(PropKind::Sofa, 0.0), 0.0, "un objet d'intérieur reste au niveau de l'étage");
     }
     #[test]
     fn opening_fit_rules() {
