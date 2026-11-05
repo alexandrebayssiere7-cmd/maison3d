@@ -3,7 +3,9 @@
 use bevy::math::Vec2;
 
 use super::EditError;
-use crate::model::{ElemRef, House, Opening, OpeningKind, Pool, Prop, Rgb, Road, Roof, Slab, Wall};
+use crate::model::{
+    Category, ElemRef, Finish, House, Opening, OpeningKind, Pool, Prop, Rgb, Road, Roof, Slab, Slot, Wall,
+};
 use crate::terrain::HALF;
 
 pub(super) fn level(l: i32) -> Result<(), EditError> {
@@ -39,6 +41,15 @@ fn look(c: Rgb, t: usize) -> Result<(), EditError> {
     texture(t)
 }
 
+/// Finitions des parties après la principale : une au plus par partie, chacune valide.
+fn finishes(list: &[Finish], slots: &[Slot]) -> Result<(), EditError> {
+    let max = slots.len().saturating_sub(1);
+    if list.len() > max {
+        return Err(EditError::TooManyFinishes { count: list.len(), max });
+    }
+    list.iter().try_for_each(|f| look(f.color, f.texture))
+}
+
 pub(super) fn wall(w: &Wall) -> Result<(), EditError> {
     level(w.level)?;
     point(w.a)?;
@@ -57,7 +68,8 @@ pub(super) fn opening(w: &Wall, o: &Opening, me: Option<usize>) -> Result<(), Ed
     range("width", o.width, 0.2, 10.0)?;
     range("height", o.height, 0.2, 10.0)?;
     range("sill", o.sill, 0.0, 10.0)?;
-    color(o.color)?;
+    look(o.color, o.texture)?;
+    finishes(&o.finishes, o.kind.slots())?;
     if o.sill + o.height > w.height + 1e-3 {
         return Err(EditError::OpeningTooTall { top: o.sill + o.height, wall_height: w.height });
     }
@@ -94,8 +106,11 @@ pub(super) fn prop(p: &Prop) -> Result<(), EditError> {
     level(p.level)?;
     point(p.pos)?;
     range("rot", p.rot, -36_000.0, 36_000.0)?;
-    range("height", p.height, 0.1, 30.0)?;
-    look(p.color, p.texture)
+    // une ligne de terrain peut traverser tout le monde
+    let max = if p.kind.category() == Category::Markings { 2.0 * HALF } else { 30.0 };
+    range("height", p.height, 0.1, max)?;
+    look(p.color, p.texture)?;
+    finishes(&p.finishes, p.kind.slots())
 }
 
 pub(super) fn pool(p: &Pool) -> Result<(), EditError> {

@@ -106,7 +106,7 @@ fn level_section(s: &mut String, h: &House, l: i32) {
     }
     for (i, p) in h.props.iter().enumerate().filter(|(_, p)| p.level == l) {
         let (lo, hi) = p.corners().iter().fold((Vec2::MAX, Vec2::MIN), |(lo, hi), c| (lo.min(*c), hi.max(*c)));
-        let height = if p.kind.has_height() { format!(", haut {} m", p.height) } else { String::new() };
+        let height = p.kind.dim().map_or(String::new(), |d| format!(", {d} {} m", p.height));
         let _ = writeln!(
             s,
             "  Prop {i} : {:?} ({}) en {}, rot {}°{height}, emprise {} → {}",

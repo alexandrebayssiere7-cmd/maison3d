@@ -223,7 +223,7 @@
           ]
         },
         {
-          "description": "Toit de 2,5 m de haut avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir\ndes murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.",
+          "description": "Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit\nplat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir\ndes murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.",
           "type": "object",
           "properties": {
             "op": {
@@ -543,10 +543,17 @@
               "default": 0
             },
             "height": {
-              "description": "Hauteur montée par un escalier ou hauteur d'un pilier, en mètres (3 par défaut) ;\nignorée pour les autres objets.",
+              "description": "Dimension réglable en mètres (3 par défaut, 0,5 pour `StoneSteps` et `Ramp`) : hauteur montée par un escalier, hauteur d'un\npilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée\npour les autres objets.",
               "type": "number",
               "format": "float",
               "default": 3.0
+            },
+            "finishes": {
+              "description": "Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;\nune partie absente garde sa finition d'origine. Plus simple : `paint` avec `part`.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Finish"
+              }
             }
           },
           "additionalProperties": false,
@@ -905,7 +912,7 @@
           ]
         },
         {
-          "description": "Change la couleur et/ou la matière d'un élément.",
+          "description": "Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet\nou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une\nporte…), listées par `maison3d catalog` (`parts`).",
           "type": "object",
           "properties": {
             "op": {
@@ -914,6 +921,13 @@
             },
             "target": {
               "$ref": "#/$defs/ElemRef"
+            },
+            "part": {
+              "description": "Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,\nsols, toits, piscines et routes n'ont que la partie 0.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
             },
             "color": {
               "description": "Nouvelle couleur `[r, g, b]` (0 à 1) ; absente ou `null` : inchangée.",
@@ -929,7 +943,7 @@
               "maxItems": 3
             },
             "texture": {
-              "description": "Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.\nIgnoré pour une ouverture, qui n'a pas de matière.",
+              "description": "Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.",
               "type": [
                 "integer",
                 "null"
@@ -1002,11 +1016,56 @@
           "description": "Fenêtre à petits carreaux, style ancien (1 × 1,3 m, allège 0,9 m).",
           "type": "string",
           "const": "Grid"
+        },
+        {
+          "description": "Baie coulissante (2,4 × 2,15 m, au sol) : deux vantaux vitrés, celui de droite glisse\nderrière celui de gauche pendant la visite.",
+          "type": "string",
+          "const": "SlidingDoor"
+        },
+        {
+          "description": "Porte japonaise (shoji, 1,8 × 2 m, au sol) : deux panneaux de bois quadrillés tendus de\npapier ; celui de droite coulisse derrière l'autre.",
+          "type": "string",
+          "const": "Shoji"
+        },
+        {
+          "description": "Porte à galandage (0,83 × 2,04 m, au sol) : le battant glisse vers la droite et disparaît\ndans l'épaisseur du mur ; laisser une largeur de mur pleine à sa droite.",
+          "type": "string",
+          "const": "PocketDoor"
+        },
+        {
+          "description": "Porte de grange coulissante (1 × 2,1 m, au sol) : vantail en applique côté intérieur du\nmur, suspendu à un rail visible ; il glisse vers la droite, laisser une largeur de mur libre.",
+          "type": "string",
+          "const": "BarnDoor"
+        },
+        {
+          "description": "Porte vitrée (0,9 × 2,15 m, au sol) : battant tout verre à cadre fin, qui pivote.",
+          "type": "string",
+          "const": "GlassDoor"
+        },
+        {
+          "description": "Porte double (1,5 × 2,15 m, au sol) : deux battants pleins qui pivotent, pour une entrée.",
+          "type": "string",
+          "const": "DoubleDoor"
+        },
+        {
+          "description": "Porte de garage basculante (2,4 × 2 m, au sol) : le tablier pivote vers le haut et\nrentre à l'horizontale sous le plafond, côté intérieur.",
+          "type": "string",
+          "const": "GarageDoor"
+        },
+        {
+          "description": "Porte automatique (1,8 × 2,2 m, au sol) : deux vantaux vitrés qui s'écartent dans le\nmur, caisson du moteur au-dessus ; entrée de magasin ou de bureau.",
+          "type": "string",
+          "const": "AutoDoor"
+        },
+        {
+          "description": "Fenêtre coulissante (1,4 × 1,15 m, allège 1 m) : deux châssis vitrés, celui de droite\nglisse derrière l'autre.",
+          "type": "string",
+          "const": "SlidingWindow"
         }
       ]
     },
     "PropKind": {
-      "description": "Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Encombrement, hauteur\net extérieur ou non : `maison3d catalog`.",
+      "description": "Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Catégorie,\nencombrement, parties colorables et extérieur ou non : `maison3d catalog`.",
       "oneOf": [
         {
           "description": "Table de repas rectangulaire.",
@@ -1024,6 +1083,76 @@
           "const": "Sofa"
         },
         {
+          "description": "Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.",
+          "type": "string",
+          "const": "Lamp"
+        },
+        {
+          "description": "Fauteuil club (0,85 × 0,82 m) ; l'avant est l'assise, dossier à l'arrière. À tourner vers la table basse ou la télé.",
+          "type": "string",
+          "const": "Armchair"
+        },
+        {
+          "description": "Table basse à tablette (1,1 × 0,6 m, 42 cm de haut) ; devant le canapé, à 40 cm de son assise.",
+          "type": "string",
+          "const": "CoffeeTable"
+        },
+        {
+          "description": "Table ronde de repas sur pied central (Ø 1,1 m) pour quatre ; chaises tout autour, tournées vers elle.",
+          "type": "string",
+          "const": "RoundTable"
+        },
+        {
+          "description": "Canapé d'angle en L (2,6 × 1,8 m) : dossier à l'arrière, méridienne qui avance vers l'avant côté +x local. Dossier contre un mur, retour le long de l'autre mur dans un angle.",
+          "type": "string",
+          "const": "CornerSofa"
+        },
+        {
+          "description": "Meuble télé bas (1,6 × 0,42 m) avec son téléviseur (1,32 m de haut en tout) ; écran vers l'avant, dos contre un mur, face au canapé à 2,5 m environ.",
+          "type": "string",
+          "const": "TvStand"
+        },
+        {
+          "description": "Bibliothèque garnie de livres (1 × 0,32 × 2 m) ; dos contre un mur, à aligner tous les 1 m pour un mur de livres.",
+          "type": "string",
+          "const": "Bookcase"
+        },
+        {
+          "description": "Buffet bas à trois portes (1,84 × 0,55 × 0,86 m), s'ouvre pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "Sideboard"
+        },
+        {
+          "description": "Tapis plat (2,1 × 1,4 m, moins de 5 cm) : se pose sous une table, un lit ou un canapé sans alerte de chevauchement.",
+          "type": "string",
+          "const": "Rug"
+        },
+        {
+          "description": "Cheminée à foyer ouvert (1,5 × 0,65 × 1 m) où brûle un feu qui éclaire en orangé ; dos contre un mur, foyer vers l'avant.",
+          "type": "string",
+          "const": "Fireplace"
+        },
+        {
+          "description": "Piano droit (1,5 × 0,55 × 1,25 m) ; clavier vers l'avant, dos contre un mur.",
+          "type": "string",
+          "const": "Piano"
+        },
+        {
+          "description": "Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; se pose au-dessus d'une table sans alerte.",
+          "type": "string",
+          "const": "CeilingLamp"
+        },
+        {
+          "description": "Aquarium de 1,2 m sur son meuble (1,2 × 0,45 × 1,3 m), avec eau, plantes et poissons ; vitre avant vers l'avant, dos contre un mur.",
+          "type": "string",
+          "const": "Aquarium"
+        },
+        {
+          "description": "Pouf rond (Ø 0,5 m, 44 cm de haut) ; près d'un fauteuil ou devant une coiffeuse.",
+          "type": "string",
+          "const": "Ottoman"
+        },
+        {
           "description": "Lit double ; la tête est à l'arrière (à coller au mur), les pieds vers l'avant.",
           "type": "string",
           "const": "Bed"
@@ -1032,6 +1161,41 @@
           "description": "Armoire, s'ouvre pendant la visite ; dos contre un mur, portes vers l'avant.",
           "type": "string",
           "const": "Wardrobe"
+        },
+        {
+          "description": "Lit simple (0,9 × 2 m) ; tête à l'arrière contre un mur, pieds vers l'avant.",
+          "type": "string",
+          "const": "SingleBed"
+        },
+        {
+          "description": "Lits superposés (0,95 × 2,1 × 1,7 m), échelle au pied côté +x local ; tête à l'arrière contre un mur, laisser l'avant dégagé pour l'échelle.",
+          "type": "string",
+          "const": "BunkBed"
+        },
+        {
+          "description": "Lit bébé à barreaux (0,67 × 1,25 × 0,9 m) ; tête à l'arrière, contre un mur.",
+          "type": "string",
+          "const": "Crib"
+        },
+        {
+          "description": "Table de chevet à tiroir (0,45 × 0,38 × 0,55 m), s'ouvre pendant la visite ; dos au mur, de part et d'autre de la tête du lit.",
+          "type": "string",
+          "const": "Nightstand"
+        },
+        {
+          "description": "Commode à trois tiroirs (1 × 0,5 × 0,85 m), s'ouvre pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "Dresser"
+        },
+        {
+          "description": "Coiffeuse à miroir ovale (1 × 0,45 × 1,7 m), miroir à l'arrière ; dos contre un mur, un pouf devant.",
+          "type": "string",
+          "const": "Vanity"
+        },
+        {
+          "description": "Coffre à jouets (0,82 × 0,47 × 0,49 m) dont le couvercle se soulève pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "ToyChest"
         },
         {
           "description": "Bloc cuisine (meubles bas, évier, plaques), placards ouvrables ; dos contre un mur.",
@@ -1044,6 +1208,56 @@
           "const": "Fridge"
         },
         {
+          "description": "Îlot central (1,9 × 1 × 0,92 m) : placards ouvrables à l'avant, plan de travail qui déborde\nde 40 cm à l'arrière pour s'y asseoir (tabourets `BarStool` non compris, à poser côté arrière).\nAu milieu de la cuisine, à 1 m au moins des meubles muraux.",
+          "type": "string",
+          "const": "KitchenIsland"
+        },
+        {
+          "description": "Meuble bas de cuisine, module de 60 × 62 × 90 cm plan de travail compris, porte qui s'ouvre ;\ndos contre un mur, à aligner tous les 60 cm avec `Range` et `Dishwasher` (même gabarit).",
+          "type": "string",
+          "const": "BaseCabinet"
+        },
+        {
+          "description": "Meuble haut de cuisine (60 × 38 cm), fixé au mur entre 1,4 et 2,1 m, porte qui s'ouvre ; dos\ncontre un mur, au-dessus des meubles bas, à aligner tous les 60 cm.",
+          "type": "string",
+          "const": "WallCabinet"
+        },
+        {
+          "description": "Cuisinière (60 × 60 × 90 cm) : quatre foyers, boutons à l'avant, four dont la porte s'abat\nvers l'avant ; dos contre un mur, alignée avec les meubles bas, `RangeHood` au-dessus.",
+          "type": "string",
+          "const": "Range"
+        },
+        {
+          "description": "Colonne four (60 × 60 × 220 cm) : placard bas, four encastré à abattant, micro-ondes et\nplacard haut ; dos contre un mur, en bout de rangée de meubles bas.",
+          "type": "string",
+          "const": "OvenTower"
+        },
+        {
+          "description": "Lave-vaisselle (60 × 60 × 85 cm), porte qui s'abat vers l'avant sur deux paniers garnis ;\ndos contre un mur, aligné avec les meubles bas.",
+          "type": "string",
+          "const": "Dishwasher"
+        },
+        {
+          "description": "Hotte murale (60 × 50 cm), bas à 1,6 m et cheminée jusqu'à 2,4 m ; dos contre un mur, à la\nmême position que la cuisinière `Range` ou les plaques, au-dessus d'elles.",
+          "type": "string",
+          "const": "RangeHood"
+        },
+        {
+          "description": "Tabouret de bar rond (assise à 72 cm) sur pied central ; autour d'un `KitchenIsland` ou d'un\n`HighTable`, tous les 50 cm environ.",
+          "type": "string",
+          "const": "BarStool"
+        },
+        {
+          "description": "Poubelle de cuisine à pédale (30 cm de diamètre, 66 cm de haut), pédale à l'avant ; contre un\nmur ou au bout d'un meuble bas.",
+          "type": "string",
+          "const": "KitchenBin"
+        },
+        {
+          "description": "Mange-debout rond (70 cm de diamètre, 1,09 m de haut) sur pied central ; avec deux à quatre\ntabourets `BarStool` autour.",
+          "type": "string",
+          "const": "HighTable"
+        },
+        {
           "description": "Baignoire.",
           "type": "string",
           "const": "Bathtub"
@@ -1054,24 +1268,389 @@
           "const": "Toilet"
         },
         {
-          "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
+          "description": "Douche à l'italienne (1,4 × 0,9 m) : receveur extra-plat, paroi de verre fixe sur la gauche\nde l'avant (entrée de 60 cm à droite), colonne et pommeau contre le mur du fond ; dos contre un\nmur, idéalement dans un angle côté gauche.",
           "type": "string",
-          "const": "Stairs"
+          "const": "WalkInShower"
         },
         {
-          "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
+          "description": "Cabine de douche vitrée (90 × 90 × 210 cm), paroi pleine au fond, porte vitrée qui s'ouvre à\nl'avant ; dos contre un mur, souvent dans un angle.",
           "type": "string",
-          "const": "Pillar"
+          "const": "ShowerCabin"
         },
         {
-          "description": "Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.",
+          "description": "Lavabo sur colonne (56 × 45 cm, plan à 86 cm), robinet à l'arrière ; dos contre un mur.",
           "type": "string",
-          "const": "Lamp"
+          "const": "Washbasin"
         },
         {
-          "description": "Plante d'intérieur en pot.",
+          "description": "Meuble vasque (82 × 48 cm) : deux portes ouvrables, vasque à poser, mitigeur et miroir au mur\nau-dessus (1,15 à 1,85 m) ; dos contre un mur.",
           "type": "string",
-          "const": "Plant"
+          "const": "VanityUnit"
+        },
+        {
+          "description": "Miroir mural encadré (66 × 86 cm, de 1,07 à 1,93 m de haut, 3 cm d'épaisseur) ; dos contre un\nmur, au-dessus d'un lavabo `Washbasin`.",
+          "type": "string",
+          "const": "Mirror"
+        },
+        {
+          "description": "Sèche-serviettes à barreaux (54 cm de large, de 25 cm à 1,5 m), serviette posée dessus ; dos\ncontre un mur, près de la douche ou de la baignoire.",
+          "type": "string",
+          "const": "TowelRadiator"
+        },
+        {
+          "description": "Lave-linge à hublot (60 × 60 × 85 cm), le hublot s'ouvre à l'avant ; dos contre un mur, dans la\nsalle de bain, la buanderie ou le garage.",
+          "type": "string",
+          "const": "WashingMachine"
+        },
+        {
+          "description": "Panier à linge en osier (42 cm de diamètre, 60 cm de haut) ; dans un coin ou contre un mur.",
+          "type": "string",
+          "const": "Hamper"
+        },
+        {
+          "description": "Bureau droit (1,4 × 0,7 m, plateau à 75 cm) ; on s'assoit côté avant, voile de fond à l'arrière, contre un mur ou une cloison.",
+          "type": "string",
+          "const": "Desk"
+        },
+        {
+          "description": "Poste informatique (1,4 × 0,7 m) : écran, clavier, souris et unité centrale ; l'écran regarde l'avant, où l'on s'assoit.",
+          "type": "string",
+          "const": "ComputerDesk"
+        },
+        {
+          "description": "Fauteuil de bureau à piétement étoile sur roulettes (Ø 0,64 m, 1,1 m de haut) ; l'avant est l'assise, à placer devant un bureau, tourné vers lui.",
+          "type": "string",
+          "const": "OfficeChair"
+        },
+        {
+          "description": "Caisson à trois tiroirs (0,42 × 0,57 × 0,6 m), s'ouvre pendant la visite ; sous un bureau, à côté du fauteuil.",
+          "type": "string",
+          "const": "FilingCabinet"
+        },
+        {
+          "description": "Armoire de bureau à deux portes et classeurs (0,9 × 0,5 × 1,95 m), s'ouvre pendant la visite ; dos contre un mur.",
+          "type": "string",
+          "const": "OfficeCabinet"
+        },
+        {
+          "description": "Table de réunion ovale (2,4 × 1,1 m) pour huit ; chaises tout autour, tournées vers elle.",
+          "type": "string",
+          "const": "MeetingTable"
+        },
+        {
+          "description": "Module de cloison d'open space de 1,6 m de long sur l'axe gauche-droite (1,5 m de haut, 7 cm d'épaisseur). Aligner des modules tous les 1,6 m ; `rot` 90 pour une cloison nord-sud ; bureaux de part et d'autre.",
+          "type": "string",
+          "const": "Cubicle"
+        },
+        {
+          "description": "Tableau blanc sur pied à roulettes (1,6 × 0,6 × 1,9 m) ; face écrite vers l'avant.",
+          "type": "string",
+          "const": "Whiteboard"
+        },
+        {
+          "description": "Photocopieur (0,72 × 0,62 × 1,1 m) ; pupitre et bacs vers l'avant, dos à un mur.",
+          "type": "string",
+          "const": "Copier"
+        },
+        {
+          "description": "Fontaine à eau à bonbonne bleue (0,32 × 0,37 × 1,42 m) ; robinets vers l'avant, dos contre un mur.",
+          "type": "string",
+          "const": "WaterCooler"
+        },
+        {
+          "description": "Vestiaire de quatre casiers métalliques (1,2 × 0,58 × 1,8 m) dont les portes s'ouvrent pendant la visite ; dos contre un mur, à aligner tous les 1,2 m.",
+          "type": "string",
+          "const": "Lockers"
+        },
+        {
+          "description": "Banque d'accueil (2 × 0,85 × 1,2 m) : comptoir haut côté public (avant), plan de travail et écran côté hôtesse (arrière) ; avant tourné vers l'entrée.",
+          "type": "string",
+          "const": "ReceptionDesk"
+        },
+        {
+          "description": "Portemanteau sur pied (1,86 m) avec un manteau et un chapeau ; près d'une entrée.",
+          "type": "string",
+          "const": "CoatRack"
+        },
+        {
+          "description": "Baie serveur (0,6 × 1,1 × 2 m) à porte vitrée qui s'ouvre pendant la visite, serveurs aux voyants allumés ; porte vers l'avant, à aligner côte à côte tous les 0,6 m.",
+          "type": "string",
+          "const": "ServerRack"
+        },
+        {
+          "description": "Établi d'atelier (1,8 × 0,7 m, plan à 90 cm) avec étau, tablette basse et panneau à outils\naccroché au mur derrière (jusqu'à 1,8 m) ; dos contre un mur.",
+          "type": "string",
+          "const": "Workbench"
+        },
+        {
+          "description": "Servante d'atelier à roulettes (70 × 47 × 103 cm), cinq tiroirs qui sortent vers l'avant ; près\nde l'établi.",
+          "type": "string",
+          "const": "ToolChest"
+        },
+        {
+          "description": "Rayonnage métallique (1,2 × 0,5 × 1,9 m), cinq tablettes garnies de cartons, bacs et pots ; dos\ncontre un mur, à aligner tous les 1,2 m.",
+          "type": "string",
+          "const": "MetalShelf"
+        },
+        {
+          "description": "Pile de quatre pneus couchés avec leurs jantes (62 cm de diamètre, 80 cm de haut) ; dans un\ncoin ou le long d'un mur.",
+          "type": "string",
+          "const": "TireStack"
+        },
+        {
+          "description": "Trois bidons de 20 l côte à côte (deux rouges, un vert ; 57 × 35 × 50 cm) ; au pied d'un mur.",
+          "type": "string",
+          "const": "JerryCans"
+        },
+        {
+          "description": "Chauffe-eau de 200 l sur trépied (56 cm de diamètre, 2,1 m avec ses tuyaux) ; contre un mur,\ndans le garage ou la buanderie.",
+          "type": "string",
+          "const": "WaterHeater"
+        },
+        {
+          "description": "Tondeuse à gazon poussée (0,6 × 1,05 m) : l'avant (carter) regarde +z, le guidon et le bac\nsont à l'arrière ; rangée dans le garage ou posée sur la pelouse.",
+          "type": "string",
+          "const": "Lawnmower"
+        },
+        {
+          "description": "Escabeau ouvert (0,47 × 0,76 m, plateau à 1,46 m), marches à l'avant ; contre un mur ou\nsous un plafond à repeindre.",
+          "type": "string",
+          "const": "Stepladder"
+        },
+        {
+          "description": "Pile de cartons scotchés (environ 1 × 0,4 × 0,7 m) ; contre un mur ou sur un rayonnage vide.",
+          "type": "string",
+          "const": "Boxes"
+        },
+        {
+          "description": "Congélateur coffre (1,1 × 0,65 × 0,88 m), couvercle articulé à l'arrière qui se lève par\nl'avant ; dos contre un mur, 1 m de dégagement devant.",
+          "type": "string",
+          "const": "ChestFreezer"
+        },
+        {
+          "description": "Pont élévateur deux colonnes (3,8 × 2 m bras compris, 2,8 m de haut) ; une voiture `Car` se gare entre\nles colonnes en entrant par l'avant (+z), bras repliés de part et d'autre. Plafond de 2,8 m\nau moins.",
+          "type": "string",
+          "const": "CarLift"
+        },
+        {
+          "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",
+          "type": "string",
+          "const": "Shelf"
+        },
+        {
+          "description": "Caisse de supermarché (2 × 1,2 m) : tapis roulant, scanner et terminal de paiement côté\nclient à l'avant (+z), écran et siège du caissier à l'arrière. Près de la sortie, plusieurs\ncaisses en batterie avec `place_row` tous les 2,2 m dans le sens avant-arrière, même `rot`.",
+          "type": "string",
+          "const": "Checkout"
+        },
+        {
+          "description": "Meuble réfrigéré ouvert à l'avant (2 × 0,9 × 2 m) : bac et trois tablettes de produits frais.\nDos contre un mur ; aligner bout à bout tous les 2 m avec `place_row` pour un linéaire.",
+          "type": "string",
+          "const": "FridgeCase"
+        },
+        {
+          "description": "Congélateur vertical (2,1 × 0,8 × 2,1 m) à trois portes vitrées qui s'ouvrent pendant la\nvisite, surgelés derrière le verre. Dos contre un mur, 1 m de dégagement devant ; bout à\nbout tous les 2,1 m.",
+          "type": "string",
+          "const": "FreezerCase"
+        },
+        {
+          "description": "Étal de fruits et légumes (2 × 1,2 × 1,1 m) : deux gradins de cagettes colorées inclinées vers\nl'avant, côté client. Dos contre un mur ou en îlot à l'entrée du magasin.",
+          "type": "string",
+          "const": "ProduceStand"
+        },
+        {
+          "description": "Chariot de supermarché (0,6 × 1 × 1 m) en tubes grillagés sur roulettes ; l'avant (+z) est le\nnez du chariot, la poignée à l'arrière. En file près de l'entrée, ou dans les allées.",
+          "type": "string",
+          "const": "ShoppingCart"
+        },
+        {
+          "description": "Pile de six paniers à provisions emboîtés (0,5 × 0,4 × 0,6 m), à poser à l'entrée.",
+          "type": "string",
+          "const": "BasketStack"
+        },
+        {
+          "description": "Gondole double face de 2 × 1 m, haute de 1,8 m (2,3 m avec son panneau en tête) : produits à\nl'avant et à l'arrière. Aligner bout à bout tous les 2 m (`place_row`) pour former un rayon,\navec des allées de 1,8 à 2,5 m entre deux rayons.",
+          "type": "string",
+          "const": "Gondola"
+        },
+        {
+          "description": "Palette Europe (1,2 × 0,8 m) chargée de cartons filmés, haute de 1,3 m ; réserve, quai ou\npromotion en bout d'allée.",
+          "type": "string",
+          "const": "Pallet"
+        },
+        {
+          "description": "Panneau de rayon (1,2 m de large) suspendu par deux câbles au plafond d'un étage de 3 m : la\nplaque pend entre 2,2 et 2,6 m. À poser au-dessus d'une allée, pas d'un meuble (sinon\nchevauchement signalé) ; lisible devant et derrière, donc `rot` 0 pour une allée nord-sud.",
+          "type": "string",
+          "const": "AisleSign"
+        },
+        {
+          "description": "Vitrine réfrigérée de boulangerie-pâtisserie (1,6 × 0,85 × 1,3 m) : vitre inclinée côté client\n(avant), pains et viennoiseries sur le plateau, gâteaux et tartes sur la clayette. Le vendeur\nse tient derrière ; à aligner avec un comptoir ou une caisse.",
+          "type": "string",
+          "const": "DisplayCase"
+        },
+        {
+          "description": "Portique antivol (1,1 × 0,6 × 1,6 m) : deux panneaux encadrant un passage de 0,9 m que l'on\nfranchit selon l'axe avant-arrière. À poser juste derrière la porte d'entrée du magasin.",
+          "type": "string",
+          "const": "SecurityGate"
+        },
+        {
+          "description": "Portant chromé de vêtements (1,5 × 0,55 × 1,6 m), vêtements alignés le long de la barre\n(axe gauche-droite). En rangs espacés de 1,2 m dans une boutique.",
+          "type": "string",
+          "const": "ClothesRack"
+        },
+        {
+          "description": "Mannequin de vitrine en robe sur pied (1,8 m), tourné vers l'avant ; derrière une vitrine ou\nà l'entrée d'une boutique, face à la rue.",
+          "type": "string",
+          "const": "Mannequin"
+        },
+        {
+          "description": "Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet\n(à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.",
+          "type": "string",
+          "const": "StreetLamp"
+        },
+        {
+          "description": "Réverbère de style ancien en fonte (3,9 m) dont la lanterne à quatre vitres éclaire\nréellement. Places, parcs, rues piétonnes : un tous les 10 à 15 m (`place_row`).",
+          "type": "string",
+          "const": "Lantern"
+        },
+        {
+          "description": "Banc public en lattes de bois sur piètement en fonte (1,8 × 0,65 m) ; l'avant est l'assise,\ndossier à l'arrière : à tourner vers l'allée, la place ou la vue.",
+          "type": "string",
+          "const": "Bench"
+        },
+        {
+          "description": "Poubelle de rue cylindrique sur pied (0,5 m, 1 m de haut), ouverture à l'avant ; au bord\nd'un trottoir, près d'un banc ou d'un arrêt de bus.",
+          "type": "string",
+          "const": "TrashCan"
+        },
+        {
+          "description": "Trois conteneurs de tri roulants côte à côte (jaune, vert, bleu ; 2 × 0,8 × 1,05 m),\ncouvercles et roues ; l'avant est le côté des couvercles à soulever, dos contre un mur ou une haie.",
+          "type": "string",
+          "const": "RecyclingBins"
+        },
+        {
+          "description": "Benne à ordures de 1 100 l (1,4 × 1,1 × 1,2 m) sur quatre roulettes ; son couvercle se\nsoulève vers l'arrière pendant la visite. Dans une cour, une ruelle ou derrière un commerce.",
+          "type": "string",
+          "const": "Dumpster"
+        },
+        {
+          "description": "Abribus (4,1 × 1,6 × 2,75 m) : toit, parois vitrées au fond et à l'ouest, caisson publicitaire\nà l'est, banc. L'avant ouvert donne sur la chaussée : poser au bord du trottoir, avant vers la route.",
+          "type": "string",
+          "const": "BusStop"
+        },
+        {
+          "description": "Borne d'incendie rouge (0,9 m) à trois sorties, au bord d'un trottoir tous les 100 à 200 m.",
+          "type": "string",
+          "const": "FireHydrant"
+        },
+        {
+          "description": "Potelet anti-stationnement (1 m) à bande réfléchissante ; en ligne au bord d'un trottoir,\ntous les 1,5 m avec `place_row`.",
+          "type": "string",
+          "const": "Bollard"
+        },
+        {
+          "description": "Boîte aux lettres de rue jaune sur pied (1,45 m), fente à l'avant : tourner l'avant vers le trottoir.",
+          "type": "string",
+          "const": "Mailbox"
+        },
+        {
+          "description": "Horodateur (1,65 m) à écran, clavier et panneau solaire ; l'avant (écran) vers le trottoir,\nau bord des places de stationnement.",
+          "type": "string",
+          "const": "ParkingMeter"
+        },
+        {
+          "description": "Cabine téléphonique vitrée (1,1 × 1,1 × 2,5 m), porte vitrée à l'avant qui s'ouvre pendant\nla visite ; avant vers le trottoir.",
+          "type": "string",
+          "const": "PhoneBooth"
+        },
+        {
+          "description": "Trois arceaux à vélos en U renversé (1,85 × 0,75 m), espacés de 0,9 m ; les vélos se rangent\ndans l'axe avant-arrière, de part et d'autre de chaque arceau.",
+          "type": "string",
+          "const": "BikeRack"
+        },
+        {
+          "description": "Panneau publicitaire de 4 × 3 m sur un pied (6,4 m de haut), affiche et projecteurs à\nl'avant : tourner l'avant vers la route.",
+          "type": "string",
+          "const": "Billboard"
+        },
+        {
+          "description": "Poteau électrique en bois de 8 m, traverse de 2 m (axe gauche-droite) et trois isolateurs ;\nla ligne court vers l'avant et l'arrière : aligner tous les 30 à 40 m le long d'une route.",
+          "type": "string",
+          "const": "UtilityPole"
+        },
+        {
+          "description": "Plaque d'égout ronde de 75 cm, plate (2 cm) : à poser sur une chaussée ou un trottoir.",
+          "type": "string",
+          "const": "Manhole"
+        },
+        {
+          "description": "Kiosque à journaux (2,9 × 2,3 × 3,3 m) au toit bombé en zinc ; comptoir et journaux à\nl'avant, magazines sur les côtés. Sur une place ou un large trottoir, avant vers les passants.",
+          "type": "string",
+          "const": "Kiosk"
+        },
+        {
+          "description": "Fontaine à boire sur colonne (0,5 m, 1,1 m de haut), bouton poussoir à l'avant ; dans un\nparc, sur une place ou près d'un terrain de sport.",
+          "type": "string",
+          "const": "DrinkingFountain"
+        },
+        {
+          "description": "Feu tricolore sur mât (3,3 m) : rouge en haut, orange, vert en bas, chaque feu est une partie\nà part. L'avant (les feux) face aux véhicules qui arrivent, au bord de la chaussée avant un carrefour.",
+          "type": "string",
+          "const": "TrafficLight"
+        },
+        {
+          "description": "Panneau stop : octogone rouge de 64 cm sur poteau (2,3 m), face vers l'avant à tourner vers\nles véhicules qui arrivent, au bord droit de la chaussée juste avant l'intersection.",
+          "type": "string",
+          "const": "StopSign"
+        },
+        {
+          "description": "Cédez le passage : triangle de 80 cm pointe en bas, bordure rouge, sur poteau (2,4 m) ; face\nvers l'avant, tournée vers les véhicules qui arrivent.",
+          "type": "string",
+          "const": "YieldSign"
+        },
+        {
+          "description": "Sens interdit : disque rouge de 60 cm à barre blanche sur poteau (2,3 m), face vers les\nvéhicules à qui l'entrée est interdite.",
+          "type": "string",
+          "const": "NoEntrySign"
+        },
+        {
+          "description": "Limitation de vitesse à 50 : disque blanc cerclé de rouge sur poteau (2,3 m), face vers les\nvéhicules qui arrivent, à l'entrée d'une agglomération ou d'une zone.",
+          "type": "string",
+          "const": "SpeedLimitSign"
+        },
+        {
+          "description": "Panneau carré bleu de passage piéton (60 cm) sur poteau (2,35 m), à poser au bord de la\nchaussée, face aux véhicules, à côté d'un `Crosswalk`.",
+          "type": "string",
+          "const": "PedestrianSign"
+        },
+        {
+          "description": "Passage piéton plat : bandes blanches de 2,5 m parallèles à la route (axe gauche-droite de\nl'objet), répétées vers l'avant sur `height` mètres, la largeur de chaussée à traverser\n(3 m par défaut). Centrer sur l'axe de la route : `rot` 0 pour une route est-ouest, 90\npour une route nord-sud.",
+          "type": "string",
+          "const": "Crosswalk"
+        },
+        {
+          "description": "Trait de ligne discontinue plat de 3 m × 15 cm (axe gauche-droite) : aligner avec\n`place_row` sur l'axe de la route, `step` 6 (3 m de trait, 3 m d'espace) en ville ou 13 sur\nroute ; `rot` 90 pour une route nord-sud.",
+          "type": "string",
+          "const": "RoadDash"
+        },
+        {
+          "description": "Marquage plat de place de parking en U (2,5 × 5 m), ouvert vers l'avant par où entre la\nvoiture. Aligner avec `place_row` tous les 2,5 m, les lignes voisines se superposent.",
+          "type": "string",
+          "const": "ParkingSpot"
+        },
+        {
+          "description": "Cône de chantier orange de 53 cm à deux bandes réfléchissantes, sur socle carré ; en ligne\ntous les 1 à 2 m pour baliser une zone.",
+          "type": "string",
+          "const": "TrafficCone"
+        },
+        {
+          "description": "Barrière de chantier de 1,5 m (axe gauche-droite) à lisses rouges et blanches et feu\nclignotant ; bout à bout tous les 1,5 m avec `place_row` pour fermer une tranchée.",
+          "type": "string",
+          "const": "WorkBarrier"
+        },
+        {
+          "description": "Ralentisseur modulaire noir et jaune de 4 × 0,9 m, haut de 7 cm, posé en travers de la\nroute (axe gauche-droite de l'objet) : `rot` 0 pour une route nord-sud, 90 pour une route est-ouest.",
+          "type": "string",
+          "const": "SpeedBump"
         },
         {
           "description": "Arbre feuillu.",
@@ -1079,39 +1658,9 @@
           "const": "Tree"
         },
         {
-          "description": "Buisson rond.",
-          "type": "string",
-          "const": "Bush"
-        },
-        {
           "description": "Sapin.",
           "type": "string",
           "const": "Pine"
-        },
-        {
-          "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
-          "type": "string",
-          "const": "Hedge"
-        },
-        {
-          "description": "Module de clôture de 2 m de long, à aligner comme la haie.",
-          "type": "string",
-          "const": "Fence"
-        },
-        {
-          "description": "Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.",
-          "type": "string",
-          "const": "Car"
-        },
-        {
-          "description": "Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.",
-          "type": "string",
-          "const": "SpiralStairs"
-        },
-        {
-          "description": "Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.",
-          "type": "string",
-          "const": "LStairs"
         },
         {
           "description": "Bouleau.",
@@ -1134,6 +1683,51 @@
           "const": "AppleTree"
         },
         {
+          "description": "Chêne : grand feuillu étalé au tronc épais (couronne de 7 m de large, 7 m de haut). Isolé\nau milieu d'une pelouse ou d'un parc, à 5 m au moins de la maison.",
+          "type": "string",
+          "const": "Oak"
+        },
+        {
+          "description": "Saule pleureur (5,4 m de large, 5,7 m de haut) : rameaux qui retombent en rideau presque\njusqu'au sol. Au bord d'un bassin, d'une mare ou d'une rivière.",
+          "type": "string",
+          "const": "WeepingWillow"
+        },
+        {
+          "description": "Olivier (4 m de large, 4 m de haut) : tronc court et tortueux, feuillage gris-vert léger.\nJardin méditerranéen, cour ou patio.",
+          "type": "string",
+          "const": "OliveTree"
+        },
+        {
+          "description": "Érable rouge (4,6 m de large, 7 m de haut), feuillage d'automne. Pour une touche de couleur\nau fond d'un jardin ou dans un parc.",
+          "type": "string",
+          "const": "Maple"
+        },
+        {
+          "description": "Cerisier du Japon en fleurs (5 m de large, 4,8 m de haut) : couronne rose étalée sur un\ntronc court. Jardin d'agrément ou japonais, allée de parc.",
+          "type": "string",
+          "const": "CherryBlossom"
+        },
+        {
+          "description": "Platane d'alignement (5,6 m de large, 8,7 m de haut) à l'écorce claire ; sa couronne laisse\n4 m libres au-dessus du sol. À aligner tous les 8 à 10 m le long d'un trottoir ou d'un mail.",
+          "type": "string",
+          "const": "PlaneTree"
+        },
+        {
+          "description": "Arbre mort (4 m de large, 5 m de haut) : tronc et branches nues, sans feuillage. Friche,\nlisière de forêt, décor lugubre.",
+          "type": "string",
+          "const": "DeadTree"
+        },
+        {
+          "description": "Plante d'intérieur en pot.",
+          "type": "string",
+          "const": "Plant"
+        },
+        {
+          "description": "Buisson rond.",
+          "type": "string",
+          "const": "Bush"
+        },
+        {
           "description": "Massif de fleurs.",
           "type": "string",
           "const": "Flowers"
@@ -1149,14 +1743,499 @@
           "const": "Sunflower"
         },
         {
-          "description": "Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet\n(à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.",
+          "description": "Cactus cierge à deux bras (1 m de large, 2,1 m de haut), fleuri au sommet. Jardin sec, rocaille,\ndécor de désert.",
           "type": "string",
-          "const": "StreetLamp"
+          "const": "Cactus"
         },
         {
-          "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",
+          "description": "Touffe de bambous (2,5 m de large, 4,5 m de haut). En rangée pour un écran végétal contre une\nclôture, ou isolée dans un jardin japonais.",
           "type": "string",
-          "const": "Shelf"
+          "const": "Bamboo"
+        },
+        {
+          "description": "Fougère en rosette (1,4 m de large, 0,5 m de haut). Sous-bois, pied d'un arbre, coin d'ombre.",
+          "type": "string",
+          "const": "Fern"
+        },
+        {
+          "description": "Touffe d'herbes hautes ornementales (1,2 m de large, 1,6 m de haut) aux épis clairs. Massif,\nbord d'allée, prairie ; à grouper par trois ou cinq.",
+          "type": "string",
+          "const": "TallGrass"
+        },
+        {
+          "description": "Roseaux (massettes) aux épis bruns (0,8 m de large, 2 m de haut). Au bord d'une mare, d'un\nbassin ou d'une rivière.",
+          "type": "string",
+          "const": "Reeds"
+        },
+        {
+          "description": "Touffe de lavande (1 m de large, 0,8 m de haut). En bordure d'allée, à aligner tous les\n0,8 m pour une haie basse fleurie.",
+          "type": "string",
+          "const": "Lavender"
+        },
+        {
+          "description": "Carré de seize tulipes rouges et jaunes (1 × 0,7 m, 0,6 m de haut). Plate-bande, devant\nde massif.",
+          "type": "string",
+          "const": "Tulips"
+        },
+        {
+          "description": "Hortensia : buisson rond (1,5 m de large, 1 m de haut) couvert de grosses fleurs bleues.\nAu pied d'un mur ou d'une façade à mi-ombre.",
+          "type": "string",
+          "const": "Hydrangea"
+        },
+        {
+          "description": "Rocher (2,1 × 1,6 m, 1 m de haut), légèrement enfoncé dans le sol. Rocaille, bord de\nchemin, paysage de montagne.",
+          "type": "string",
+          "const": "Rock"
+        },
+        {
+          "description": "Souche d'arbre sciée (1,3 m de large avec les racines, 0,5 m de haut). Sous-bois, clairière ;\npeut servir de tabouret.",
+          "type": "string",
+          "const": "Stump"
+        },
+        {
+          "description": "Petit groupe de champignons rouges à points blancs (0,4 m de large, 0,2 m de haut). Sous-bois,\npied d'arbre, à côté d'une souche.",
+          "type": "string",
+          "const": "Mushrooms"
+        },
+        {
+          "description": "Buis taillé en boule sur une tige, en pot (Ø 0,5 m, 1,6 m de haut). Par paire de part et\nd'autre d'une porte d'entrée, sur une terrasse ou un perron.",
+          "type": "string",
+          "const": "Topiary"
+        },
+        {
+          "description": "Ficus : grande plante d'intérieur en pot (1 m de large, 2,1 m de haut). Dans un angle\nde pièce ou près d'une fenêtre.",
+          "type": "string",
+          "const": "Ficus"
+        },
+        {
+          "description": "Bonsaï dans sa coupe basse (0,5 × 0,35 m, 0,55 m de haut). Sur un meuble bas, une console\nou au sol près d'une baie.",
+          "type": "string",
+          "const": "Bonsai"
+        },
+        {
+          "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
+          "type": "string",
+          "const": "Hedge"
+        },
+        {
+          "description": "Module de clôture de 2 m de long, à aligner comme la haie.",
+          "type": "string",
+          "const": "Fence"
+        },
+        {
+          "description": "Module de clôture blanche à lattes pointues, 2 m de long (axe gauche-droite) sur 1 m de haut. À aligner tous les 2 m (`place_row`, `step` 2) : les poteaux des bouts se confondent avec ceux des modules voisins.",
+          "type": "string",
+          "const": "PicketFence"
+        },
+        {
+          "description": "Module de muret en pierre de 2 m de long, 0,62 m de haut et 0,42 m d'épaisseur, avec chaperon. À aligner tous les 2 m comme la haie.",
+          "type": "string",
+          "const": "LowWall"
+        },
+        {
+          "description": "Portail à deux battants : 3 m de passage entre deux piliers de pierre (3,9 m hors tout, 1,8 m de haut). L'avant regarde la rue ; les battants s'ouvrent vers l'arrière (côté jardin) pendant la visite. À placer dans l'alignement d'une clôture ou d'un muret.",
+          "type": "string",
+          "const": "Gate"
+        },
+        {
+          "description": "Abri de jardin en bois de 2,4 × 2 m, 2,6 m au faîte, toit à deux pans, porte à l'avant qui s'ouvre pendant la visite, fenêtre sur le côté droit. Laisser 1 m libre devant la porte.",
+          "type": "string",
+          "const": "GardenShed"
+        },
+        {
+          "description": "Serre vitrée de 2,4 × 3 m, 2,5 m au faîte, sur un socle de briques, porte vitrée à l'avant, tablettes de semis le long des côtés.",
+          "type": "string",
+          "const": "Greenhouse"
+        },
+        {
+          "description": "Pergola en bois de 3 × 3 m, 2,7 m de haut : quatre poteaux, deux poutres et des chevrons. À poser sur une terrasse, au-dessus d'une table de jardin ou d'un salon de jardin.",
+          "type": "string",
+          "const": "Pergola"
+        },
+        {
+          "description": "Puits en pierre de 1,3 m de diamètre et 2,4 m de haut : margelle, toit de tuiles, treuil avec seau ; la manivelle est à l'avant.",
+          "type": "string",
+          "const": "Well"
+        },
+        {
+          "description": "Fontaine de 2,5 m de diamètre et 1,9 m de haut : bassin rond, vasque et jet d'eau. Au centre d'un jardin ou d'une place, à l'écart des murs.",
+          "type": "string",
+          "const": "Fountain"
+        },
+        {
+          "description": "Mare ovale de 3,1 × 2,4 m (pierres comprises) : eau au ras du sol entourée de pierres, nénuphars, roseaux sur le côté gauche.",
+          "type": "string",
+          "const": "Pond"
+        },
+        {
+          "description": "Jardinière en bois de 1 × 0,35 m garnie de fleurs (0,6 m de haut). Au pied d'un mur, d'une fenêtre ou en bord de terrasse.",
+          "type": "string",
+          "const": "Planter"
+        },
+        {
+          "description": "Carré potager de 1,2 × 1,2 m à bordure de bois : salades à l'avant, trois pieds de tomates tuteurés à l'arrière (1,2 m). En plein soleil ; plusieurs côte à côte tous les 1,5 m pour un potager.",
+          "type": "string",
+          "const": "VegetablePatch"
+        },
+        {
+          "description": "Chemin de cinq pierres plates (4 cm) espacées de 60 cm de l'arrière vers l'avant, 3 m de long : orienter l'avant dans le sens de la marche et en mettre plusieurs bout à bout tous les 3 m. Objet plat : les autres objets peuvent le chevaucher.",
+          "type": "string",
+          "const": "SteppingStones"
+        },
+        {
+          "description": "Lanterne japonaise en pierre (tōrō) de 1,2 m, qui éclaire réellement. Au bord d'une mare, d'un chemin ou près d'un torii.",
+          "type": "string",
+          "const": "StoneLantern"
+        },
+        {
+          "description": "Torii, portique japonais rouge de 5,1 m de large et 3,7 m de haut, 2,8 m de passage entre ses piliers ; on passe dessous dans le sens avant-arrière. À l'entrée d'un jardin japonais ou d'une allée.",
+          "type": "string",
+          "const": "Torii"
+        },
+        {
+          "description": "Tas de bois de chauffage de 1,4 × 0,5 m et 0,7 m de haut, bûches couchées (bouts vers l'avant) entre quatre piquets. Dos contre un mur ou un abri.",
+          "type": "string",
+          "const": "Woodpile"
+        },
+        {
+          "description": "Brouette de 1,6 m de long, roue à l'avant et poignées à l'arrière.",
+          "type": "string",
+          "const": "Wheelbarrow"
+        },
+        {
+          "description": "Nain de jardin de 47 cm, tourné vers l'avant. Dans une pelouse ou au bord d'un massif.",
+          "type": "string",
+          "const": "GardenGnome"
+        },
+        {
+          "description": "Niche de chien de 0,8 × 1 m, 0,9 m au faîte, entrée à l'avant avec une gamelle devant. Dos contre une haie ou un mur.",
+          "type": "string",
+          "const": "Doghouse"
+        },
+        {
+          "description": "Nichoir à oiseaux sur un poteau de 1,9 m, trou d'envol vers l'avant.",
+          "type": "string",
+          "const": "Birdhouse"
+        },
+        {
+          "description": "Table de jardin à lattes de 1,6 × 0,9 m (six couverts), 0,74 m de haut. Avec des `GardenChair` tournées vers elle, sur une terrasse ou sous une pergola.",
+          "type": "string",
+          "const": "GardenTable"
+        },
+        {
+          "description": "Chaise de jardin à lattes ; l'avant est le côté où l'on s'assoit (dossier à l'arrière). À tourner vers la table de jardin.",
+          "type": "string",
+          "const": "GardenChair"
+        },
+        {
+          "description": "Parasol de 2,8 m de diamètre et 2,5 m de haut sur pied lesté ; la toile penche légèrement vers l'avant (côté à ombrager). À côté d'une table, d'un transat ou d'un salon de jardin.",
+          "type": "string",
+          "const": "Parasol"
+        },
+        {
+          "description": "Transat (bain de soleil) de 0,65 × 1,8 m, dossier relevé à l'arrière, pieds vers l'avant. Au bord d'une piscine, avant tourné vers l'eau ou le soleil ; plusieurs côte à côte tous les 0,9 m.",
+          "type": "string",
+          "const": "Lounger"
+        },
+        {
+          "description": "Salon de jardin de 2 × 1,7 m : canapé bas trois places à l'arrière, tourné vers l'avant, et table basse devant lui. Dos contre un mur de la maison ou une haie.",
+          "type": "string",
+          "const": "LoungeSet"
+        },
+        {
+          "description": "Barbecue boule à charbon de 0,6 m de diamètre et 1,1 m de haut, sur trois pieds. Sur la terrasse, à 3 m au moins des haies.",
+          "type": "string",
+          "const": "Barbecue"
+        },
+        {
+          "description": "Brasero : vasque d'acier de 0,85 m sur trois pieds, bûches et flammes qui éclairent réellement. Au centre d'un cercle de chaises ou de transats.",
+          "type": "string",
+          "const": "Firepit"
+        },
+        {
+          "description": "Hamac tendu entre deux poteaux, 3,7 m de long (axe gauche-droite) sur 0,8 m. Laisser la place libre entre les poteaux.",
+          "type": "string",
+          "const": "Hammock"
+        },
+        {
+          "description": "Spa carré de 2,1 m et 0,9 m de haut, rempli d'eau, quatre appuie-tête. Sur une terrasse, près de la maison.",
+          "type": "string",
+          "const": "HotTub"
+        },
+        {
+          "description": "Balançoire : portique en A de 2,9 × 1,7 m, poutre à 2,1 m, deux sièges suspendus. Laisser 2 m libres devant et derrière (axe avant-arrière) pour le balancement.",
+          "type": "string",
+          "const": "Swing"
+        },
+        {
+          "description": "Toboggan de 3,1 m de long : échelle à l'arrière, plateforme à 1,2 m, glissière qui descend vers l'avant. Laisser 1,5 m libre devant le bas de la glissière.",
+          "type": "string",
+          "const": "Slide"
+        },
+        {
+          "description": "Trampoline rond de 3 m de diamètre, toile à 0,87 m. À 2 m au moins des murs, arbres et clôtures.",
+          "type": "string",
+          "const": "Trampoline"
+        },
+        {
+          "description": "Bac à sable carré de 1,6 m à bordure de bois, sièges d'angle, seau et pelle.",
+          "type": "string",
+          "const": "Sandbox"
+        },
+        {
+          "description": "Tape-cul (bascule) de 3 m de long (axe gauche-droite), un bout posé au sol, siège et poignée à chaque bout.",
+          "type": "string",
+          "const": "Seesaw"
+        },
+        {
+          "description": "Cabane d'enfant en bois de 1,4 × 1,2 m, 1,85 m au faîte : porte à l'avant qui s'ouvre pendant la visite, fenêtre en façade. Laisser 1 m libre devant la porte.",
+          "type": "string",
+          "const": "PlayHouse"
+        },
+        {
+          "description": "Cage de foot à 11 (7,32 × 2,44 m entre les poteaux, filet profond de 2 m). Les poteaux sont\n1 m devant `pos`, l'ouverture vers l'avant : `pos` 1 m derrière la ligne de but, tournée vers\nle terrain (pour un `SoccerPitch` : x = -53,5 et `rot` 90, x = 53,5 et `rot` 270).",
+          "type": "string",
+          "const": "SoccerGoal"
+        },
+        {
+          "description": "But de handball ou de futsal (3 × 2 m, poteaux rayés, filet profond de 1 m). Poteaux 0,5 m\ndevant `pos`, ouverture vers l'avant : `pos` 0,5 m derrière la ligne de but (x = ±20,5 pour\nun `HandballCourt` ou un `SoccerPitch5`), tourné vers le terrain.",
+          "type": "string",
+          "const": "HandballGoal"
+        },
+        {
+          "description": "Ballon de foot (22 cm).",
+          "type": "string",
+          "const": "SoccerBall"
+        },
+        {
+          "description": "Ballon de basket (24 cm).",
+          "type": "string",
+          "const": "Basketball"
+        },
+        {
+          "description": "Panier de basket sur pied : socle et pied à l'arrière, planche de 1,8 m dont la face est\n0,375 m devant `pos`, cercle à 3,05 m. Pour un `BasketCourt` : x = -13,18 et `rot` 90,\nx = 13,18 et `rot` 270 (planche à 1,2 m de la ligne de fond).",
+          "type": "string",
+          "const": "BasketHoop"
+        },
+        {
+          "description": "Filet de tennis de 12,8 m le long de l'axe x (poteaux à ±6,4 m), haut de 1,07 m aux poteaux\net de 0,914 m au centre. Au centre d'un `TennisCourt` : même `pos`, `rot` du court + 90.",
+          "type": "string",
+          "const": "TennisNet"
+        },
+        {
+          "description": "Filet de volley de 10 m le long de l'axe x, haut de 2,43 m, poteaux à ±5,5 m, antennes à\n±4,5 m. Au centre d'un `VolleyCourt` : même `pos`, `rot` du terrain + 90.",
+          "type": "string",
+          "const": "VolleyNet"
+        },
+        {
+          "description": "Poteaux de rugby en H le long de l'axe x (5,6 m entre les poteaux, barre à 3 m, 11 m de\nhaut), centrés sur la ligne de but.",
+          "type": "string",
+          "const": "RugbyPosts"
+        },
+        {
+          "description": "Table de ping-pong (2,74 × 1,525 m, plateau à 76 cm), filet le long de l'axe z au centre.\nLaisser 2 m libres à chaque bout (axe x).",
+          "type": "string",
+          "const": "PingPongTable"
+        },
+        {
+          "description": "Gradins de 6 × 4 m, cinq rangs qui montent vers l'arrière jusqu'à 3 m (garde-corps) ; les\nspectateurs regardent l'avant : à tourner vers le terrain, l'arrière contre une clôture.",
+          "type": "string",
+          "const": "Bleachers"
+        },
+        {
+          "description": "Banc de touche abrité (4 × 1,5 × 2,2 m), vitré au fond et sur les côtés, six sièges, ouvert\nvers l'avant : le long d'une ligne de touche, l'avant vers le terrain, à 2 ou 3 m de la ligne.",
+          "type": "string",
+          "const": "DugoutBench"
+        },
+        {
+          "description": "Drapeau de corner (mât de 1,5 m en `pos`, fanion vers +x). Sur chaque coin d'un terrain de foot.",
+          "type": "string",
+          "const": "CornerFlag"
+        },
+        {
+          "description": "Mât d'éclairage de stade de 20 m, rampe de six projecteurs tournés vers l'avant et vers le\nbas, qui éclaire réellement. Hors du terrain, l'avant vers le terrain, un à chaque coin.",
+          "type": "string",
+          "const": "Floodlight"
+        },
+        {
+          "description": "Tableau d'affichage sur deux pieds (écran de 4 × 2 m entre 3 et 5 m), l'écran vers l'avant.\nDerrière un but ou au milieu d'une tribune, tourné vers le terrain.",
+          "type": "string",
+          "const": "Scoreboard"
+        },
+        {
+          "description": "Banc de musculation plat avec chandelles et barre chargée (2,2 m de large) ; la barre est à\nl'arrière, on s'allonge la tête vers l'arrière.",
+          "type": "string",
+          "const": "WeightBench"
+        },
+        {
+          "description": "Tapis de course (0,8 × 1,9 m), console à l'arrière (peut aller contre un mur), on monte par l'avant.",
+          "type": "string",
+          "const": "Treadmill"
+        },
+        {
+          "description": "Sac de frappe de 1,2 m suspendu à sa potence (sac à l'avant, mât à l'arrière). Laisser 1 m\nlibre autour du sac.",
+          "type": "string",
+          "const": "PunchingBag"
+        },
+        {
+          "description": "Haie d'athlétisme (1,18 m de large, barre à 1,067 m) en travers d'un couloir (axe x) ; les\npieds pointent vers l'avant, d'où arrivent les coureurs. Tous les 9,14 m sur 110 m haies.",
+          "type": "string",
+          "const": "Hurdle"
+        },
+        {
+          "description": "Ligne blanche droite de 10 cm de large et de `height` mètres de long, le long de l'axe x,\ncentrée sur `pos` ; `rot` 90 pour une ligne nord-sud. Plate : les objets se posent dessus.",
+          "type": "string",
+          "const": "FieldLine"
+        },
+        {
+          "description": "Demi-cercle blanc de rayon `height` mètres, centré sur `pos`, ses deux bouts sur l'axe x et\nbombé vers l'avant (+z).",
+          "type": "string",
+          "const": "FieldArc"
+        },
+        {
+          "description": "Quart de cercle blanc de rayon `height` mètres centré sur `pos`, de l'avant (+z) au +x local\n(l'est à `rot` 0). Arc de corner (rayon 1 m) : `pos` sur le coin, l'arc dans le terrain.",
+          "type": "string",
+          "const": "FieldQuarterArc"
+        },
+        {
+          "description": "Cercle blanc de rayon `height` mètres centré sur `pos` (rond central du foot : 9,15 m).",
+          "type": "string",
+          "const": "FieldCircle"
+        },
+        {
+          "description": "Point blanc de 22 cm (point de penalty, point central).",
+          "type": "string",
+          "const": "FieldDot"
+        },
+        {
+          "description": "Terrain de foot à 5 (40 × 20 m, longueur le long de x) : surfaces de réparation en arcs de\n6 m, points à 6 et 10 m, rond central de 3 m, sur gazon synthétique. Sur un terrain plat\n(`flatten_terrain`) ; buts : `HandballGoal`.",
+          "type": "string",
+          "const": "SoccerPitch5"
+        },
+        {
+          "description": "Terrain de foot à 11 (105 × 68 m, longueur le long de x) : surfaces de réparation et de but,\npoints de penalty, arcs, rond central, corners, sur gazon synthétique. Sur un terrain plat\n(`flatten_terrain`) ; buts : `SoccerGoal`, drapeaux : `CornerFlag` aux coins (±52,5 ; ±34).",
+          "type": "string",
+          "const": "SoccerPitch"
+        },
+        {
+          "description": "Terrain de basket FIBA (28 × 15 m, longueur le long de x) : raquettes, lancers francs, arcs\nà 3 points (6,75 m), rond central, sur parquet de sport. Paniers : `BasketHoop`.",
+          "type": "string",
+          "const": "BasketCourt"
+        },
+        {
+          "description": "Court de tennis (23,77 × 10,97 m, longueur le long de x) : couloirs de double, carrés de\nservice, sur terre battue. Filet : `TennisNet` au centre, `rot` + 90.",
+          "type": "string",
+          "const": "TennisCourt"
+        },
+        {
+          "description": "Terrain de volley (18 × 9 m, longueur le long de x) : ligne centrale, lignes d'attaque à 3 m,\nsur parquet de sport. Filet : `VolleyNet` au centre, `rot` + 90.",
+          "type": "string",
+          "const": "VolleyCourt"
+        },
+        {
+          "description": "Terrain de handball (40 × 20 m, longueur le long de x) : zones de but à 6 m, lignes de jet\nfranc à 9 m en pointillés, marques des 7 m, sur résine bleue. Buts : `HandballGoal`.",
+          "type": "string",
+          "const": "HandballCourt"
+        },
+        {
+          "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
+          "type": "string",
+          "const": "Stairs"
+        },
+        {
+          "description": "Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.",
+          "type": "string",
+          "const": "SpiralStairs"
+        },
+        {
+          "description": "Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.",
+          "type": "string",
+          "const": "LStairs"
+        },
+        {
+          "description": "Escalier demi-tour (2,1 m de large) sur `height` mètres : une volée vers l'avant côté -x local, un palier au fond sur toute la largeur, puis une volée qui revient vers l'arrière côté +x. On arrive en haut à l'arrière, côté +x : c'est là que doit tomber le sol de l'étage.",
+          "type": "string",
+          "const": "UStairs"
+        },
+        {
+          "description": "Échelle de meunier : escalier raide (environ 50°, 62 cm de large) aux marches sans contremarche entre deux limons, qui monte vers l'avant sur `height` mètres. Pour une mezzanine ou un grenier, peu d'emprise au sol.",
+          "type": "string",
+          "const": "Ladder"
+        },
+        {
+          "description": "Escalier suspendu droit qui monte vers l'avant sur `height` mètres : marches épaisses sans contremarche scellées dans un limon côté -x local (l'ouest à rot 0), à placer contre un mur.",
+          "type": "string",
+          "const": "FloatingStairs"
+        },
+        {
+          "description": "Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil (0,5 m par défaut, 3 marches ; 0,65 m en donne 4).",
+          "type": "string",
+          "const": "StoneSteps"
+        },
+        {
+          "description": "Escalator qui monte vers l'avant sur `height` mètres à 30°, avec un palier d'un mètre en bas et en haut, balustrades vitrées et mains courantes (centre commercial, gare).",
+          "type": "string",
+          "const": "Escalator"
+        },
+        {
+          "description": "Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m (0,5 par défaut).",
+          "type": "string",
+          "const": "Ramp"
+        },
+        {
+          "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
+          "type": "string",
+          "const": "Pillar"
+        },
+        {
+          "description": "Colonne ronde de 34 cm, avec base et chapiteau, haute de `height` mètres (portique, péristyle, entrée). Pour un poteau carré : `Pillar`.",
+          "type": "string",
+          "const": "Column"
+        },
+        {
+          "description": "Module de garde-corps de 2 m le long de l'axe gauche-droite de l'objet (main courante à 1 m, barreaux tous les 11 cm). À aligner tous les 2 m au bord d'une mezzanine, d'un balcon ou d'une trémie ; `rot` 90 pour un bord nord-sud.",
+          "type": "string",
+          "const": "Railing"
+        },
+        {
+          "description": "Module de balustrade en pierre de 2 m le long de l'axe gauche-droite de l'objet (balustres entre un socle et une tablette, 90 cm de haut), à aligner tous les 2 m comme la haie : terrasse, perron, balcon.",
+          "type": "string",
+          "const": "Balustrade"
+        },
+        {
+          "description": "Arche décorative en pierre en plein cintre, 2,1 m de large et 3 m de haut : un passage de 1,2 m sous un arc qui naît à 2,1 m. On la traverse selon l'axe avant-arrière (entrée de jardin, allée).",
+          "type": "string",
+          "const": "Arch"
+        },
+        {
+          "description": "Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.",
+          "type": "string",
+          "const": "Car"
+        },
+        {
+          "description": "Moto routière de 2,1 m (0,7 m de large, 1 m de haut), l'avant vers +z ; décor, ne se\nconduit pas. Garée le long d'un trottoir ou dans une allée, en épi.",
+          "type": "string",
+          "const": "Motorcycle"
+        },
+        {
+          "description": "Vélo de ville de 1,75 m (0,5 m de large au guidon, 1 m de haut), l'avant vers +z ; décor. Contre\nun mur, près d'une porte, ou en rangée tous les 0,7 m devant un arceau.",
+          "type": "string",
+          "const": "Bicycle"
+        },
+        {
+          "description": "Camionnette utilitaire de 5,3 m (2,4 m de large rétroviseurs compris, 2,4 m de haut), l'avant\nvers +z ; décor. Sur une route, une allée ou devant un commerce.",
+          "type": "string",
+          "const": "Van"
+        },
+        {
+          "description": "Bus urbain de 12 m (3 m de large rétroviseurs compris, 3 m de haut), l'avant vers +z, portes\ndu côté droit (-x local) ; décor. Sur une chaussée, portes tournées vers le trottoir.",
+          "type": "string",
+          "const": "Bus"
+        },
+        {
+          "description": "Camion porteur de 8,5 m à caisse fourgon (2,9 m de large rétroviseurs compris, 3,8 m de\nhaut), l'avant vers +z ; décor. Sur une route, devant un quai de livraison ou un magasin.",
+          "type": "string",
+          "const": "Truck"
         }
       ]
     },
@@ -1192,6 +2271,46 @@
           "description": "Mansarde : pans brisés, raides en bas, doux en haut.",
           "type": "string",
           "const": "Mansard"
+        },
+        {
+          "description": "Comble de grange (gambrel, Mansart à l'américaine) : deux pans brisés, raides en bas,\ndoux en haut, pignons sur les petits côtés.",
+          "type": "string",
+          "const": "Gambrel"
+        },
+        {
+          "description": "Saltbox : deux pans asymétriques, faîtage décalé vers le côté min (nord ou ouest).",
+          "type": "string",
+          "const": "Saltbox"
+        },
+        {
+          "description": "Papillon : deux pans en V qui descendent vers une noue centrale (1,2 m de haut par défaut).",
+          "type": "string",
+          "const": "Butterfly"
+        },
+        {
+          "description": "Sheds : dents de scie parallèles au faîtage, face verticale tournée vers le côté min\n(nord ou ouest) ; toit d'usine ou de supermarché (1,5 m de haut par défaut).",
+          "type": "string",
+          "const": "Sawtooth"
+        },
+        {
+          "description": "Voûte : demi-cylindre le long du grand côté.",
+          "type": "string",
+          "const": "Barrel"
+        },
+        {
+          "description": "Dôme : demi-ellipsoïde inscrit dans l'emprise, coins plats.",
+          "type": "string",
+          "const": "Dome"
+        },
+        {
+          "description": "Toit asiatique : quatre pans concaves, doux au bord et raides au faîtage, angles relevés.",
+          "type": "string",
+          "const": "Pagoda"
+        },
+        {
+          "description": "Conique : cône inscrit dans l'emprise, pour une tourelle (emprise carrée, 3 à 5 m de haut).",
+          "type": "string",
+          "const": "Cone"
         }
       ]
     },
@@ -1223,7 +2342,7 @@
           "format": "float"
         },
         "color": {
-          "description": "Couleur du cadre et du battant `[r, g, b]`.",
+          "description": "Teinte `[r, g, b]` de la partie principale (battant d'une porte, cadre d'une fenêtre).",
           "type": "array",
           "items": {
             "type": "number",
@@ -1231,6 +2350,20 @@
           },
           "minItems": 3,
           "maxItems": 3
+        },
+        "texture": {
+          "description": "Matière de la partie principale (`maison3d textures`), 0 = aucune.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 0
+        },
+        "finishes": {
+          "description": "Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;\nune partie absente garde sa finition d'origine.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Finish"
+          }
         }
       },
       "additionalProperties": false,
@@ -1240,6 +2373,33 @@
         "width",
         "height",
         "sill",
+        "color"
+      ]
+    },
+    "Finish": {
+      "description": "Teinte et matière d'une partie d'un objet ou d'une ouverture.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "Teinte `[r, g, b]`, multipliée par la texture.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "texture": {
+          "description": "Matière (`maison3d textures`), 0 = aucune.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
         "color"
       ]
     },

@@ -13,6 +13,7 @@
   {"op": "move", "target": {"Prop": 2}, "by": [0.5, 0]},
   {"op": "paint", "target": {"Wall": 1}, "color": [0.9, 0.85, 0.7], "texture": 12},
   {"op": "paint", "target": {"Opening": [1, 0]}, "color": [0.2, 0.3, 0.2]},
+  {"op": "paint", "target": {"Prop": 0}, "part": 1, "color": [0.15, 0.15, 0.17]},
   {"op": "remove", "target": {"Wall": 4}},
   {"op": "set", "target": {"Prop": 1}, "fields": {"height": 2.4, "texture": 9}},
   {"op": "room", "min": [-6, 0], "max": [-2, 4], "level": 0, "height": 2.5, "thick": 0.3, "wall_texture": 17, "floor_texture": 31},

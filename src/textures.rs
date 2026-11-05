@@ -34,7 +34,18 @@ fn tex(name: &'static str, scale: f32, f: impl Fn(f32, f32) -> Rgb + 'static) ->
 }
 
 pub fn catalog() -> Vec<Tex> {
-    let rgb = |r: u8, g: u8, b: u8| [f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0];
+    let mut all = building();
+    // ajoutées en fin de liste : les indices des mondes enregistrés ne bougent pas
+    all.extend(furnishing());
+    all
+}
+
+fn rgb(r: u8, g: u8, b: u8) -> Rgb {
+    [f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0]
+}
+
+/// Murs, sols, toitures et végétation.
+fn building() -> Vec<Tex> {
     vec![
         // murs
         tex("Brique rouge", 1.0, bricks(14.0, 4.0, rgb(150, 62, 42), rgb(200, 195, 185), 0.18, 1)),
@@ -134,6 +145,32 @@ pub fn catalog() -> Vec<Tex> {
         tex("Aiguilles de pin", 0.5, leaves(rgb(20, 60, 35), rgb(55, 105, 60), 56.0, 60)),
         tex("Écorce", 0.25, bark(rgb(105, 80, 60), 61)),
         tex("Écorce de bouleau", 0.25, birch()),
+    ]
+}
+
+/// Mobilier, terrains de sport et rues.
+fn furnishing() -> Vec<Tex> {
+    vec![
+        // mobilier
+        tex("Tissu gris", 0.5, plain(rgb(150, 150, 155), 0.12, 128, 62)),
+        tex("Tissu beige", 0.5, plain(rgb(205, 190, 165), 0.12, 128, 63)),
+        tex("Velours bleu", 0.5, plain(rgb(50, 70, 120), 0.18, 64, 64)),
+        tex("Cuir brun", 0.5, plain(rgb(110, 65, 40), 0.14, 32, 65)),
+        tex("Cuir noir", 0.5, plain(rgb(38, 35, 35), 0.12, 32, 66)),
+        tex("Bois clair", 1.0, planks(8.0, 1.0, rgb(210, 175, 130), 0.1, 67)),
+        tex("Bois foncé", 1.0, planks(8.0, 1.0, rgb(95, 62, 40), 0.12, 68)),
+        tex("Inox brossé", 0.25, stripes(48.0, rgb(196, 198, 201), rgb(178, 180, 184))),
+        tex("Chrome", 1.0, plain(rgb(215, 218, 222), 0.04, 8, 70)),
+        tex("Papier de riz", 0.5, plain(rgb(245, 240, 222), 0.06, 32, 71)),
+        tex("Tatami", 0.5, stripes(40.0, rgb(200, 190, 130), rgb(184, 174, 114))),
+        // sport et rue
+        tex("Gazon synthétique", 10.0, stripes(2.0, rgb(70, 140, 60), rgb(60, 125, 52))),
+        tex("Terre battue", 1.0, plain(rgb(190, 95, 55), 0.15, 64, 74)),
+        tex("Résine bleue", 1.0, plain(rgb(45, 90, 150), 0.06, 32, 75)),
+        tex("Résine verte", 1.0, plain(rgb(55, 120, 80), 0.06, 32, 76)),
+        tex("Parquet de sport", 2.0, planks(20.0, 3.0, rgb(210, 165, 105), 0.08, 77)),
+        tex("Tartan", 1.0, plain(rgb(170, 60, 45), 0.12, 96, 78)),
+        tex("Asphalte", 1.0, plain(rgb(70, 70, 72), 0.18, 128, 79)),
     ]
 }
 
@@ -420,6 +457,8 @@ mod tests {
         names.dedup();
         assert_eq!(names.len(), c.len(), "noms en double");
         assert_eq!(find("Brique rouge"), 1);
+        // les mondes enregistrent des indices : une nouvelle matière s'ajoute à la fin
+        assert_eq!((find("Écorce de bouleau"), find("Tissu gris")), (61, 62));
         assert_eq!(find("inconnue"), 0);
     }
 

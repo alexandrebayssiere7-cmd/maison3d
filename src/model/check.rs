@@ -3,7 +3,7 @@
 
 use bevy::math::Vec2;
 
-use super::{House, OpeningKind, Prop, PropKind, Slab, Wall};
+use super::{House, Prop, PropKind, Slab, Wall};
 
 /// Chevauchement toléré entre deux emprises (contact, approximations de géométrie).
 const SLACK: f32 = 0.03;
@@ -20,16 +20,22 @@ impl House {
     }
 
     fn prop_warnings(&self, out: &mut Vec<String>) {
-        let indoor: Vec<(usize, &Prop, [Vec2; 4])> = self
+        // emprise au sol et hauteurs occupées (un meuble haut passe au-dessus d'un meuble bas)
+        let indoor: Vec<(usize, &Prop, [Vec2; 4], (f32, f32))> = self
             .props
             .iter()
             .enumerate()
-            .filter(|(_, p)| !p.kind.outdoor())
-            .map(|(i, p)| (i, p, p.corners()))
+            // tapis et tracés au sol passent sous les meubles
+            .filter(|(_, p)| !p.kind.outdoor() && !p.kind.flat())
+            .map(|(i, p)| {
+                let (lo, hi) = p.local_box();
+                (i, p, p.corners(), (lo.y, hi.y))
+            })
             .collect();
-        for (k, &(i, p, a)) in indoor.iter().enumerate() {
-            for &(j, q, b) in &indoor[k + 1..] {
-                if p.level == q.level && overlap(&a, &b) {
+        for (k, &(i, p, a, (y0, y1))) in indoor.iter().enumerate() {
+            for &(j, q, b, (z0, z1)) in &indoor[k + 1..] {
+                let stacked = y1 <= z0 + SLACK || z1 <= y0 + SLACK;
+                if p.level == q.level && !stacked && overlap(&a, &b) {
                     out.push(format!("Prop {i} ({:?}) et Prop {j} ({:?}) se chevauchent", p.kind, q.kind));
                 }
             }
@@ -50,7 +56,7 @@ impl House {
     }
 
     fn stairs_warnings(&self, out: &mut Vec<String>) {
-        let stairs = self.props.iter().enumerate().filter(|(_, p)| p.kind.has_height() && p.kind != PropKind::Pillar);
+        let stairs = self.props.iter().enumerate().filter(|(_, p)| p.kind.climbs());
         for (i, p) in stairs {
             let climb = (p.height / 3.0).round().max(1.0) as i32;
             for l in p.level + 1..=p.level + climb {
@@ -86,8 +92,8 @@ impl House {
                 out.push(format!("Wall {i} est enterré : le relief dépasse 30 cm à son pied"));
             }
             for (j, o) in w.openings.iter().enumerate() {
-                let door = matches!(o.kind, OpeningKind::Door | OpeningKind::FrenchDoor | OpeningKind::Bay);
-                if door && w.level != 0 {
+                // toute ouverture qui part du sol est une porte, battante ou coulissante
+                if o.sill < 0.05 && w.level != 0 {
                     let at = w.a + w.dir() * o.t;
                     let n = w.dir().perp() * (w.thick / 2.0 + 0.4);
                     if !(self.on_floor(w.level, at + n) && self.on_floor(w.level, at - n)) {
@@ -173,11 +179,11 @@ fn segments_cross(p: Vec2, p2: Vec2, q: Vec2, q2: Vec2) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{LEVEL_H, Opening, Pool, Road, Roof, RoofKind, WHITE, room_walls};
+    use super::super::{LEVEL_H, Opening, OpeningKind, Pool, Road, Roof, RoofKind, WHITE, room_walls};
     use super::*;
 
     fn prop(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Prop {
-        Prop { kind, pos, level, rot, color: WHITE, texture: 0, height: LEVEL_H }
+        Prop { color: WHITE, texture: 0, ..Prop::new(kind, pos, level, rot) }
     }
 
     fn room(h: &mut House, lo: Vec2, hi: Vec2, level: i32) {
@@ -223,6 +229,21 @@ mod tests {
     }
 
     #[test]
+    fn wall_units_above_furniture_do_not_overlap_it() {
+        let mut h = House::default();
+        room(&mut h, Vec2::ZERO, Vec2::new(8.0, 6.0), 0);
+        h.props.push(prop(PropKind::BaseCabinet, Vec2::new(3.0, 0.4), 0, 0.0));
+        h.props.push(prop(PropKind::WallCabinet, Vec2::new(3.0, 0.3), 0, 0.0));
+        assert_eq!(h.warnings(), Vec::<String>::new());
+        h.props.push(prop(PropKind::Fridge, Vec2::new(3.0, 0.5), 0, 0.0));
+        assert!(has(&h, "Prop 0 (BaseCabinet) et Prop 2 (Fridge) se chevauchent"));
+        assert!(
+            has(&h, "Prop 1 (WallCabinet) et Prop 2 (Fridge) se chevauchent"),
+            "le frigo monte jusqu'au meuble haut"
+        );
+    }
+
+    #[test]
     fn stairs_need_a_hole_and_a_landing() {
         let mut h = House::default();
         room(&mut h, Vec2::ZERO, Vec2::new(8.0, 6.0), 0);
@@ -253,13 +274,15 @@ mod tests {
         });
         let mut up = h.walls[1].clone();
         up.level = 1;
-        up.openings.push(Opening { kind: OpeningKind::Door, t: 3.0, width: 0.9, height: 2.1, sill: 0.0, color: WHITE });
+        up.openings.push(Opening::new(OpeningKind::Door, 3.0));
+        up.openings.push(Opening::new(OpeningKind::GarageDoor, 6.0));
         h.walls.push(up);
         h.pools.push(Pool { min: Vec2::new(2.0, 2.0), max: Vec2::new(4.0, 4.0), depth: 1.5, color: WHITE, texture: 0 });
         h.roads.push(Road { a: Vec2::new(4.0, -5.0), b: Vec2::new(4.0, 10.0), width: 3.0, color: WHITE, texture: 0 });
         assert!(has(&h, "Wall 4 est en double avec le mur 0"));
         assert!(has(&h, "Roof 0 est posé au pied du mur 0"));
         assert!(has(&h, "Opening [5, 0] (Door) donne sur le vide"));
+        assert!(has(&h, "Opening [5, 1] (GarageDoor) donne sur le vide"), "une porte de garage aussi");
         assert!(has(&h, "Pool 0 est sous le sol 0"));
         assert!(has(&h, "Road 0 traverse le mur 0"));
     }

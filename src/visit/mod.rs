@@ -17,7 +17,7 @@ pub use avatar::{AvatarRoot, animate_avatar, spawn_avatar};
 use avatar::{Pose, eyes, target_pose};
 pub use car::sync_car;
 use car::{Car, park};
-use collide::{camera_clearance, floor_at, push_out, solid};
+use collide::{camera_clearance, collider, floor_at, push_out, solid};
 use interact::yaw_facing;
 
 use crate::camera::CamState;
@@ -246,7 +246,7 @@ impl Visitor {
     /// Une image de visite ; renvoie la position de la caméra.
     fn step(&mut self, ed: &mut Editor, inp: &VisitInput, dt: f32, t: f32) -> Transform {
         self.look_around(inp);
-        let solids: Vec<Transform> = ed.parts.iter().filter(|p| solid(p)).map(Part::bounds).collect();
+        let solids: Vec<Transform> = ed.parts.iter().filter(|p| solid(p)).map(collider).collect();
         if let Some(car) = self.car {
             return self.drive(car, ed, inp, &solids, dt);
         }
@@ -391,14 +391,14 @@ fn lerp_angle(a: f32, b: f32, k: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{LEVEL_H, Prop, PropKind, demo_house};
+    use crate::model::{Prop, PropKind, demo_house};
 
     fn solids(open: f32) -> Vec<Transform> {
         let h = demo_house();
         h.parts(Some(0), &|e| if e == ElemRef::Opening(0, 0) { open } else { 0.0 })
             .iter()
             .filter(|p| solid(p))
-            .map(Part::bounds)
+            .map(collider)
             .collect()
     }
 
@@ -434,23 +434,15 @@ mod tests {
         assert!((floor_at(Vec3::new(5.0, 0.0, 4.0), &s, 0.0) - 0.02).abs() < 1e-3, "sur le parquet");
         let mut h = demo_house();
         h.props.clear();
-        h.props.push(Prop {
-            kind: PropKind::Stairs,
-            pos: Vec2::new(20.0, 0.0),
-            level: 0,
-            rot: 0.0,
-            color: [1.0; 3],
-            texture: 0,
-            height: LEVEL_H,
-        });
-        let stairs: Vec<Transform> = h.parts_closed(None).iter().filter(|p| solid(p)).map(Part::bounds).collect();
+        h.props.push(Prop::new(PropKind::Stairs, Vec2::new(20.0, 0.0), 0, 0.0));
+        let stairs: Vec<Transform> = h.parts_closed(None).iter().filter(|p| solid(p)).map(collider).collect();
         // 1,6 s à 3 m/s : on s'arrête sur les dernières marches
         let top = walk(Vec3::new(20.0, 0.0, -3.0), 1.6, &stairs);
         assert!(top.y > 2.0, "n'a pas monté l'escalier : {top}");
     }
 
     fn prop(kind: PropKind, x: f32, z: f32) -> Prop {
-        Prop { kind, pos: Vec2::new(x, z), level: 0, rot: 0.0, color: [1.0; 3], texture: 0, height: LEVEL_H }
+        Prop { color: [1.0; 3], texture: 0, ..Prop::new(kind, Vec2::new(x, z), 0, 0.0) }
     }
 
     /// Un éditeur dont la maison ne contient que `props`, pièces à jour.

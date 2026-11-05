@@ -13,7 +13,20 @@ pub(super) fn solid(p: &Part) -> bool {
         && (p.shape != Shape::Glass || !matches!(p.owner, ElemRef::Pool(_)))
 }
 
-/// Bas et haut d'une boîte ; nos pièces ne tournent qu'autour de la verticale.
+/// Boîte de collision d'une pièce. Les calculs ci-dessous ne gèrent que les rotations autour de
+/// la verticale : une pièce penchée ou couchée (échelle, barre transversale) devient sa boîte
+/// englobante droite.
+pub(super) fn collider(p: &Part) -> Transform {
+    let tf = p.bounds();
+    if (tf.rotation * Vec3::Y).y > 1.0 - 1e-4 {
+        return tf;
+    }
+    let m = Mat3::from_quat(tf.rotation);
+    let size = m.x_axis.abs() * tf.scale.x + m.y_axis.abs() * tf.scale.y + m.z_axis.abs() * tf.scale.z;
+    Transform::from_translation(tf.translation).with_scale(size)
+}
+
+/// Bas et haut d'une boîte droite (voir `collider`).
 fn y_range(tf: &Transform) -> (f32, f32) {
     (tf.translation.y - tf.scale.y / 2.0, tf.translation.y + tf.scale.y / 2.0)
 }
@@ -102,6 +115,26 @@ mod tests {
     use super::*;
     use crate::model::demo_house;
 
+    #[test]
+    fn tilted_pieces_collide_as_their_upright_bounding_box() {
+        let part = |rot: Quat| Part {
+            tf: Transform::from_xyz(0.0, 2.4, 0.0).with_rotation(rot).with_scale(Vec3::new(0.1, 3.0, 0.1)),
+            shape: Shape::Cylinder,
+            color: [1.0; 3],
+            texture: 0,
+            owner: ElemRef::Prop(0),
+            slot: 0,
+        };
+        // barre transversale couchée le long de x, à 2,4 m : on passe dessous
+        let bar = collider(&part(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)));
+        assert!(bar.rotation.is_near_identity() && bar.scale.abs_diff_eq(Vec3::new(3.0, 0.1, 0.1), 1e-5));
+        let mut under = Vec3::new(1.0, 0.0, 0.0);
+        push_out(&mut under, &bar, 0.3, 1.8);
+        assert_eq!(under, Vec3::new(1.0, 0.0, 0.0), "rien ne bloque sous la barre");
+        // une pièce qui ne tourne qu'autour de la verticale garde sa boîte exacte
+        let yaw = Quat::from_rotation_y(0.7);
+        assert_eq!(collider(&part(yaw)).rotation, yaw);
+    }
     #[test]
     fn third_person_camera_stops_before_walls_and_roof() {
         let h = demo_house();

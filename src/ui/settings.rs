@@ -6,7 +6,7 @@ use egui::{Color32, RichText, Slider};
 use super::{ACCENT, Thumbs};
 use crate::command::Command;
 use crate::editor::{Editor, Tool};
-use crate::model::{ElemRef, House, OpeningKind, PropKind, Rgb, RoofKind, WHITE_TEX};
+use crate::model::{Category, ElemRef, Finish, House, OpeningKind, PropKind, Rgb, RoofKind, Slot, WHITE_TEX};
 use crate::terrain::Brush;
 
 fn color_row(ui: &mut egui::Ui, label: &str, c: &mut Rgb) -> bool {
@@ -47,6 +47,34 @@ fn finish_row(ui: &mut egui::Ui, salt: &str, color: &mut Rgb, texture: &mut usiz
         *color = WHITE_TEX;
     }
     color_row(ui, if *texture == 0 { "Couleur" } else { "Teinte" }, color);
+}
+
+/// Couleur et texture de chaque partie d'un objet ou d'une ouverture, dont les finitions
+/// actuelles sont `current` ; renvoie la partie modifiée et sa nouvelle finition.
+fn parts_rows(
+    ui: &mut egui::Ui,
+    salt: &str,
+    slots: &[Slot],
+    current: &[Finish],
+    thumbs: &Thumbs,
+) -> Option<(usize, Finish)> {
+    let mut changed = None;
+    for (i, (slot, &before)) in slots.iter().zip(current).enumerate() {
+        if slots.len() > 1 {
+            ui.label(RichText::new(slot.name).strong());
+        }
+        let mut f = before;
+        finish_row(ui, &format!("{salt}{i}"), &mut f.color, &mut f.texture, thumbs);
+        if f != before {
+            changed = Some((i, f));
+        }
+    }
+    changed
+}
+
+/// Plage du curseur de la dimension réglable : les tracés de terrain traversent tout le monde.
+fn dim_range(kind: PropKind) -> std::ops::RangeInclusive<f32> {
+    if kind.category() == Category::Markings { 0.5..=160.0 } else { 0.1..=8.0 }
 }
 
 pub(super) fn tool_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
@@ -109,11 +137,21 @@ fn roof_settings(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
     finish_row(ui, "t_toit", &mut ed.roof_color, &mut ed.roof_texture, thumbs);
 }
 
-fn opening_settings(ui: &mut egui::Ui, ed: &mut Editor, k: OpeningKind) {
+fn opening_settings(ui: &mut egui::Ui, ed: &mut Editor, mut k: OpeningKind) {
+    ui.horizontal_wrapped(|ui| {
+        for o in OpeningKind::ALL {
+            if ui.selectable_label(o == k, o.name()).clicked() {
+                ed.set_tool(Tool::Opening(o));
+                k = o;
+            }
+        }
+    });
+    ui.separator();
     let (w, h, s) = &mut ed.op_dims[k as usize];
     ui.add(Slider::new(w, 0.3..=6.0).text("largeur").suffix(" m"));
     ui.add(Slider::new(h, 0.3..=4.0).text("hauteur").suffix(" m"));
-    if matches!(k, OpeningKind::Window | OpeningKind::Grid | OpeningKind::Fixed) {
+    // les fenêtres ont une allège, les portes partent du sol
+    if k.default_dims().2 > 0.0 {
         ui.add(Slider::new(s, 0.0..=2.5).text("allège").suffix(" m"));
     }
     color_row(ui, "Couleur", &mut ed.op_colors[k as usize]);
@@ -123,22 +161,32 @@ fn opening_settings(ui: &mut egui::Ui, ed: &mut Editor, k: OpeningKind) {
 }
 
 fn prop_settings(ui: &mut egui::Ui, ed: &mut Editor, current: PropKind, thumbs: &Thumbs) {
-    for (title, outdoor) in [("Intérieur", false), ("Jardin (suit le relief)", true)] {
-        ui.small(title);
-        egui::Grid::new(("meubles", outdoor)).num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
-            for (i, k) in PropKind::ALL.into_iter().filter(|k| k.outdoor() == outdoor).enumerate() {
-                if ui.add_sized([84.0, 22.0], egui::Button::new(k.name()).selected(k == current)).clicked() {
-                    ed.set_tool(Tool::Prop(k));
-                }
-                if i % 3 == 2 {
-                    ui.end_row();
-                }
+    // le rayon ouvert est celui de l'objet choisi : en changer choisit son premier objet
+    ui.horizontal_wrapped(|ui| {
+        for c in Category::ALL {
+            let Some(first) = c.kinds().next() else { continue };
+            if ui.selectable_label(c == current.category(), c.name()).clicked() && c != current.category() {
+                ed.set_tool(Tool::Prop(first));
             }
-        });
+        }
+    });
+    ui.separator();
+    if current.outdoor() {
+        ui.small("Dehors : se pose sur le relief au rez-de-chaussée.");
     }
+    egui::Grid::new("meubles").num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
+        for (i, k) in current.category().kinds().enumerate() {
+            if ui.add_sized([84.0, 22.0], egui::Button::new(k.name()).selected(k == current)).clicked() {
+                ed.set_tool(Tool::Prop(k));
+            }
+            if i % 3 == 2 {
+                ui.end_row();
+            }
+        }
+    });
     ui.add(Slider::new(&mut ed.prop_rot, 0.0..=359.0).text("rotation (R)").suffix("°"));
-    if current.has_height() {
-        ui.add(Slider::new(&mut ed.prop_height, 0.4..=8.0).text("hauteur").suffix(" m"));
+    if let Some(dim) = current.dim() {
+        ui.add(Slider::new(&mut ed.prop_height, dim_range(current)).text(dim).suffix(" m"));
     }
     finish_row(ui, "t_meuble", &mut ed.prop_color, &mut ed.prop_texture, thumbs);
 }
@@ -267,7 +315,12 @@ fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thum
             ui.add(Slider::new(&mut o.height, 0.3..=wall_h).text("hauteur").suffix(" m"));
             ui.add(Slider::new(&mut o.sill, 0.0..=wall_h - 0.3).text("allège").suffix(" m"));
             ui.add(Slider::new(&mut o.t, 0.0..=len).text("position").suffix(" m"));
-            color_row(ui, "Couleur", &mut o.color);
+            let current: Vec<Finish> = (0..o.kind.slots().len()).map(|i| o.finish(i)).collect();
+            if let Some((i, f)) = parts_rows(ui, "s_ouverture", o.kind.slots(), &current, thumbs)
+                && let Some((c, t)) = o.finish_mut(i)
+            {
+                (*c, *t) = (f.color, f.texture);
+            }
             // garde l'ouverture dans le mur
             o.width = o.width.min(len - 0.1);
             o.t = o.t.clamp(o.width / 2.0 + 0.05, len - o.width / 2.0 - 0.05);
@@ -294,12 +347,18 @@ fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thum
         ElemRef::Prop(i) => {
             let Some(p) = h.props.get_mut(i) else { return false };
             ui.add(Slider::new(&mut p.rot, 0.0..=359.0).text("rotation").suffix("°"));
-            if p.kind.has_height() {
-                ui.add(Slider::new(&mut p.height, 0.4..=8.0).text("hauteur").suffix(" m"));
+            if let Some(dim) = p.kind.dim() {
+                ui.add(Slider::new(&mut p.height, dim_range(p.kind)).text(dim).suffix(" m"));
             }
-            finish_row(ui, "s_meuble", &mut p.color, &mut p.texture, thumbs);
-            if ui.button("Couleur d'origine").clicked() {
-                p.color = p.kind.default_color();
+            let current: Vec<Finish> = (0..p.kind.slots().len()).map(|i| p.finish(i)).collect();
+            if let Some((i, f)) = parts_rows(ui, "s_meuble", p.kind.slots(), &current, thumbs)
+                && let Some((c, t)) = p.finish_mut(i)
+            {
+                (*c, *t) = (f.color, f.texture);
+            }
+            if ui.button("Finitions d'origine").clicked() {
+                (p.color, p.texture) = (p.kind.default_color(), p.kind.default_texture());
+                p.finishes.clear();
             }
         }
         ElemRef::Pool(i) => {

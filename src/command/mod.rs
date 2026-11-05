@@ -109,7 +109,8 @@ pub enum Command {
         #[serde(default)]
         rot: Option<f32>,
     },
-    /// Toit de 2,5 m de haut avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
+    /// Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit
+    /// plat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
     /// des murs du rez-de-chaussée, `level` = 1. Le faîtage suit le grand côté.
     PlaceRoof {
         /// Coin nord-ouest de l'emprise des murs ; le débord est ajouté autour.
@@ -208,13 +209,18 @@ pub enum Command {
         /// Degrés ajoutés à sa rotation actuelle (voir `place_prop.rot` pour le sens).
         deg: f32,
     },
-    /// Change la couleur et/ou la matière d'un élément.
+    /// Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet
+    /// ou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une
+    /// porte…), listées par `maison3d catalog` (`parts`).
     Paint {
         target: ElemRef,
+        /// Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,
+        /// sols, toits, piscines et routes n'ont que la partie 0.
+        #[serde(default)]
+        part: usize,
         /// Nouvelle couleur `[r, g, b]` (0 à 1) ; absente ou `null` : inchangée.
         color: Option<Rgb>,
         /// Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.
-        /// Ignoré pour une ouverture, qui n'a pas de matière.
         texture: Option<usize>,
     },
     /// Modifie des champs d'un élément existant, sans changer son indice : par exemple
@@ -258,9 +264,8 @@ impl House {
     }
 
     fn apply_one(&mut self, cmd: Command) -> Result<Option<ElemRef>, EditError> {
-        // color_mut couvre toutes les sortes d'éléments : sert de test d'existence
         if let Some(target) = cmd.target()
-            && self.color_mut(target).is_none()
+            && !self.exists(target)
         {
             return Err(EditError::NotFound(target, self.count(target)));
         }
@@ -270,12 +275,8 @@ impl House {
                 let textures = (wall_texture.unwrap_or_else(|| find("Crépi blanc")), floor_texture);
                 self.add_room(min, max, level, walls, textures)
             }
-            Command::PlaceOpening { wall, kind, t } => {
-                let (width, height, sill) = kind.default_dims();
-                let opening = Opening { kind, t, width, height, sill, color: kind.default_color() };
-                self.add_opening(wall, opening)
-            }
-            Command::PlaceProp { kind, pos, level, rot } => self.add_prop(default_prop(kind, pos, level, rot)),
+            Command::PlaceOpening { wall, kind, t } => self.add_opening(wall, Opening::new(kind, t)),
+            Command::PlaceProp { kind, pos, level, rot } => self.add_prop(Prop::new(kind, pos, level, rot)),
             Command::PlaceRow { kind, from, to, step, level, rot } => {
                 self.place_row(kind, (from, to), step, level, rot)
             }
@@ -302,7 +303,7 @@ impl House {
             Command::Move { target, by } => self.move_elem(target, by),
             Command::Duplicate { target, by } => self.duplicate_checked(target, by),
             Command::Rotate { target, deg } => self.rotate(target, deg),
-            Command::Paint { target, color, texture } => self.paint_checked(target, color, texture),
+            Command::Paint { target, part, color, texture } => self.paint(target, part, color, texture),
             Command::Set { target, fields } => self.set(target, fields),
         }
     }
@@ -317,7 +318,12 @@ impl House {
     ) -> Result<Option<ElemRef>, EditError> {
         let flat = kind == RoofKind::Flat;
         let texture = texture.unwrap_or_else(|| find(if flat { "Zinc" } else { "Tuiles terre cuite" }));
-        let height = if flat { 0.3 } else { 2.5 };
+        let height = match kind {
+            RoofKind::Flat => 0.3,
+            RoofKind::Butterfly => 1.2,
+            RoofKind::Sawtooth => 1.5,
+            _ => 2.5,
+        };
         self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
     }
 
@@ -340,15 +346,23 @@ impl House {
         self.check_elem(copy).map(|()| Some(copy))
     }
 
-    fn paint_checked(
+    fn paint(
         &mut self,
         target: ElemRef,
+        part: usize,
         color: Option<Rgb>,
         texture: Option<usize>,
     ) -> Result<Option<ElemRef>, EditError> {
         color.map_or(Ok(()), validate::color)?;
         texture.map_or(Ok(()), validate::texture)?;
-        self.paint(target, color, texture);
+        let count = self.part_count(target);
+        let (c, t) = self.finish_mut(target, part).ok_or(EditError::NoSuchPart { part, count })?;
+        if let Some(color) = color {
+            *c = color;
+        }
+        if let Some(texture) = texture {
+            *t = texture;
+        }
         Ok(Some(target))
     }
 
@@ -427,7 +441,7 @@ impl House {
         let mut last = None;
         for k in 0..count {
             let pos = from + d.normalize_or_zero() * step * k as f32;
-            last = self.add_prop(default_prop(kind, pos, level, rot))?;
+            last = self.add_prop(Prop::new(kind, pos, level, rot))?;
         }
         Ok(last)
     }
@@ -480,15 +494,6 @@ impl House {
         Ok(Some(target))
     }
 
-    fn paint(&mut self, target: ElemRef, color: Option<Rgb>, texture: Option<usize>) {
-        if let (Some(c), Some(col)) = (color, self.color_mut(target)) {
-            *col = c;
-        }
-        if let (Some(t), Some(tex)) = (texture, self.texture_mut(target)) {
-            *tex = t;
-        }
-    }
-
     fn set(
         &mut self,
         target: ElemRef,
@@ -509,11 +514,6 @@ impl House {
         }
         Ok(Some(target))
     }
-}
-
-fn default_prop(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Prop {
-    let (color, texture) = (kind.default_color(), kind.default_texture());
-    Prop { kind, pos, level, rot, color, texture, height: LEVEL_H }
 }
 
 /// `elem` avec ses champs remplacés par `fields`, relu avec les mêmes règles qu'un ajout.

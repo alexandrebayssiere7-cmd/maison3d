@@ -10,7 +10,7 @@ use super::tools::{big_enough, fmt_m};
 use super::{Editor, Tool};
 use crate::camera::CamState;
 use crate::command::Command;
-use crate::model::{ElemRef, House, OpeningKind, Part, PropKind, Shape, elev, pick, prop_parts};
+use crate::model::{ElemRef, House, OpeningKind, Part, PropKind, Shape, elev, pick_part, prop_parts};
 use crate::render::MainCamera;
 
 /// Entrées souris d'une image, lues par le système.
@@ -78,6 +78,8 @@ struct Aim {
     ground: Option<Vec2>,
     p: Option<Vec2>,
     hit: Option<(ElemRef, f32)>,
+    /// Partie colorable de l'élément visé.
+    part: usize,
     click: bool,
     released: bool,
 }
@@ -148,13 +150,15 @@ impl Editor {
         let ground = ground3.map(|p| Vec2::new(p.x, p.z));
         let p = ground.map(|g| self.snap(g, inp.free));
         self.cursor = p;
+        let hit = pick_part(&self.parts, origin, dir);
         Aim {
             origin,
             dir,
             ground3,
             ground,
             p,
-            hit: pick(&self.parts, origin, dir),
+            hit: hit.map(|(part, d)| (part.owner, d)),
+            part: hit.map_or(0, |(part, _)| part.slot),
             click: inp.just_pressed && !inp.over_ui && !inp.alt,
             released: inp.just_released && !inp.alt,
         }
@@ -181,7 +185,7 @@ impl Editor {
             Tool::Paint | Tool::Eyedropper | Tool::Erase if !inp.over_ui => {
                 self.hovered = hit;
                 if let (true, Some(e)) = (a.click, hit) {
-                    self.pick_click(e);
+                    self.pick_click(e, a.part);
                 }
             }
             Tool::Paint | Tool::Eyedropper | Tool::Erase => {}

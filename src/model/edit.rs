@@ -2,7 +2,7 @@
 
 use bevy::math::Vec2;
 
-use super::{ElemRef, House, OpeningKind, PropKind, Rgb, Slab, Wall};
+use super::{ElemRef, House, OpeningKind, Rgb, Slab, Wall};
 
 impl House {
     /// Insère un étage au-dessus de `l` : copie ses murs (sans les portes) et ses sols intérieurs,
@@ -26,7 +26,11 @@ impl House {
             .map(|w| {
                 let mut w = w.clone();
                 w.level += 1;
-                w.openings.retain(|o| o.kind != OpeningKind::Door);
+                // pas de porte à l'étage, sauf les baies vitrées (balcon)
+                w.openings.retain(|o| {
+                    o.sill >= 0.05
+                        || matches!(o.kind, OpeningKind::FrenchDoor | OpeningKind::Bay | OpeningKind::SlidingDoor)
+                });
                 w
             })
             .collect();
@@ -42,44 +46,54 @@ impl House {
         self.slabs.extend(slabs);
     }
 
-    pub fn texture_mut(&mut self, e: ElemRef) -> Option<&mut usize> {
-        Some(match e {
-            ElemRef::Wall(i) => &mut self.walls.get_mut(i)?.texture,
-            ElemRef::Slab(i) => &mut self.slabs.get_mut(i)?.texture,
-            ElemRef::Roof(i) => &mut self.roofs.get_mut(i)?.texture,
-            ElemRef::Prop(i) => &mut self.props.get_mut(i)?.texture,
-            ElemRef::Pool(i) => &mut self.pools.get_mut(i)?.texture,
-            ElemRef::Road(i) => &mut self.roads.get_mut(i)?.texture,
-            ElemRef::Opening(..) => return None,
-        })
+    /// Couleur et matière de la partie `part` d'un élément (murs, sols, toits, piscines et
+    /// routes n'ont que la partie 0) ; `None` si l'élément ou la partie n'existe pas.
+    pub fn finish_mut(&mut self, e: ElemRef, part: usize) -> Option<(&mut Rgb, &mut usize)> {
+        let whole = (part == 0).then_some(());
+        match e {
+            ElemRef::Wall(i) => self.walls.get_mut(i).zip(whole).map(|(w, ())| (&mut w.color, &mut w.texture)),
+            ElemRef::Opening(w, o) => self.walls.get_mut(w)?.openings.get_mut(o)?.finish_mut(part),
+            ElemRef::Slab(i) => self.slabs.get_mut(i).zip(whole).map(|(s, ())| (&mut s.color, &mut s.texture)),
+            ElemRef::Roof(i) => self.roofs.get_mut(i).zip(whole).map(|(r, ())| (&mut r.color, &mut r.texture)),
+            ElemRef::Prop(i) => self.props.get_mut(i)?.finish_mut(part),
+            ElemRef::Pool(i) => self.pools.get_mut(i).zip(whole).map(|(p, ())| (&mut p.color, &mut p.texture)),
+            ElemRef::Road(i) => self.roads.get_mut(i).zip(whole).map(|(r, ())| (&mut r.color, &mut r.texture)),
+        }
+    }
+
+    /// Nombre de parties colorables de l'élément (1 hors objets et ouvertures, 0 s'il n'existe pas).
+    pub fn part_count(&self, e: ElemRef) -> usize {
+        match e {
+            ElemRef::Opening(w, o) => {
+                self.walls.get(w).and_then(|w| w.openings.get(o)).map_or(0, |o| o.kind.slots().len())
+            }
+            ElemRef::Prop(i) => self.props.get(i).map_or(0, |p| p.kind.slots().len()),
+            _ => usize::from(self.exists(e)),
+        }
     }
 
     /// Peut-on l'ouvrir pendant la visite (porte, armoire, frigo, placards) ?
     pub fn openable(&self, e: ElemRef) -> bool {
         match e {
-            ElemRef::Opening(w, o) => self
-                .walls
-                .get(w)
-                .and_then(|w| w.openings.get(o))
-                .is_some_and(|o| matches!(o.kind, OpeningKind::Door | OpeningKind::FrenchDoor)),
-            ElemRef::Prop(i) => self
-                .props
-                .get(i)
-                .is_some_and(|p| matches!(p.kind, PropKind::Wardrobe | PropKind::Fridge | PropKind::Kitchen)),
+            ElemRef::Opening(w, o) => self.walls.get(w).and_then(|w| w.openings.get(o)).is_some_and(|o| {
+                !matches!(o.kind, OpeningKind::Window | OpeningKind::Bay | OpeningKind::Fixed | OpeningKind::Grid)
+            }),
+            ElemRef::Prop(i) => self.props.get(i).is_some_and(|p| p.kind.openable()),
             _ => false,
         }
     }
 
-    pub fn color_mut(&mut self, e: ElemRef) -> Option<&mut Rgb> {
-        Some(match e {
-            ElemRef::Wall(i) => &mut self.walls.get_mut(i)?.color,
-            ElemRef::Opening(w, o) => &mut self.walls.get_mut(w)?.openings.get_mut(o)?.color,
-            ElemRef::Slab(i) => &mut self.slabs.get_mut(i)?.color,
-            ElemRef::Roof(i) => &mut self.roofs.get_mut(i)?.color,
-            ElemRef::Prop(i) => &mut self.props.get_mut(i)?.color,
-            ElemRef::Pool(i) => &mut self.pools.get_mut(i)?.color,
-            ElemRef::Road(i) => &mut self.roads.get_mut(i)?.color,
-        })
+    /// L'élément désigné existe-t-il ?
+    pub fn exists(&self, e: ElemRef) -> bool {
+        match e {
+            ElemRef::Wall(i) => i < self.walls.len(),
+            ElemRef::Opening(w, o) => self.walls.get(w).is_some_and(|w| o < w.openings.len()),
+            ElemRef::Slab(i) => i < self.slabs.len(),
+            ElemRef::Roof(i) => i < self.roofs.len(),
+            ElemRef::Prop(i) => i < self.props.len(),
+            ElemRef::Pool(i) => i < self.pools.len(),
+            ElemRef::Road(i) => i < self.roads.len(),
+        }
     }
 
     pub fn remove(&mut self, e: ElemRef) {
@@ -212,6 +226,16 @@ mod tests {
             h.walls.iter().filter(|w| w.level == 1).all(|w| w.openings.iter().all(|o| o.kind != OpeningKind::Door))
         );
         assert_eq!(h.roofs[0].level, 2);
+        // portes de toute sorte retirées, baies et fenêtres gardées
+        let mut g = House::default();
+        g.walls.push(wall(12.0));
+        g.walls[0].openings =
+            [(OpeningKind::GarageDoor, 2.0), (OpeningKind::SlidingDoor, 6.0), (OpeningKind::Window, 10.0)]
+                .map(|(k, t)| Opening::new(k, t))
+                .to_vec();
+        g.add_storey(0, None);
+        let up: Vec<_> = g.walls[1].openings.iter().map(|o| o.kind).collect();
+        assert_eq!(up, [OpeningKind::SlidingDoor, OpeningKind::Window]);
         // le parquet est copié, pas la terrasse
         assert_eq!(h.slabs.iter().filter(|s| s.level == 1).count(), 1);
     }
@@ -250,7 +274,7 @@ mod tests {
         {
             h.remove(e);
             h.translate(e, Vec2::X);
-            assert!(h.color_mut(e).is_none());
+            assert!(h.finish_mut(e, 0).is_none() && !h.exists(e) && h.part_count(e) == 0);
         }
         assert_eq!(h, before, "un indice invalide ne touche à rien");
         let counts =
@@ -264,16 +288,23 @@ mod tests {
         assert_eq!(counts(&h), (w - 1, s - 1, r - 1, p - 1, po - 1, ro - 1));
     }
     #[test]
-    fn openings_have_color_but_no_texture() {
+    fn every_element_has_a_finish_and_only_props_and_openings_have_more_parts() {
         let mut h = demo_house();
-        assert!(h.texture_mut(ElemRef::Opening(0, 0)).is_none());
-        assert!(h.color_mut(ElemRef::Opening(0, 0)).is_some());
+        let door = ElemRef::Opening(0, 0);
+        assert_eq!(h.part_count(door), 3, "battant, cadre, poignée");
+        *h.finish_mut(door, 2).unwrap().1 = 5;
+        assert_eq!(h.walls[0].openings[0].finish(2).texture, 5);
+        assert!(h.finish_mut(door, 3).is_none());
         for e in
             [ElemRef::Wall(0), ElemRef::Slab(0), ElemRef::Roof(0), ElemRef::Prop(0), ElemRef::Pool(0), ElemRef::Road(0)]
         {
-            *h.texture_mut(e).unwrap() = 7;
+            *h.finish_mut(e, 0).unwrap().1 = 7;
+            assert!(h.exists(e));
         }
         assert_eq!((h.walls[0].texture, h.roads[0].texture), (7, 7));
+        assert!(h.finish_mut(ElemRef::Wall(0), 1).is_none(), "un mur n'a qu'une partie");
+        assert_eq!(h.part_count(ElemRef::Road(0)), 1);
+        assert_eq!(h.part_count(ElemRef::Prop(0)), h.props[0].kind.slots().len());
         assert!(!h.openable(ElemRef::Wall(0)));
     }
     #[test]
@@ -287,6 +318,8 @@ mod tests {
             height: 2.1,
             sill: 0.0,
             color: WHITE,
+            texture: 0,
+            finishes: vec![],
         });
         h.translate(ElemRef::Opening(0, 0), Vec2::new(0.5, 3.0));
         assert_eq!(h.walls[0].openings[0].t, 2.5, "seule la composante le long du mur compte");

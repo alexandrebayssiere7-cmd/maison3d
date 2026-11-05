@@ -163,19 +163,11 @@ fn stand_actions(openable: bool, open: bool, car: bool, seat: &Seat) -> Vec<&'st
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{LEVEL_H, demo_house};
+    use crate::model::demo_house;
 
     #[test]
     fn furniture_spots_face_the_right_way() {
-        let chair = Prop {
-            kind: PropKind::Chair,
-            pos: Vec2::ZERO,
-            level: 0,
-            rot: 0.0,
-            color: [1.0; 3],
-            texture: 0,
-            height: LEVEL_H,
-        };
+        let chair = Prop::new(PropKind::Chair, Vec2::ZERO, 0, 0.0);
         let (stance, at, yaw) = furniture_spot(&chair, false, Vec3::new(0.0, 0.0, 2.0)).unwrap();
         assert_eq!(stance, Stance::Sit);
         assert!((at.y - 0.48).abs() < 1e-4);

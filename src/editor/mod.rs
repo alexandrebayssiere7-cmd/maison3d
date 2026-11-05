@@ -284,6 +284,7 @@ impl Editor {
         {
             self.prop_color = k.default_color();
             self.prop_texture = k.default_texture();
+            self.prop_height = k.default_height();
         }
         self.tool = t;
     }
@@ -481,6 +482,8 @@ mod tests {
         ed.prop_color = [0.0; 3];
         ed.set_tool(Tool::Prop(PropKind::Pine));
         assert_eq!(ed.prop_color, [0.0; 3], "re-choisir le même outil garde la couleur");
+        ed.set_tool(Tool::Prop(PropKind::StoneSteps));
+        assert!((ed.prop_height - 0.5).abs() < 1e-6, "un perron monte à une porte, pas d'un étage");
         ed.set_level(42);
         assert_eq!(ed.level, 9);
         ed.set_level(-5);
