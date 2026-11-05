@@ -127,58 +127,6 @@ pub(super) fn road_part(r: &Road, terrain: &Terrain, owner: ElemRef) -> Option<P
     Some(cube(tf, r.color, r.texture, owner))
 }
 
-/// Triangles d'un toit en pente, faîtage le long de X. `size` = (longueur, hauteur, largeur).
-pub fn roof_tris(kind: RoofKind, size: Vec3) -> Vec<[Vec3; 3]> {
-    let (a, h, b) = (size.x / 2.0, size.y, size.z / 2.0);
-    let rect =
-        |a: f32, b: f32, y: f32| [Vec3::new(-a, y, -b), Vec3::new(a, y, -b), Vec3::new(a, y, b), Vec3::new(-a, y, b)];
-    let c = rect(a, b, 0.0);
-    let mut t = vec![[c[0], c[2], c[1]], [c[0], c[3], c[2]]]; // dessous
-    // pans montant de la base `c` jusqu'à un faîtage le long de X, raccourci de `inset` à chaque bout
-    let ridge = |t: &mut Vec<[Vec3; 3]>, c: [Vec3; 4], top: f32, inset: f32| {
-        let a = c[1].x;
-        let r = [Vec3::new(-a + inset, top, 0.0), Vec3::new(a - inset, top, 0.0)];
-        t.extend([
-            [c[0], c[1], r[1]],
-            [c[0], r[1], r[0]], // pan avant
-            [c[2], c[3], r[0]],
-            [c[2], r[0], r[1]], // pan arrière
-            [c[3], c[0], r[0]],
-            [c[1], c[2], r[1]], // pignons / croupes
-        ]);
-    };
-    match kind {
-        RoofKind::Gable => ridge(&mut t, c, h, 0.0),
-        RoofKind::Hip => ridge(&mut t, c, h, b.min(a)),
-        RoofKind::Pyramid => ridge(&mut t, c, h, a),
-        RoofKind::Mansard => {
-            // brisis raide jusqu'aux deux tiers, puis terrasson à faible pente
-            let k = 0.2 * a.min(b);
-            let top = rect(a - k, b - k, 0.65 * h);
-            for i in 0..4 {
-                let j = (i + 1) % 4;
-                t.extend([[c[i], c[j], top[j]], [c[i], top[j], top[i]]]);
-            }
-            ridge(&mut t, top, h, (b - k).min(a - k));
-        }
-        RoofKind::Shed => {
-            let (t0, t1) = (Vec3::new(-a, h, b), Vec3::new(a, h, b));
-            t.extend([
-                [c[0], c[1], t1],
-                [c[0], t1, t0],
-                [c[3], c[2], t1],
-                [c[3], t1, t0],
-                [c[0], t0, c[3]],
-                [c[1], c[2], t1],
-            ]);
-        }
-        RoofKind::Flat => {}
-    }
-    // les faîtages réduits à un point laissent des triangles plats
-    t.retain(|[p, q, r]| (*q - *p).cross(*r - *p).length_squared() > 1e-8);
-    t
-}
-
 // ---------------------------------------------------------------- sélection par rayon
 
 /// Distance d'intersection entre un rayon et un cube unitaire transformé.
@@ -228,15 +176,6 @@ mod tests {
             color: WHITE,
             openings: vec![],
             texture: 0,
-        }
-    }
-    #[test]
-    fn new_roofs_have_no_flat_triangles() {
-        for k in RoofKind::ALL.into_iter().filter(|k| *k != RoofKind::Flat) {
-            let tris = roof_tris(k, Vec3::new(10.0, 3.0, 6.0));
-            assert!(tris.len() >= 6, "{k:?}");
-            let top = tris.iter().flatten().map(|v| v.y).fold(0.0, f32::max);
-            assert!((top - 3.0).abs() < 1e-4, "{k:?} culmine à {top}");
         }
     }
     #[test]

@@ -13,14 +13,16 @@ mod edit;
 mod geometry;
 mod openings;
 mod props;
+mod roofs;
 mod shapes;
 
 pub use catalog::{Category, PropKind};
 pub use demo::demo_house;
-pub use geometry::{pick, pick_part, ray_obb, roof_tris};
+pub use geometry::{pick, pick_part, ray_obb};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
 pub use openings::OpeningKind;
 pub use props::{Prop, prop_parts};
+pub use roofs::{RoofKind, roof_tris};
 
 use crate::terrain::Terrain;
 
@@ -222,37 +224,6 @@ pub struct Slab {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
-}
-
-/// Forme de toit. Le faîtage suit toujours le grand côté de l'emprise.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, JsonSchema)]
-pub enum RoofKind {
-    /// Deux pans, pignons sur les petits côtés : la maison classique.
-    Gable,
-    /// Quatre pans, sans pignon.
-    Hip,
-    /// Toit-terrasse plat de 30 cm (`height` ignorée).
-    Flat,
-    /// Un seul pan incliné (garage, extension).
-    Shed,
-    /// Quatre pans jusqu'à un sommet unique, pour une emprise presque carrée.
-    Pyramid,
-    /// Mansarde : pans brisés, raides en bas, doux en haut.
-    Mansard,
-}
-
-impl RoofKind {
-    pub const ALL: [RoofKind; 6] = [Self::Gable, Self::Hip, Self::Flat, Self::Shed, Self::Pyramid, Self::Mansard];
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Gable => "Deux pans",
-            Self::Hip => "Quatre pans",
-            Self::Flat => "Toit plat",
-            Self::Shed => "Monopente",
-            Self::Pyramid => "Pyramide",
-            Self::Mansard => "Mansarde",
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, JsonSchema)]

@@ -1446,6 +1446,46 @@
           "description": "Mansarde : pans brisés, raides en bas, doux en haut.",
           "type": "string",
           "const": "Mansard"
+        },
+        {
+          "description": "Comble de grange (gambrel, Mansart à l'américaine) : deux pans brisés, raides en bas,\ndoux en haut, pignons sur les petits côtés.",
+          "type": "string",
+          "const": "Gambrel"
+        },
+        {
+          "description": "Saltbox : deux pans asymétriques, faîtage décalé vers le côté min (nord ou ouest).",
+          "type": "string",
+          "const": "Saltbox"
+        },
+        {
+          "description": "Papillon : deux pans en V qui descendent vers une noue centrale (1,2 m de haut par défaut).",
+          "type": "string",
+          "const": "Butterfly"
+        },
+        {
+          "description": "Sheds : dents de scie parallèles au faîtage, face verticale tournée vers le côté min\n(nord ou ouest) ; toit d'usine ou de supermarché (1,5 m de haut par défaut).",
+          "type": "string",
+          "const": "Sawtooth"
+        },
+        {
+          "description": "Voûte : demi-cylindre le long du grand côté.",
+          "type": "string",
+          "const": "Barrel"
+        },
+        {
+          "description": "Dôme : demi-ellipsoïde inscrit dans l'emprise, coins plats.",
+          "type": "string",
+          "const": "Dome"
+        },
+        {
+          "description": "Toit asiatique : quatre pans concaves, doux au bord et raides au faîtage, angles relevés.",
+          "type": "string",
+          "const": "Pagoda"
+        },
+        {
+          "description": "Conique : cône inscrit dans l'emprise, pour une tourelle (emprise carrée, 3 à 5 m de haut).",
+          "type": "string",
+          "const": "Cone"
         }
       ]
     },

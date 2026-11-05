@@ -317,7 +317,12 @@ impl House {
     ) -> Result<Option<ElemRef>, EditError> {
         let flat = kind == RoofKind::Flat;
         let texture = texture.unwrap_or_else(|| find(if flat { "Zinc" } else { "Tuiles terre cuite" }));
-        let height = if flat { 0.3 } else { 2.5 };
+        let height = match kind {
+            RoofKind::Flat => 0.3,
+            RoofKind::Butterfly => 1.2,
+            RoofKind::Sawtooth => 1.5,
+            _ => 2.5,
+        };
         self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
     }
 
