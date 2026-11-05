@@ -176,29 +176,6 @@ pub(super) fn shapes(kind: PropKind, open: f32, _height: f32) -> Vec<Piece> {
     v
 }
 
-/// Tiroir de largeur `w` et de profondeur `d` dont la façade affleure en (x, z), entre les
-/// hauteurs `ys`, sorti de `out` mètres vers l'avant. Parties `(façade et côtés, poignée, fond)`.
-pub(super) fn drawer(
-    x: f32,
-    z: f32,
-    w: f32,
-    d: f32,
-    ys: (f32, f32),
-    out: f32,
-    slots: (usize, usize, usize),
-) -> [Piece; 5] {
-    let ((y0, y1), z) = (ys, z + out);
-    let (ym, mid) = (f32::midpoint(y0, y1), z - d / 2.0);
-    let side = |sx: f32| bx(x + sx * (w / 2.0 - 0.035), mid, 0.012, d - 0.02, y0 + 0.01, y1 - 0.03, slots.0);
-    [
-        bx(x, z - 0.01, w - 0.01, 0.02, y0, y1, slots.0),
-        bx(x, z + 0.01, (w * 0.35).min(0.16), 0.02, ym - 0.012, ym + 0.012, slots.1),
-        bx(x, mid, w - 0.06, d - 0.02, y0 + 0.01, y0 + 0.02, slots.2),
-        side(-1.0),
-        side(1.0),
-    ]
-}
-
 fn armchair(v: &mut Vec<Piece>) {
     v.push(bx(0.0, 0.0, 0.85, 0.82, 0.12, 0.42, 0));
     v.push(bx(0.0, 0.08, 0.55, 0.62, 0.42, 0.52, 1));
@@ -382,15 +359,6 @@ mod tests {
         for k in salon_and_bedroom() {
             assert_eq!(k.openable(), opening.contains(&k), "{k:?}");
         }
-    }
-    #[test]
-    fn drawer_slides_forward_by_its_travel() {
-        let at = |out: f32| drawer(0.0, 0.2, 0.4, 0.3, (0.1, 0.3), out, (0, 1, 2));
-        let (shut, out) = (at(0.0), at(0.25));
-        for (a, b) in shut.iter().zip(&out) {
-            assert!((b.at - a.at).abs_diff_eq(Vec3::Z * 0.25, 1e-6) && a.size == b.size, "{a:?} {b:?}");
-        }
-        assert!((shut[0].at.z + shut[0].size.z / 2.0 - 0.2).abs() < 1e-6, "façade affleurante");
     }
     #[test]
     fn only_the_rug_is_flat() {

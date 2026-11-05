@@ -143,6 +143,33 @@ fn carcass(w: f32, d: f32, h: f32, slot: usize, inside: usize) -> [Piece; 5] {
     ]
 }
 
+/// Pièces fermées qui pivotent ensemble de `q` autour d'une charnière passant par `hinge` :
+/// abattant de four (`from_rotation_x(a)`, le haut part vers l'avant), couvercle
+/// (`from_rotation_x(-a)`, l'avant se lève), hublot ou porte vitrée (`from_rotation_y`).
+fn swing<const N: usize>(pieces: [Piece; N], hinge: Vec3, q: Quat) -> [Piece; N] {
+    pieces.map(|p| Piece { at: hinge + q * (p.at - hinge), ..p }.turn(q))
+}
+
+/// Pièces décalées de `d` (caisson posé plus haut ou plus en avant).
+fn shift<const N: usize>(pieces: [Piece; N], d: Vec3) -> [Piece; N] {
+    pieces.map(|p| Piece { at: p.at + d, ..p })
+}
+
+/// Tiroir de largeur `w` et de profondeur `d` dont la façade affleure en (x, z), entre les
+/// hauteurs `ys`, sorti de `out` mètres vers l'avant. Parties `(façade et côtés, poignée, fond)`.
+fn drawer(x: f32, z: f32, w: f32, d: f32, ys: (f32, f32), out: f32, slots: (usize, usize, usize)) -> [Piece; 5] {
+    let ((y0, y1), z) = (ys, z + out);
+    let (ym, mid) = (f32::midpoint(y0, y1), z - d / 2.0);
+    let side = |sx: f32| bx(x + sx * (w / 2.0 - 0.035), mid, 0.012, d - 0.02, y0 + 0.01, y1 - 0.03, slots.0);
+    [
+        bx(x, z - 0.01, w - 0.01, 0.02, y0, y1, slots.0),
+        bx(x, z + 0.01, (w * 0.35).min(0.16), 0.02, ym - 0.012, ym + 0.012, slots.1),
+        bx(x, mid, w - 0.06, d - 0.02, y0 + 0.01, y0 + 0.02, slots.2),
+        side(-1.0),
+        side(1.0),
+    ]
+}
+
 /// Quatre pieds de 5 cm aux coins (±hx, ±hz), hauts de h.
 fn legs(hx: f32, hz: f32, h: f32, slot: usize) -> [Piece; 4] {
     [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)].map(|(sx, sz)| bx(sx * hx, sz * hz, 0.05, 0.05, 0.0, h, slot))
@@ -182,6 +209,23 @@ mod tests {
     fn only_kinds_with_doors_open() {
         assert!(PropKind::Wardrobe.openable() && PropKind::Kitchen.openable() && PropKind::Fridge.openable());
         assert!(!PropKind::Sofa.openable() && !PropKind::Car.openable());
+    }
+    #[test]
+    fn swing_turns_about_the_hinge_and_shift_moves() {
+        let p = bx(0.0, 0.0, 0.6, 0.02, 0.0, 1.0, 0);
+        let [q] = swing([p], Vec3::ZERO, Quat::from_rotation_x(std::f32::consts::FRAC_PI_2));
+        assert!(q.at.abs_diff_eq(Vec3::new(0.0, 0.0, 0.5), 1e-5), "le centre tourne autour de la charnière");
+        let [s] = shift([p], Vec3::Y);
+        assert_eq!((s.at.y, s.rot), (1.5, p.rot));
+    }
+    #[test]
+    fn drawer_slides_forward_by_its_travel() {
+        let at = |out: f32| drawer(0.0, 0.2, 0.4, 0.3, (0.1, 0.3), out, (0, 1, 2));
+        let (shut, out) = (at(0.0), at(0.25));
+        for (a, b) in shut.iter().zip(&out) {
+            assert!((b.at - a.at).abs_diff_eq(Vec3::Z * 0.25, 1e-6) && a.size == b.size, "{a:?} {b:?}");
+        }
+        assert!((shut[0].at.z + shut[0].size.z / 2.0 - 0.2).abs() < 1e-6, "façade affleurante");
     }
     #[test]
     fn span_follows_its_ends() {

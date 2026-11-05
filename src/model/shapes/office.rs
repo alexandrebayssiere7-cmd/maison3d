@@ -4,8 +4,7 @@ use std::f32::consts::{FRAC_PI_2, TAU};
 
 use bevy::math::Vec3;
 
-use super::living::drawer;
-use super::{Piece, ball, bx, carcass, cyl, door, legs, span};
+use super::{Piece, ball, bx, carcass, cyl, door, drawer, legs, span};
 use crate::model::{DARK, METAL, PropKind, Shape, Slot, WHITE};
 
 const STEEL: [f32; 3] = [0.55, 0.57, 0.6];

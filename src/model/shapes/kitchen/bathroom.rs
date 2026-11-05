@@ -2,8 +2,8 @@
 
 use bevy::math::{Quat, Vec3};
 
-use super::super::{Piece, ball, bx, carcass, cyl, door, span};
-use super::{disc, swing};
+use super::super::{Piece, ball, bx, carcass, cyl, door, span, swing};
+use super::disc;
 use crate::model::{METAL, PropKind, Shape, Slot, WHITE};
 
 const MIRROR: [f32; 3] = [0.78, 0.85, 0.9];

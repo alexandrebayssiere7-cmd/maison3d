@@ -5,7 +5,7 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use bevy::math::{Quat, Vec3};
 
-use super::{Piece, ball, bx, clumps, cyl, door, light, span};
+use super::{Piece, ball, bx, clumps, cyl, door, light, span, swing};
 use crate::model::{Category, DARK, LEAF, METAL, PropKind, Rgb, Shape, Slot, WHITE};
 
 mod leisure;
@@ -275,12 +275,6 @@ fn window(at: Vec3, (w, h): (f32, f32), yaw: f32, (pane, frame): (usize, usize))
     .collect()
 }
 
-/// Pièces `v` pivotées de `a` radians autour de la verticale qui passe par `hinge` (battants).
-fn pivot(v: Vec<Piece>, hinge: Vec3, a: f32) -> impl Iterator<Item = Piece> {
-    let q = Quat::from_rotation_y(a);
-    v.into_iter().map(move |p| Piece { at: hinge + q * (p.at - hinge), ..p }.yaw(a))
-}
-
 // ---------------------------------------------------------------- jardin
 
 fn hedge() -> Vec<Piece> {
@@ -332,7 +326,8 @@ fn gate(open: f32) -> Vec<Piece> {
         for k in 0..9 {
             leaf.push(bx(at(0.03 + k as f32 * (w - 0.06) / 8.0), 0.0, 0.035, 0.035, 0.08, 1.5, 0));
         }
-        v.extend(pivot(leaf, Vec3::new(hx, 0.0, 0.0), side * open * 1.6));
+        let q = Quat::from_rotation_y(side * open * 1.6);
+        v.extend(leaf.into_iter().flat_map(|p| swing([p], Vec3::new(hx, 0.0, 0.0), q)));
     }
     v
 }

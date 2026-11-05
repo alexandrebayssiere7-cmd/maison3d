@@ -4,8 +4,7 @@ use std::f32::consts::{FRAC_PI_2, TAU};
 
 use bevy::math::{Quat, Vec3};
 
-use super::kitchen::{shift, swing};
-use super::{Piece, ball, bx, carcass, cyl, legs, span};
+use super::{Piece, ball, bx, carcass, cyl, legs, shift, span, swing};
 use crate::model::{DARK, METAL, PropKind, Shape, Slot, WHITE};
 
 const CARDBOARD: [f32; 3] = [0.72, 0.55, 0.35];

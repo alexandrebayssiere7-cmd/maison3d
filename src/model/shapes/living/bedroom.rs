@@ -2,8 +2,7 @@
 
 use bevy::math::{Quat, Vec3};
 
-use super::super::{Piece, ball, bx, carcass, cyl, door, legs};
-use super::drawer;
+use super::super::{Piece, ball, bx, carcass, cyl, door, drawer, legs};
 use crate::model::{METAL, PropKind, Shape, Slot, WHITE};
 
 const FRAME: [f32; 3] = [0.45, 0.3, 0.2];

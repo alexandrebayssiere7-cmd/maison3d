@@ -4,7 +4,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::math::{Quat, Vec3};
 
-use super::{Piece, ball, bx, carcass, cyl, door};
+use super::{Piece, ball, bx, carcass, cyl, door, shift, swing};
 use crate::model::{DARK, METAL, PropKind, Shape, Slot, WHITE};
 
 mod bathroom;
@@ -148,18 +148,6 @@ pub(super) fn shapes(kind: PropKind, open: f32, height: f32) -> Vec<Piece> {
 }
 
 // ---------------------------------------------------------------- briques des abattants
-
-/// Pièces fermées qui pivotent ensemble de `q` autour d'une charnière passant par `hinge` :
-/// abattant de four (`from_rotation_x(a)`, le haut part vers l'avant), couvercle
-/// (`from_rotation_x(-a)`, l'avant se lève), hublot ou porte vitrée (`from_rotation_y`).
-pub(super) fn swing<const N: usize>(pieces: [Piece; N], hinge: Vec3, q: Quat) -> [Piece; N] {
-    pieces.map(|p| Piece { at: hinge + q * (p.at - hinge), ..p }.turn(q))
-}
-
-/// Pièces décalées de `d` (caisson posé plus haut ou plus en avant).
-pub(super) fn shift<const N: usize>(pieces: [Piece; N], d: Vec3) -> [Piece; N] {
-    pieces.map(|p| Piece { at: p.at + d, ..p })
-}
 
 /// Disque de diamètre `d` et d'épaisseur `t` tourné vers l'avant (+z) : bouton, hublot, tambour.
 fn disc(at: [f32; 3], d: f32, t: f32, slot: usize) -> Piece {
@@ -365,13 +353,5 @@ mod tests {
         let (lo, hi) = heights(PropKind::WallCabinet);
         assert!((lo - 1.4).abs() < 0.01 && (hi - 2.1).abs() < 0.01, "meuble haut entre 1,4 et 2,1 m : {lo} {hi}");
         assert!(heights(PropKind::RangeHood).0 > 1.5, "la hotte est au-dessus des plaques");
-    }
-    #[test]
-    fn swing_turns_about_the_hinge_and_shift_moves() {
-        let p = bx(0.0, 0.0, 0.6, 0.02, 0.0, 1.0, 0);
-        let [q] = swing([p], Vec3::ZERO, Quat::from_rotation_x(FRAC_PI_2));
-        assert!(q.at.abs_diff_eq(Vec3::new(0.0, 0.0, 0.5), 1e-5), "le centre tourne autour de la charnière");
-        let [s] = shift([p], Vec3::Y);
-        assert_eq!((s.at.y, s.rot), (1.5, p.rot));
     }
 }
