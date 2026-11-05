@@ -1,8 +1,15 @@
 name: CI
 
+# push sur main seulement : les branches sont déjà vérifiées par leur PR
 on:
   push:
+    branches: [main]
   pull_request:
+
+# un nouveau push annule le run précédent de la même ref, devenu obsolète
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 # moindre privilège : le jeton GITHUB_TOKEN ne fait que lire le dépôt
 permissions:
