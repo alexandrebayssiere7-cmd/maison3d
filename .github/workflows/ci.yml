@@ -31,6 +31,19 @@ jobs:
       - name: Format
         run: cargo fmt --check
 
+  # failles connues (base RustSec) dans Cargo.lock ; crates abandonnées tirées par Bevy en simple avertissement
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-deny
+
+      - name: Audit des dépendances
+        run: cargo deny --locked --config .github/deny.toml check advisories -W unmaintained
+
   check:
     runs-on: ubuntu-latest
     steps:
