@@ -1338,6 +1338,101 @@
           "const": "Fence"
         },
         {
+          "description": "Module de clôture blanche à lattes pointues, 2 m de long (axe gauche-droite) sur 1 m de haut. À aligner tous les 2 m (`place_row`, `step` 2) : les poteaux des bouts se confondent avec ceux des modules voisins.",
+          "type": "string",
+          "const": "PicketFence"
+        },
+        {
+          "description": "Module de muret en pierre de 2 m de long, 0,62 m de haut et 0,42 m d'épaisseur, avec chaperon. À aligner tous les 2 m comme la haie.",
+          "type": "string",
+          "const": "LowWall"
+        },
+        {
+          "description": "Portail à deux battants : 3 m de passage entre deux piliers de pierre (3,9 m hors tout, 1,8 m de haut). L'avant regarde la rue ; les battants s'ouvrent vers l'arrière (côté jardin) pendant la visite. À placer dans l'alignement d'une clôture ou d'un muret.",
+          "type": "string",
+          "const": "Gate"
+        },
+        {
+          "description": "Abri de jardin en bois de 2,4 × 2 m, 2,6 m au faîte, toit à deux pans, porte à l'avant qui s'ouvre pendant la visite, fenêtre sur le côté droit. Laisser 1 m libre devant la porte.",
+          "type": "string",
+          "const": "GardenShed"
+        },
+        {
+          "description": "Serre vitrée de 2,4 × 3 m, 2,5 m au faîte, sur un socle de briques, porte vitrée à l'avant, tablettes de semis le long des côtés.",
+          "type": "string",
+          "const": "Greenhouse"
+        },
+        {
+          "description": "Pergola en bois de 3 × 3 m, 2,7 m de haut : quatre poteaux, deux poutres et des chevrons. À poser sur une terrasse, au-dessus d'une table de jardin ou d'un salon de jardin.",
+          "type": "string",
+          "const": "Pergola"
+        },
+        {
+          "description": "Puits en pierre de 1,3 m de diamètre et 2,4 m de haut : margelle, toit de tuiles, treuil avec seau ; la manivelle est à l'avant.",
+          "type": "string",
+          "const": "Well"
+        },
+        {
+          "description": "Fontaine de 2,5 m de diamètre et 1,9 m de haut : bassin rond, vasque et jet d'eau. Au centre d'un jardin ou d'une place, à l'écart des murs.",
+          "type": "string",
+          "const": "Fountain"
+        },
+        {
+          "description": "Mare ovale de 3,1 × 2,4 m (pierres comprises) : eau au ras du sol entourée de pierres, nénuphars, roseaux sur le côté gauche.",
+          "type": "string",
+          "const": "Pond"
+        },
+        {
+          "description": "Jardinière en bois de 1 × 0,35 m garnie de fleurs (0,6 m de haut). Au pied d'un mur, d'une fenêtre ou en bord de terrasse.",
+          "type": "string",
+          "const": "Planter"
+        },
+        {
+          "description": "Carré potager de 1,2 × 1,2 m à bordure de bois : salades à l'avant, trois pieds de tomates tuteurés à l'arrière (1,2 m). En plein soleil ; plusieurs côte à côte tous les 1,5 m pour un potager.",
+          "type": "string",
+          "const": "VegetablePatch"
+        },
+        {
+          "description": "Chemin de cinq pierres plates (4 cm) espacées de 60 cm de l'arrière vers l'avant, 3 m de long : orienter l'avant dans le sens de la marche et en mettre plusieurs bout à bout tous les 3 m. Objet plat : les autres objets peuvent le chevaucher.",
+          "type": "string",
+          "const": "SteppingStones"
+        },
+        {
+          "description": "Lanterne japonaise en pierre (tōrō) de 1,2 m, qui éclaire réellement. Au bord d'une mare, d'un chemin ou près d'un torii.",
+          "type": "string",
+          "const": "StoneLantern"
+        },
+        {
+          "description": "Torii, portique japonais rouge de 5,1 m de large et 3,7 m de haut, 2,8 m de passage entre ses piliers ; on passe dessous dans le sens avant-arrière. À l'entrée d'un jardin japonais ou d'une allée.",
+          "type": "string",
+          "const": "Torii"
+        },
+        {
+          "description": "Tas de bois de chauffage de 1,4 × 0,5 m et 0,7 m de haut, bûches couchées (bouts vers l'avant) entre quatre piquets. Dos contre un mur ou un abri.",
+          "type": "string",
+          "const": "Woodpile"
+        },
+        {
+          "description": "Brouette de 1,6 m de long, roue à l'avant et poignées à l'arrière.",
+          "type": "string",
+          "const": "Wheelbarrow"
+        },
+        {
+          "description": "Nain de jardin de 47 cm, tourné vers l'avant. Dans une pelouse ou au bord d'un massif.",
+          "type": "string",
+          "const": "GardenGnome"
+        },
+        {
+          "description": "Niche de chien de 0,8 × 1 m, 0,9 m au faîte, entrée à l'avant avec une gamelle devant. Dos contre une haie ou un mur.",
+          "type": "string",
+          "const": "Doghouse"
+        },
+        {
+          "description": "Nichoir à oiseaux sur un poteau de 1,9 m, trou d'envol vers l'avant.",
+          "type": "string",
+          "const": "Birdhouse"
+        },
+        {
           "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
           "type": "string",
           "const": "Stairs"

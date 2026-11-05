@@ -278,6 +278,44 @@ catalog! {
     Hedge = "Haie", Garden, DEHORS;
     /// Module de clôture de 2 m de long, à aligner comme la haie.
     Fence = "Clôture", Garden, DEHORS;
+    /// Module de clôture blanche à lattes pointues, 2 m de long (axe gauche-droite) sur 1 m de haut. À aligner tous les 2 m (`place_row`, `step` 2) : les poteaux des bouts se confondent avec ceux des modules voisins.
+    PicketFence = "Clôture blanche", Garden, DEHORS;
+    /// Module de muret en pierre de 2 m de long, 0,62 m de haut et 0,42 m d'épaisseur, avec chaperon. À aligner tous les 2 m comme la haie.
+    LowWall = "Muret de pierre", Garden, DEHORS;
+    /// Portail à deux battants : 3 m de passage entre deux piliers de pierre (3,9 m hors tout, 1,8 m de haut). L'avant regarde la rue ; les battants s'ouvrent vers l'arrière (côté jardin) pendant la visite. À placer dans l'alignement d'une clôture ou d'un muret.
+    Gate = "Portail", Garden, DEHORS;
+    /// Abri de jardin en bois de 2,4 × 2 m, 2,6 m au faîte, toit à deux pans, porte à l'avant qui s'ouvre pendant la visite, fenêtre sur le côté droit. Laisser 1 m libre devant la porte.
+    GardenShed = "Abri de jardin", Garden, DEHORS;
+    /// Serre vitrée de 2,4 × 3 m, 2,5 m au faîte, sur un socle de briques, porte vitrée à l'avant, tablettes de semis le long des côtés.
+    Greenhouse = "Serre", Garden, DEHORS;
+    /// Pergola en bois de 3 × 3 m, 2,7 m de haut : quatre poteaux, deux poutres et des chevrons. À poser sur une terrasse, au-dessus d'une table de jardin ou d'un salon de jardin.
+    Pergola = "Pergola", Garden, DEHORS;
+    /// Puits en pierre de 1,3 m de diamètre et 2,4 m de haut : margelle, toit de tuiles, treuil avec seau ; la manivelle est à l'avant.
+    Well = "Puits", Garden, DEHORS;
+    /// Fontaine de 2,5 m de diamètre et 1,9 m de haut : bassin rond, vasque et jet d'eau. Au centre d'un jardin ou d'une place, à l'écart des murs.
+    Fountain = "Fontaine", Garden, DEHORS;
+    /// Mare ovale de 3,1 × 2,4 m (pierres comprises) : eau au ras du sol entourée de pierres, nénuphars, roseaux sur le côté gauche.
+    Pond = "Mare", Garden, DEHORS;
+    /// Jardinière en bois de 1 × 0,35 m garnie de fleurs (0,6 m de haut). Au pied d'un mur, d'une fenêtre ou en bord de terrasse.
+    Planter = "Jardinière", Garden, DEHORS;
+    /// Carré potager de 1,2 × 1,2 m à bordure de bois : salades à l'avant, trois pieds de tomates tuteurés à l'arrière (1,2 m). En plein soleil ; plusieurs côte à côte tous les 1,5 m pour un potager.
+    VegetablePatch = "Carré potager", Garden, DEHORS;
+    /// Chemin de cinq pierres plates (4 cm) espacées de 60 cm de l'arrière vers l'avant, 3 m de long : orienter l'avant dans le sens de la marche et en mettre plusieurs bout à bout tous les 3 m. Objet plat : les autres objets peuvent le chevaucher.
+    SteppingStones = "Pas japonais", Garden, DEHORS;
+    /// Lanterne japonaise en pierre (tōrō) de 1,2 m, qui éclaire réellement. Au bord d'une mare, d'un chemin ou près d'un torii.
+    StoneLantern = "Lanterne japonaise", Garden, DEHORS;
+    /// Torii, portique japonais rouge de 5,1 m de large et 3,7 m de haut, 2,8 m de passage entre ses piliers ; on passe dessous dans le sens avant-arrière. À l'entrée d'un jardin japonais ou d'une allée.
+    Torii = "Torii", Garden, DEHORS;
+    /// Tas de bois de chauffage de 1,4 × 0,5 m et 0,7 m de haut, bûches couchées (bouts vers l'avant) entre quatre piquets. Dos contre un mur ou un abri.
+    Woodpile = "Tas de bois", Garden, DEHORS;
+    /// Brouette de 1,6 m de long, roue à l'avant et poignées à l'arrière.
+    Wheelbarrow = "Brouette", Garden, DEHORS;
+    /// Nain de jardin de 47 cm, tourné vers l'avant. Dans une pelouse ou au bord d'un massif.
+    GardenGnome = "Nain de jardin", Garden, DEHORS;
+    /// Niche de chien de 0,8 × 1 m, 0,9 m au faîte, entrée à l'avant avec une gamelle devant. Dos contre une haie ou un mur.
+    Doghouse = "Niche", Garden, DEHORS;
+    /// Nichoir à oiseaux sur un poteau de 1,9 m, trou d'envol vers l'avant.
+    Birdhouse = "Nichoir", Garden, DEHORS;
 
     // ------------------------------------------------------------ terrasse et jeux
 
