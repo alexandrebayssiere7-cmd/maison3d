@@ -1,1 +1,7 @@
 /target
+/.metrics
+/plan
+/idea
+graphify-out/
+*.tmp
+/mondes

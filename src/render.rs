@@ -11,7 +11,7 @@ use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::editor::Editor;
-use crate::model::{ElemRef, House, Part, RoofKind, Rgb, Shape, WHITE_TEX};
+use crate::model::{ElemRef, House, Part, Pool, Rgb, RoofKind, Shape, WHITE_TEX};
 use crate::terrain::{self, Terrain};
 use crate::textures;
 
@@ -24,6 +24,10 @@ pub struct Sun;
 /// Entités générées depuis la maison, détruites à chaque reconstruction.
 #[derive(Component)]
 pub struct Built;
+
+/// Maillage du relief, gardé tant que le terrain et les piscines ne changent pas.
+#[derive(Component)]
+pub struct Ground;
 
 #[derive(Resource)]
 pub struct Library {
@@ -38,6 +42,20 @@ pub struct Library {
 }
 
 impl Library {
+    /// Bibliothèque sans maillages ni textures chargés, pour les tests sans moteur de rendu.
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        Library {
+            cube: Handle::default(),
+            cylinder: Handle::default(),
+            sphere: Handle::default(),
+            cone: Handle::default(),
+            glass: Handle::default(),
+            mats: HashMap::new(),
+            textures: vec![("Herbe", Handle::default(), 2.0)],
+        }
+    }
+
     fn material(&mut self, assets: &mut Assets<StandardMaterial>, c: Rgb, texture: usize) -> Handle<StandardMaterial> {
         let key = (c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8), texture);
         let tex = texture.checked_sub(1).and_then(|i| self.textures.get(i));
@@ -66,7 +84,8 @@ fn texture_image(t: &textures::Tex) -> Image {
     let n = textures::SIZE as u32;
     let first = data[..(n * n * 4) as usize].to_vec();
     let size = Extent3d { width: n, height: n, depth_or_array_layers: 1 };
-    let mut img = Image::new(size, TextureDimension::D2, first, TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
+    let mut img =
+        Image::new(size, TextureDimension::D2, first, TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
     // mipmaps calculés sur CPU : sans eux les motifs scintillent au loin
     img.texture_descriptor.mip_level_count = levels;
     img.data = Some(data);
@@ -110,6 +129,9 @@ pub fn setup_scene(
     });
 }
 
+/// Relief et piscines du dernier maillage de sol.
+type GroundCache = Option<(Terrain, Vec<Pool>)>;
+
 /// Recrée toutes les entités de la maison quand elle a changé.
 pub fn rebuild(
     mut commands: Commands,
@@ -118,6 +140,8 @@ pub fn rebuild(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     old: Query<Entity, With<Built>>,
+    old_ground: Query<Entity, With<Ground>>,
+    mut ground: Local<GroundCache>,
 ) {
     if !ed.dirty {
         return;
@@ -126,23 +150,65 @@ pub fn rebuild(
     for e in &old {
         commands.entity(e).despawn();
     }
-    let grass = lib.material(&mut materials, WHITE_TEX, textures::find("Herbe"));
-    commands.spawn((Built, Mesh3d(meshes.add(terrain_mesh(&ed.house))), MeshMaterial3d(grass), Transform::default()));
+    // le maillage du relief est lourd : on ne le refait que si le relief ou les piscines ont changé
+    if ground_changed(&ground, &ed.house) {
+        respawn_ground(&mut commands, &old_ground, &mut lib, &mut meshes, &mut materials, &ed.house);
+        *ground = Some((ed.house.terrain.clone(), ed.house.pools.clone()));
+    }
+    let parts = shown_parts(&ed);
+    spawn_parts(&mut commands, &mut lib, &mut meshes, &mut materials, &parts);
+    ed.parts = parts;
+}
+
+fn respawn_ground(
+    commands: &mut Commands,
+    old: &Query<Entity, With<Ground>>,
+    lib: &mut Library,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    h: &House,
+) {
+    for e in old {
+        commands.entity(e).despawn();
+    }
+    let grass = lib.material(materials, WHITE_TEX, textures::find("Herbe"));
+    commands.spawn((Ground, Mesh3d(meshes.add(terrain_mesh(h))), MeshMaterial3d(grass), Transform::default()));
+}
+
+fn ground_changed(cache: &GroundCache, h: &House) -> bool {
+    cache.as_ref().is_none_or(|(t, p)| *t != h.terrain || *p != h.pools)
+}
+
+/// Pièces affichées : étages masqués selon le réglage, portes ouvertes, sans la voiture conduite.
+fn shown_parts(ed: &Editor) -> Vec<Part> {
     let open = |e| ed.doors.get(&e).map_or(0.0, |d| d.0);
     let mut parts = ed.house.parts(ed.hide_upper.then_some(ed.level), &open);
     // la voiture conduite est affichée à part, avec ses roues animées
     if let Some(i) = ed.driving {
         parts.retain(|p| p.owner != ElemRef::Prop(i));
     }
-    for p in &parts {
+    parts
+}
+
+fn spawn_parts(
+    commands: &mut Commands,
+    lib: &mut Library,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    parts: &[Part],
+) {
+    for p in parts {
         if p.shape == Shape::Light {
             let c = Color::srgb(p.color[0], p.color[1], p.color[2]);
-            commands.spawn((Built, PointLight { color: c, intensity: 300_000.0, range: 15.0, ..default() }, p.tf.with_scale(Vec3::ONE)));
+            commands.spawn((
+                Built,
+                PointLight { color: c, intensity: 300_000.0, range: 15.0, ..default() },
+                p.tf.with_scale(Vec3::ONE),
+            ));
         } else {
-            commands.spawn((Built, part_bundle(&mut lib, &mut meshes, &mut materials, p)));
+            commands.spawn((Built, part_bundle(lib, meshes, materials, p)));
         }
     }
-    ed.parts = parts;
 }
 
 /// Maillage, matériau et placement d'une pièce (hors lumières).
@@ -184,7 +250,9 @@ fn terrain_mesh(h: &House) -> Mesh {
     for j in 0..terrain::SIDE {
         for i in 0..terrain::SIDE {
             let p = Terrain::vertex(i, j);
-            let at = |di: isize, dj: isize| t.at(i.saturating_add_signed(di).min(terrain::N), j.saturating_add_signed(dj).min(terrain::N));
+            let at = |di: isize, dj: isize| {
+                t.at(i.saturating_add_signed(di).min(terrain::N), j.saturating_add_signed(dj).min(terrain::N))
+            };
             pos.push([p.x, t.at(i, j), p.y]);
             normals.push(Vec3::new(at(-1, 0) - at(1, 0), 2.0, at(0, -1) - at(0, 1)).normalize().to_array());
             uvs.push([p.x, p.y]);
@@ -287,4 +355,80 @@ pub fn update_sun(
     let c = night.lerp(sky, day.powf(0.5));
     clear.0 = Color::srgb(c.x, c.y, c.z);
     ambient.brightness = 60.0 + 500.0 * day;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Prop, PropKind, demo_house};
+
+    #[test]
+    fn every_shape_gets_a_mesh_and_materials_are_shared() {
+        let (mut lib, mut meshes, mut mats) = (Library::empty(), Assets::<Mesh>::default(), Assets::default());
+        let parts = demo_house().parts_closed(None);
+        for p in &parts {
+            let (_, _, tf) = part_bundle(&mut lib, &mut meshes, &mut mats, p);
+            match p.shape {
+                Shape::Cube => assert_eq!(tf.scale, Vec3::ONE, "boîte aux dimensions réelles"),
+                Shape::Wheel => assert_eq!(tf.scale.x, p.tf.scale.y),
+                _ => {}
+            }
+        }
+        let shapes: std::collections::HashSet<_> = parts.iter().map(|p| std::mem::discriminant(&p.shape)).collect();
+        assert!(shapes.len() >= 7, "toutes les formes passent : {}", shapes.len());
+        assert!(lib.mats.len() < parts.len(), "matériaux réutilisés");
+        lib.material(&mut mats, WHITE_TEX, 1);
+        assert!(lib.mats.contains_key(&([255; 3], 1)));
+    }
+
+    #[test]
+    fn ground_mesh_has_holes_for_pools_and_is_cached() {
+        let h = demo_house();
+        let count = |h: &House| terrain_mesh(h).indices().map_or(0, bevy::render::mesh::Indices::len);
+        let flat = House::default();
+        assert!(count(&h) < count(&flat), "trou sous la piscine");
+        assert!(ground_changed(&None, &h));
+        let cache = Some((h.terrain.clone(), h.pools.clone()));
+        assert!(!ground_changed(&cache, &h));
+        assert!(ground_changed(&cache, &flat));
+    }
+
+    #[test]
+    fn shown_parts_hide_upper_levels_and_the_driven_car() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let all = shown_parts(&ed).len();
+        ed.hide_upper = true;
+        assert!(shown_parts(&ed).len() < all, "le toit est à l'étage 1");
+        let car = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
+        ed.driving = Some(car);
+        assert!(shown_parts(&ed).iter().all(|p| p.owner != ElemRef::Prop(car)));
+        let roof = roof_mesh(RoofKind::Hip, Vec3::new(4.0, 2.0, 3.0));
+        assert!(roof.count_vertices() > 0);
+        let stairs = Prop { kind: PropKind::Stairs, ..ed.house.props[0].clone() };
+        assert!(!crate::model::prop_parts(&stairs, ElemRef::Prop(0), 0.0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn rebuild_spawns_the_house_once_per_change() {
+        let mut world = World::new();
+        world.insert_resource(Library::empty());
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        world.insert_resource(ed);
+        let id = world.register_system(rebuild);
+        world.run_system(id).unwrap();
+        let built = world.query_filtered::<(), With<Built>>().iter(&world).count();
+        assert!(built > 50, "{built}");
+        assert_eq!(world.query_filtered::<(), With<Ground>>().iter(&world).count(), 1);
+        assert!(!world.resource::<Editor>().parts.is_empty());
+        world.run_system(id).unwrap();
+        assert_eq!(world.query_filtered::<(), With<Built>>().iter(&world).count(), built, "rien n'a changé");
+        world.resource_mut::<Editor>().dirty = true;
+        world.run_system(id).unwrap();
+        assert_eq!(world.query_filtered::<(), With<Built>>().iter(&world).count(), built, "remplacées, pas doublées");
+        assert_eq!(world.query_filtered::<(), With<Ground>>().iter(&world).count(), 1);
+    }
 }
