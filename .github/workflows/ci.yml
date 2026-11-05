@@ -13,6 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Bevy instrumenté pour la couverture remplit le disque du runner : on retire les SDK inutiles
+      - name: Libère de la place disque
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
       - name: Dépendances système Bevy
         run: |
           sudo apt-get update
@@ -36,10 +40,8 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Tests
-        run: cargo test
-
-      - name: Couverture
+      # cargo llvm-cov lance les tests : pas de cargo test séparé, qui recompilerait tout
+      - name: Tests et couverture
         run: |
           mkdir -p target/coverage/rust
           cargo llvm-cov --lcov --output-path target/coverage/rust/lcov.info
