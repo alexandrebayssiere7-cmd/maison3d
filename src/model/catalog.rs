@@ -293,6 +293,47 @@ catalog! {
     Rosebush = "Rosier", Plants, DEHORS;
     /// Tournesols.
     Sunflower = "Tournesols", Plants, DEHORS;
+    /// Cactus cierge à deux bras (1 m de large, 2,1 m de haut), fleuri au sommet. Jardin sec, rocaille,
+    /// décor de désert.
+    Cactus = "Cactus", Plants, DEHORS;
+    /// Touffe de bambous (2,5 m de large, 4,5 m de haut). En rangée pour un écran végétal contre une
+    /// clôture, ou isolée dans un jardin japonais.
+    Bamboo = "Bambous", Plants, DEHORS;
+    /// Fougère en rosette (1,4 m de large, 0,5 m de haut). Sous-bois, pied d'un arbre, coin d'ombre.
+    Fern = "Fougère", Plants, DEHORS;
+    /// Touffe d'herbes hautes ornementales (1,2 m de large, 1,6 m de haut) aux épis clairs. Massif,
+    /// bord d'allée, prairie ; à grouper par trois ou cinq.
+    TallGrass = "Herbes hautes", Plants, DEHORS;
+    /// Roseaux (massettes) aux épis bruns (0,8 m de large, 2 m de haut). Au bord d'une mare, d'un
+    /// bassin ou d'une rivière.
+    Reeds = "Roseaux", Plants, DEHORS;
+    /// Touffe de lavande (1 m de large, 0,8 m de haut). En bordure d'allée, à aligner tous les
+    /// 0,8 m pour une haie basse fleurie.
+    Lavender = "Lavande", Plants, DEHORS;
+    /// Carré de seize tulipes rouges et jaunes (1 × 0,7 m, 0,6 m de haut). Plate-bande, devant
+    /// de massif.
+    Tulips = "Tulipes", Plants, DEHORS;
+    /// Hortensia : buisson rond (1,5 m de large, 1 m de haut) couvert de grosses fleurs bleues.
+    /// Au pied d'un mur ou d'une façade à mi-ombre.
+    Hydrangea = "Hortensia", Plants, DEHORS;
+    /// Rocher (2,1 × 1,6 m, 1 m de haut), légèrement enfoncé dans le sol. Rocaille, bord de
+    /// chemin, paysage de montagne.
+    Rock = "Rocher", Plants, DEHORS;
+    /// Souche d'arbre sciée (1,3 m de large avec les racines, 0,5 m de haut). Sous-bois, clairière ;
+    /// peut servir de tabouret.
+    Stump = "Souche", Plants, DEHORS;
+    /// Petit groupe de champignons rouges à points blancs (0,4 m de large, 0,2 m de haut). Sous-bois,
+    /// pied d'arbre, à côté d'une souche.
+    Mushrooms = "Champignons", Plants, DEHORS;
+    /// Buis taillé en boule sur une tige, en pot (Ø 0,5 m, 1,6 m de haut). Par paire de part et
+    /// d'autre d'une porte d'entrée, sur une terrasse ou un perron.
+    Topiary = "Buis en boule", Plants, DEHORS;
+    /// Ficus : grande plante d'intérieur en pot (1 m de large, 2,1 m de haut). Dans un angle
+    /// de pièce ou près d'une fenêtre.
+    Ficus = "Ficus", Plants, DEDANS;
+    /// Bonsaï dans sa coupe basse (0,5 × 0,35 m, 0,55 m de haut). Sur un meuble bas, une console
+    /// ou au sol près d'une baie.
+    Bonsai = "Bonsaï", Plants, DEDANS;
 
     // ------------------------------------------------------------ jardin
     /// Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.

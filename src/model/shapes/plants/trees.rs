@@ -2,7 +2,7 @@
 
 use bevy::math::{Quat, Vec3};
 
-use super::{LEAVES, LIGHT_LEAVES, TRUNK};
+use super::{LEAVES, LIGHT_LEAVES, TRUNK, gnarled, limbs};
 use crate::model::shapes::{Piece, ball, clumps, cyl, span};
 use crate::model::{BIRCH_BARK, PropKind, Shape, Slot};
 
@@ -138,11 +138,6 @@ fn apple_tree() -> Vec<Piece> {
     v
 }
 
-/// Charpentières : branches de section `d` qui partent du tronc en `from` vers chaque `ends`.
-fn limbs(from: Vec3, ends: &[[f32; 3]], d: f32, slot: usize) -> Vec<Piece> {
-    ends.iter().map(|&e| span(Shape::Cylinder, from, Vec3::from(e), d, slot)).collect()
-}
-
 fn oak() -> Vec<Piece> {
     // pied évasé, tronc épais et charpentières en éventail sous une couronne large
     let mut v = vec![
@@ -197,14 +192,9 @@ fn weeping_willow() -> Vec<Piece> {
 }
 
 fn olive_tree() -> Vec<Piece> {
-    // tronc tortueux : tronçons qui changent de direction, un nœud à chaque coude
     let knots = [Vec3::ZERO, Vec3::new(0.25, 0.7, 0.1), Vec3::new(-0.05, 1.3, 0.2), Vec3::new(0.15, 1.9, -0.05)];
     let mut v = vec![Piece::new(Shape::Cone, Vec3::new(0.0, 0.25, 0.0), Vec3::new(0.8, 0.5, 0.8), 1)];
-    for (i, w) in knots.windows(2).enumerate() {
-        let d = 0.45 - 0.07 * i as f32;
-        v.push(span(Shape::Cylinder, w[0], w[1], d, 1));
-        v.push(ball(w[1].to_array(), [d; 3], 1));
-    }
+    v.extend(gnarled(&knots, 0.45, 0.07, 1));
     v.extend(limbs(knots[3], &[[1.0, 2.5, 0.5], [-0.9, 2.4, -0.4], [0.0, 2.7, -1.0], [-0.3, 2.6, 0.9]], 0.16, 1));
     // feuillage léger, en touffes aplaties et espacées
     v.extend(clumps(

@@ -1363,6 +1363,76 @@
           "const": "Sunflower"
         },
         {
+          "description": "Cactus cierge à deux bras (1 m de large, 2,1 m de haut), fleuri au sommet. Jardin sec, rocaille,\ndécor de désert.",
+          "type": "string",
+          "const": "Cactus"
+        },
+        {
+          "description": "Touffe de bambous (2,5 m de large, 4,5 m de haut). En rangée pour un écran végétal contre une\nclôture, ou isolée dans un jardin japonais.",
+          "type": "string",
+          "const": "Bamboo"
+        },
+        {
+          "description": "Fougère en rosette (1,4 m de large, 0,5 m de haut). Sous-bois, pied d'un arbre, coin d'ombre.",
+          "type": "string",
+          "const": "Fern"
+        },
+        {
+          "description": "Touffe d'herbes hautes ornementales (1,2 m de large, 1,6 m de haut) aux épis clairs. Massif,\nbord d'allée, prairie ; à grouper par trois ou cinq.",
+          "type": "string",
+          "const": "TallGrass"
+        },
+        {
+          "description": "Roseaux (massettes) aux épis bruns (0,8 m de large, 2 m de haut). Au bord d'une mare, d'un\nbassin ou d'une rivière.",
+          "type": "string",
+          "const": "Reeds"
+        },
+        {
+          "description": "Touffe de lavande (1 m de large, 0,8 m de haut). En bordure d'allée, à aligner tous les\n0,8 m pour une haie basse fleurie.",
+          "type": "string",
+          "const": "Lavender"
+        },
+        {
+          "description": "Carré de seize tulipes rouges et jaunes (1 × 0,7 m, 0,6 m de haut). Plate-bande, devant\nde massif.",
+          "type": "string",
+          "const": "Tulips"
+        },
+        {
+          "description": "Hortensia : buisson rond (1,5 m de large, 1 m de haut) couvert de grosses fleurs bleues.\nAu pied d'un mur ou d'une façade à mi-ombre.",
+          "type": "string",
+          "const": "Hydrangea"
+        },
+        {
+          "description": "Rocher (2,1 × 1,6 m, 1 m de haut), légèrement enfoncé dans le sol. Rocaille, bord de\nchemin, paysage de montagne.",
+          "type": "string",
+          "const": "Rock"
+        },
+        {
+          "description": "Souche d'arbre sciée (1,3 m de large avec les racines, 0,5 m de haut). Sous-bois, clairière ;\npeut servir de tabouret.",
+          "type": "string",
+          "const": "Stump"
+        },
+        {
+          "description": "Petit groupe de champignons rouges à points blancs (0,4 m de large, 0,2 m de haut). Sous-bois,\npied d'arbre, à côté d'une souche.",
+          "type": "string",
+          "const": "Mushrooms"
+        },
+        {
+          "description": "Buis taillé en boule sur une tige, en pot (Ø 0,5 m, 1,6 m de haut). Par paire de part et\nd'autre d'une porte d'entrée, sur une terrasse ou un perron.",
+          "type": "string",
+          "const": "Topiary"
+        },
+        {
+          "description": "Ficus : grande plante d'intérieur en pot (1 m de large, 2,1 m de haut). Dans un angle\nde pièce ou près d'une fenêtre.",
+          "type": "string",
+          "const": "Ficus"
+        },
+        {
+          "description": "Bonsaï dans sa coupe basse (0,5 × 0,35 m, 0,55 m de haut). Sur un meuble bas, une console\nou au sol près d'une baie.",
+          "type": "string",
+          "const": "Bonsai"
+        },
+        {
           "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
           "type": "string",
           "const": "Hedge"
