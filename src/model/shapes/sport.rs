@@ -1,11 +1,13 @@
-//! Équipements sportifs.
+//! Équipements sportifs. Les tracés de terrain (catégorie `Markings`) sont dans `markings`.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
 use bevy::math::{Quat, Vec3};
 
 use super::{Piece, ball, bx, cyl, light, span};
-use crate::model::{DARK, METAL, PropKind, Shape, Slot, WHITE};
+use crate::model::{Category, DARK, METAL, PropKind, Shape, Slot, WHITE};
+
+mod markings;
 
 const NET: [f32; 3] = [0.9, 0.9, 0.88];
 const RED: [f32; 3] = [0.8, 0.1, 0.1];
@@ -13,11 +15,11 @@ const ORANGE: [f32; 3] = [0.85, 0.38, 0.1];
 const STEEL: [f32; 3] = [0.25, 0.26, 0.28];
 
 pub(super) fn slots(kind: PropKind) -> &'static [Slot] {
-    gear_slots(kind)
+    if kind.category() == Category::Markings { markings::slots(kind) } else { gear_slots(kind) }
 }
 
-pub(super) fn shapes(kind: PropKind, _open: f32, _height: f32) -> Vec<Piece> {
-    gear(kind)
+pub(super) fn shapes(kind: PropKind, _open: f32, height: f32) -> Vec<Piece> {
+    if kind.category() == Category::Markings { markings::shapes(kind, height) } else { gear(kind) }
 }
 
 /// Buts, ballons, filets, poteaux et tables.

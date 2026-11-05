@@ -1598,6 +1598,61 @@
           "const": "Hurdle"
         },
         {
+          "description": "Ligne blanche droite de 10 cm de large et de `height` mètres de long, le long de l'axe x,\ncentrée sur `pos` ; `rot` 90 pour une ligne nord-sud. Plate : les objets se posent dessus.",
+          "type": "string",
+          "const": "FieldLine"
+        },
+        {
+          "description": "Demi-cercle blanc de rayon `height` mètres, centré sur `pos`, ses deux bouts sur l'axe x et\nbombé vers l'avant (+z).",
+          "type": "string",
+          "const": "FieldArc"
+        },
+        {
+          "description": "Quart de cercle blanc de rayon `height` mètres centré sur `pos`, de l'avant (+z) au +x local\n(l'est à `rot` 0). Arc de corner (rayon 1 m) : `pos` sur le coin, l'arc dans le terrain.",
+          "type": "string",
+          "const": "FieldQuarterArc"
+        },
+        {
+          "description": "Cercle blanc de rayon `height` mètres centré sur `pos` (rond central du foot : 9,15 m).",
+          "type": "string",
+          "const": "FieldCircle"
+        },
+        {
+          "description": "Point blanc de 22 cm (point de penalty, point central).",
+          "type": "string",
+          "const": "FieldDot"
+        },
+        {
+          "description": "Terrain de foot à 5 (40 × 20 m, longueur le long de x) : surfaces de réparation en arcs de\n6 m, points à 6 et 10 m, rond central de 3 m, sur gazon synthétique. Sur un terrain plat\n(`flatten_terrain`) ; buts : `HandballGoal`.",
+          "type": "string",
+          "const": "SoccerPitch5"
+        },
+        {
+          "description": "Terrain de foot à 11 (105 × 68 m, longueur le long de x) : surfaces de réparation et de but,\npoints de penalty, arcs, rond central, corners, sur gazon synthétique. Sur un terrain plat\n(`flatten_terrain`) ; buts : `SoccerGoal`, drapeaux : `CornerFlag` aux coins (±52,5 ; ±34).",
+          "type": "string",
+          "const": "SoccerPitch"
+        },
+        {
+          "description": "Terrain de basket FIBA (28 × 15 m, longueur le long de x) : raquettes, lancers francs, arcs\nà 3 points (6,75 m), rond central, sur parquet de sport. Paniers : `BasketHoop`.",
+          "type": "string",
+          "const": "BasketCourt"
+        },
+        {
+          "description": "Court de tennis (23,77 × 10,97 m, longueur le long de x) : couloirs de double, carrés de\nservice, sur terre battue. Filet : `TennisNet` au centre, `rot` + 90.",
+          "type": "string",
+          "const": "TennisCourt"
+        },
+        {
+          "description": "Terrain de volley (18 × 9 m, longueur le long de x) : ligne centrale, lignes d'attaque à 3 m,\nsur parquet de sport. Filet : `VolleyNet` au centre, `rot` + 90.",
+          "type": "string",
+          "const": "VolleyCourt"
+        },
+        {
+          "description": "Terrain de handball (40 × 20 m, longueur le long de x) : zones de but à 6 m, lignes de jet\nfranc à 9 m en pointillés, marques des 7 m, sur résine bleue. Buts : `HandballGoal`.",
+          "type": "string",
+          "const": "HandballCourt"
+        },
+        {
           "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
           "type": "string",
           "const": "Stairs"

@@ -405,6 +405,39 @@ catalog! {
     Hurdle = "Haie d'athlétisme", Sport, DEHORS;
 
     // ------------------------------------------------------------ tracés de terrain
+    /// Ligne blanche droite de 10 cm de large et de `height` mètres de long, le long de l'axe x,
+    /// centrée sur `pos` ; `rot` 90 pour une ligne nord-sud. Plate : les objets se posent dessus.
+    FieldLine = "Ligne", Markings, DEHORS, "longueur";
+    /// Demi-cercle blanc de rayon `height` mètres, centré sur `pos`, ses deux bouts sur l'axe x et
+    /// bombé vers l'avant (+z).
+    FieldArc = "Demi-cercle", Markings, DEHORS, "rayon";
+    /// Quart de cercle blanc de rayon `height` mètres centré sur `pos`, de l'avant (+z) au +x local
+    /// (l'est à `rot` 0). Arc de corner (rayon 1 m) : `pos` sur le coin, l'arc dans le terrain.
+    FieldQuarterArc = "Quart de cercle", Markings, DEHORS, "rayon";
+    /// Cercle blanc de rayon `height` mètres centré sur `pos` (rond central du foot : 9,15 m).
+    FieldCircle = "Cercle", Markings, DEHORS, "rayon";
+    /// Point blanc de 22 cm (point de penalty, point central).
+    FieldDot = "Point", Markings, DEHORS;
+    /// Terrain de foot à 5 (40 × 20 m, longueur le long de x) : surfaces de réparation en arcs de
+    /// 6 m, points à 6 et 10 m, rond central de 3 m, sur gazon synthétique. Sur un terrain plat
+    /// (`flatten_terrain`) ; buts : `HandballGoal`.
+    SoccerPitch5 = "Terrain de foot à 5", Markings, DEHORS;
+    /// Terrain de foot à 11 (105 × 68 m, longueur le long de x) : surfaces de réparation et de but,
+    /// points de penalty, arcs, rond central, corners, sur gazon synthétique. Sur un terrain plat
+    /// (`flatten_terrain`) ; buts : `SoccerGoal`, drapeaux : `CornerFlag` aux coins (±52,5 ; ±34).
+    SoccerPitch = "Terrain de foot", Markings, DEHORS;
+    /// Terrain de basket FIBA (28 × 15 m, longueur le long de x) : raquettes, lancers francs, arcs
+    /// à 3 points (6,75 m), rond central, sur parquet de sport. Paniers : `BasketHoop`.
+    BasketCourt = "Terrain de basket", Markings, DEHORS;
+    /// Court de tennis (23,77 × 10,97 m, longueur le long de x) : couloirs de double, carrés de
+    /// service, sur terre battue. Filet : `TennisNet` au centre, `rot` + 90.
+    TennisCourt = "Court de tennis", Markings, DEHORS;
+    /// Terrain de volley (18 × 9 m, longueur le long de x) : ligne centrale, lignes d'attaque à 3 m,
+    /// sur parquet de sport. Filet : `VolleyNet` au centre, `rot` + 90.
+    VolleyCourt = "Terrain de volley", Markings, DEHORS;
+    /// Terrain de handball (40 × 20 m, longueur le long de x) : zones de but à 6 m, lignes de jet
+    /// franc à 9 m en pointillés, marques des 7 m, sur résine bleue. Buts : `HandballGoal`.
+    HandballCourt = "Terrain de hand", Markings, DEHORS;
 
     // ------------------------------------------------------------ escaliers et structure
     /// Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.
