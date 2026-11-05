@@ -153,6 +153,19 @@ impl House {
         }
     }
 
+    /// Valide tout le monde (au chargement) : le premier élément refusé et pourquoi.
+    pub fn validate(&self) -> Result<(), (ElemRef, EditError)> {
+        // les ouvertures sont validées avec leur mur
+        (0..self.walls.len())
+            .map(ElemRef::Wall)
+            .chain((0..self.slabs.len()).map(ElemRef::Slab))
+            .chain((0..self.roofs.len()).map(ElemRef::Roof))
+            .chain((0..self.props.len()).map(ElemRef::Prop))
+            .chain((0..self.pools.len()).map(ElemRef::Pool))
+            .chain((0..self.roads.len()).map(ElemRef::Road))
+            .try_for_each(|e| self.check_elem(e).map_err(|err| (e, err)))
+    }
+
     /// Revalide un élément existant après un déplacement ou un `set`.
     pub(super) fn check_elem(&self, e: ElemRef) -> Result<(), EditError> {
         match e {
