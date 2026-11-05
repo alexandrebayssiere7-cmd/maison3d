@@ -22,7 +22,7 @@ pub use demo::demo_house;
 pub use geometry::{pick, pick_part, ray_obb};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
 pub use openings::OpeningKind;
-pub use props::{Prop, prop_parts};
+pub use props::{Prop, Side, prop_parts};
 pub use roofs::{RoofKind, roof_tris};
 
 use crate::terrain::Terrain;
