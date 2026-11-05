@@ -912,7 +912,7 @@
           ]
         },
         {
-          "description": "Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet\nou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une\nporte…), listées par `maison3d catalog` (`parts`).",
+          "description": "Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet\nou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une\nporte…), listées par `maison3d catalog` (`parts`). Peint `target` puis chaque élément de\n`targets` (au moins un des deux) ; refusée en entier si l'un d'eux n'existe pas.",
           "type": "object",
           "properties": {
             "op": {
@@ -920,7 +920,22 @@
               "const": "paint"
             },
             "target": {
-              "$ref": "#/$defs/ElemRef"
+              "description": "Élément à peindre.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ElemRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "targets": {
+              "description": "Autres éléments à peindre de la même façon, par exemple les 4 murs d'une pièce :\n`\"targets\": [{\"Wall\": 0}, {\"Wall\": 1}, {\"Wall\": 2}, {\"Wall\": 3}]`.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ElemRef"
+              }
             },
             "part": {
               "description": "Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,\nsols, toits, piscines et routes n'ont que la partie 0.",
@@ -954,8 +969,7 @@
           },
           "additionalProperties": false,
           "required": [
-            "op",
-            "target"
+            "op"
           ]
         },
         {

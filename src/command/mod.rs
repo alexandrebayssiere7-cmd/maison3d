@@ -211,9 +211,16 @@ pub enum Command {
     },
     /// Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet
     /// ou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une
-    /// porte…), listées par `maison3d catalog` (`parts`).
+    /// porte…), listées par `maison3d catalog` (`parts`). Peint `target` puis chaque élément de
+    /// `targets` (au moins un des deux) ; refusée en entier si l'un d'eux n'existe pas.
     Paint {
-        target: ElemRef,
+        /// Élément à peindre.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<ElemRef>,
+        /// Autres éléments à peindre de la même façon, par exemple les 4 murs d'une pièce :
+        /// `"targets": [{"Wall": 0}, {"Wall": 1}, {"Wall": 2}, {"Wall": 3}]`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        targets: Vec<ElemRef>,
         /// Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,
         /// sols, toits, piscines et routes n'ont que la partie 0.
         #[serde(default)]
@@ -243,7 +250,6 @@ impl Command {
             | Command::Move { target, .. }
             | Command::Duplicate { target, .. }
             | Command::Rotate { target, .. }
-            | Command::Paint { target, .. }
             | Command::Set { target, .. } => Some(*target),
             _ => None,
         }
@@ -264,10 +270,8 @@ impl House {
     }
 
     fn apply_one(&mut self, cmd: Command) -> Result<Option<ElemRef>, EditError> {
-        if let Some(target) = cmd.target()
-            && !self.exists(target)
-        {
-            return Err(EditError::NotFound(target, self.count(target)));
+        if let Some(target) = cmd.target() {
+            self.found(target)?;
         }
         match cmd {
             Command::Room { min, max, level, height, thick, wall_texture, floor_texture } => {
@@ -303,7 +307,9 @@ impl House {
             Command::Move { target, by } => self.move_elem(target, by),
             Command::Duplicate { target, by } => self.duplicate_checked(target, by),
             Command::Rotate { target, deg } => self.rotate(target, deg),
-            Command::Paint { target, part, color, texture } => self.paint(target, part, color, texture),
+            Command::Paint { target, targets, part, color, texture } => {
+                self.paint_all(target.into_iter().chain(targets), part, color, texture)
+            }
             Command::Set { target, fields } => self.set(target, fields),
         }
     }
@@ -344,6 +350,26 @@ impl House {
         validate::offset(by)?;
         let copy = self.duplicate(target, by).ok_or(EditError::OpeningNotDuplicable)?;
         self.check_elem(copy).map(|()| Some(copy))
+    }
+
+    fn found(&self, target: ElemRef) -> Result<(), EditError> {
+        if self.exists(target) { Ok(()) } else { Err(EditError::NotFound(target, self.count(target))) }
+    }
+
+    /// Peint chaque cible ; renvoie la dernière.
+    fn paint_all(
+        &mut self,
+        targets: impl Iterator<Item = ElemRef>,
+        part: usize,
+        color: Option<Rgb>,
+        texture: Option<usize>,
+    ) -> Result<Option<ElemRef>, EditError> {
+        let mut last = None;
+        for target in targets {
+            self.found(target)?;
+            last = self.paint(target, part, color, texture)?;
+        }
+        last.map(Some).ok_or(EditError::NoTarget)
     }
 
     fn paint(
