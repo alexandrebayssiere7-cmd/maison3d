@@ -126,12 +126,52 @@ catalog! {
     Sofa = "Canapé", Living, DEDANS;
     /// Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.
     Lamp = "Lampe sur pied", Living, DEDANS;
+    /// Fauteuil club (0,85 × 0,82 m) ; l'avant est l'assise, dossier à l'arrière. À tourner vers la table basse ou la télé.
+    Armchair = "Fauteuil", Living, DEDANS;
+    /// Table basse à tablette (1,1 × 0,6 m, 42 cm de haut) ; devant le canapé, à 40 cm de son assise.
+    CoffeeTable = "Table basse", Living, DEDANS;
+    /// Table ronde de repas sur pied central (Ø 1,1 m) pour quatre ; chaises tout autour, tournées vers elle.
+    RoundTable = "Table ronde", Living, DEDANS;
+    /// Canapé d'angle en L (2,6 × 1,8 m) : dossier à l'arrière, méridienne qui avance vers l'avant côté +x local. Dossier contre un mur, retour le long de l'autre mur dans un angle.
+    CornerSofa = "Canapé d'angle", Living, DEDANS;
+    /// Meuble télé bas (1,6 × 0,42 m) avec son téléviseur (1,32 m de haut en tout) ; écran vers l'avant, dos contre un mur, face au canapé à 2,5 m environ.
+    TvStand = "Meuble télé", Living, DEDANS;
+    /// Bibliothèque garnie de livres (1 × 0,32 × 2 m) ; dos contre un mur, à aligner tous les 1 m pour un mur de livres.
+    Bookcase = "Bibliothèque", Living, DEDANS;
+    /// Buffet bas à trois portes (1,84 × 0,55 × 0,86 m), s'ouvre pendant la visite ; dos contre un mur.
+    Sideboard = "Buffet", Living, DEDANS;
+    /// Tapis plat (2,1 × 1,4 m, moins de 5 cm) : se pose sous une table, un lit ou un canapé sans alerte de chevauchement.
+    Rug = "Tapis", Living, DEDANS;
+    /// Cheminée à foyer ouvert (1,5 × 0,65 × 1 m) où brûle un feu qui éclaire en orangé ; dos contre un mur, foyer vers l'avant.
+    Fireplace = "Cheminée", Living, DEDANS;
+    /// Piano droit (1,5 × 0,55 × 1,25 m) ; clavier vers l'avant, dos contre un mur.
+    Piano = "Piano droit", Living, DEDANS;
+    /// Suspension à cinq bras qui éclaire la pièce, accrochée au plafond d'un étage de 3 m (pend de 2,8 m à 2 m du sol, on passe dessous) ; au-dessus d'une table, ce qui donne une alerte de chevauchement sans gravité.
+    CeilingLamp = "Suspension", Living, DEDANS;
+    /// Aquarium de 1,2 m sur son meuble (1,2 × 0,45 × 1,3 m), avec eau, plantes et poissons ; vitre avant vers l'avant, dos contre un mur.
+    Aquarium = "Aquarium", Living, DEDANS;
+    /// Pouf rond (Ø 0,5 m, 44 cm de haut) ; près d'un fauteuil ou devant une coiffeuse.
+    Ottoman = "Pouf", Living, DEDANS;
 
     // ------------------------------------------------------------ chambre
     /// Lit double ; la tête est à l'arrière (à coller au mur), les pieds vers l'avant.
     Bed = "Lit", Bedroom, DEDANS;
     /// Armoire, s'ouvre pendant la visite ; dos contre un mur, portes vers l'avant.
     Wardrobe = "Armoire", Bedroom, DEDANS;
+    /// Lit simple (0,9 × 2 m) ; tête à l'arrière contre un mur, pieds vers l'avant.
+    SingleBed = "Lit simple", Bedroom, DEDANS;
+    /// Lits superposés (0,95 × 2,1 × 1,7 m), échelle au pied côté +x local ; tête à l'arrière contre un mur, laisser l'avant dégagé pour l'échelle.
+    BunkBed = "Lits superposés", Bedroom, DEDANS;
+    /// Lit bébé à barreaux (0,67 × 1,25 × 0,9 m) ; tête à l'arrière, contre un mur.
+    Crib = "Lit bébé", Bedroom, DEDANS;
+    /// Table de chevet à tiroir (0,45 × 0,38 × 0,55 m), s'ouvre pendant la visite ; dos au mur, de part et d'autre de la tête du lit.
+    Nightstand = "Table de chevet", Bedroom, DEDANS;
+    /// Commode à trois tiroirs (1 × 0,5 × 0,85 m), s'ouvre pendant la visite ; dos contre un mur.
+    Dresser = "Commode", Bedroom, DEDANS;
+    /// Coiffeuse à miroir ovale (1 × 0,45 × 1,7 m), miroir à l'arrière ; dos contre un mur, un pouf devant.
+    Vanity = "Coiffeuse", Bedroom, DEDANS;
+    /// Coffre à jouets (0,82 × 0,47 × 0,49 m) dont le couvercle se soulève pendant la visite ; dos contre un mur.
+    ToyChest = "Coffre à jouets", Bedroom, DEDANS;
 
     // ------------------------------------------------------------ cuisine
     /// Bloc cuisine (meubles bas, évier, plaques), placards ouvrables ; dos contre un mur.
