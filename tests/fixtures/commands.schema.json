@@ -1303,6 +1303,41 @@
           "const": "AppleTree"
         },
         {
+          "description": "Chêne : grand feuillu étalé au tronc épais (couronne de 7 m de large, 7 m de haut). Isolé\nau milieu d'une pelouse ou d'un parc, à 5 m au moins de la maison.",
+          "type": "string",
+          "const": "Oak"
+        },
+        {
+          "description": "Saule pleureur (5,4 m de large, 5,7 m de haut) : rameaux qui retombent en rideau presque\njusqu'au sol. Au bord d'un bassin, d'une mare ou d'une rivière.",
+          "type": "string",
+          "const": "WeepingWillow"
+        },
+        {
+          "description": "Olivier (4 m de large, 4 m de haut) : tronc court et tortueux, feuillage gris-vert léger.\nJardin méditerranéen, cour ou patio.",
+          "type": "string",
+          "const": "OliveTree"
+        },
+        {
+          "description": "Érable rouge (4,6 m de large, 7 m de haut), feuillage d'automne. Pour une touche de couleur\nau fond d'un jardin ou dans un parc.",
+          "type": "string",
+          "const": "Maple"
+        },
+        {
+          "description": "Cerisier du Japon en fleurs (5 m de large, 4,8 m de haut) : couronne rose étalée sur un\ntronc court. Jardin d'agrément ou japonais, allée de parc.",
+          "type": "string",
+          "const": "CherryBlossom"
+        },
+        {
+          "description": "Platane d'alignement (5,6 m de large, 8,7 m de haut) à l'écorce claire ; sa couronne laisse\n4 m libres au-dessus du sol. À aligner tous les 8 à 10 m le long d'un trottoir ou d'un mail.",
+          "type": "string",
+          "const": "PlaneTree"
+        },
+        {
+          "description": "Arbre mort (4 m de large, 5 m de haut) : tronc et branches nues, sans feuillage. Friche,\nlisière de forêt, décor lugubre.",
+          "type": "string",
+          "const": "DeadTree"
+        },
+        {
           "description": "Plante d'intérieur en pot.",
           "type": "string",
           "const": "Plant"

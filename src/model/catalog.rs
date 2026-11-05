@@ -260,6 +260,27 @@ catalog! {
     Cypress = "Cyprès", Trees, DEHORS;
     /// Pommier.
     AppleTree = "Pommier", Trees, DEHORS;
+    /// Chêne : grand feuillu étalé au tronc épais (couronne de 7 m de large, 7 m de haut). Isolé
+    /// au milieu d'une pelouse ou d'un parc, à 5 m au moins de la maison.
+    Oak = "Chêne", Trees, DEHORS;
+    /// Saule pleureur (5,4 m de large, 5,7 m de haut) : rameaux qui retombent en rideau presque
+    /// jusqu'au sol. Au bord d'un bassin, d'une mare ou d'une rivière.
+    WeepingWillow = "Saule pleureur", Trees, DEHORS;
+    /// Olivier (4 m de large, 4 m de haut) : tronc court et tortueux, feuillage gris-vert léger.
+    /// Jardin méditerranéen, cour ou patio.
+    OliveTree = "Olivier", Trees, DEHORS;
+    /// Érable rouge (4,6 m de large, 7 m de haut), feuillage d'automne. Pour une touche de couleur
+    /// au fond d'un jardin ou dans un parc.
+    Maple = "Érable rouge", Trees, DEHORS;
+    /// Cerisier du Japon en fleurs (5 m de large, 4,8 m de haut) : couronne rose étalée sur un
+    /// tronc court. Jardin d'agrément ou japonais, allée de parc.
+    CherryBlossom = "Cerisier du Japon", Trees, DEHORS;
+    /// Platane d'alignement (5,6 m de large, 8,7 m de haut) à l'écorce claire ; sa couronne laisse
+    /// 4 m libres au-dessus du sol. À aligner tous les 8 à 10 m le long d'un trottoir ou d'un mail.
+    PlaneTree = "Platane", Trees, DEHORS;
+    /// Arbre mort (4 m de large, 5 m de haut) : tronc et branches nues, sans feuillage. Friche,
+    /// lisière de forêt, décor lugubre.
+    DeadTree = "Arbre mort", Trees, DEHORS;
 
     // ------------------------------------------------------------ plantes et fleurs
     /// Plante d'intérieur en pot.
