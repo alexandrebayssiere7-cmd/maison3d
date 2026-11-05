@@ -1308,6 +1308,36 @@
           "const": "LStairs"
         },
         {
+          "description": "Escalier demi-tour (2,1 m de large) sur `height` mètres : une volée vers l'avant côté -x local, un palier au fond sur toute la largeur, puis une volée qui revient vers l'arrière côté +x. On arrive en haut à l'arrière, côté +x : c'est là que doit tomber le sol de l'étage.",
+          "type": "string",
+          "const": "UStairs"
+        },
+        {
+          "description": "Échelle de meunier : escalier raide (environ 50°, 62 cm de large) aux marches sans contremarche entre deux limons, qui monte vers l'avant sur `height` mètres. Pour une mezzanine ou un grenier, peu d'emprise au sol.",
+          "type": "string",
+          "const": "Ladder"
+        },
+        {
+          "description": "Escalier suspendu droit qui monte vers l'avant sur `height` mètres : marches épaisses sans contremarche scellées dans un limon côté -x local (l'ouest à rot 0), à placer contre un mur.",
+          "type": "string",
+          "const": "FloatingStairs"
+        },
+        {
+          "description": "Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil : 0,5 m donne 3 marches, 0,65 m en donne 4.",
+          "type": "string",
+          "const": "StoneSteps"
+        },
+        {
+          "description": "Escalator qui monte vers l'avant sur `height` mètres à 30°, avec un palier d'un mètre en bas et en haut, balustrades vitrées et mains courantes (centre commercial, gare).",
+          "type": "string",
+          "const": "Escalator"
+        },
+        {
+          "description": "Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m.",
+          "type": "string",
+          "const": "Ramp"
+        },
+        {
           "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
           "type": "string",
           "const": "Pillar"

@@ -292,6 +292,18 @@ catalog! {
     SpiralStairs = "Colimaçon", Structure, DEDANS, "hauteur";
     /// Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.
     LStairs = "Quart tournant", Structure, DEDANS, "hauteur";
+    /// Escalier demi-tour (2,1 m de large) sur `height` mètres : une volée vers l'avant côté -x local, un palier au fond sur toute la largeur, puis une volée qui revient vers l'arrière côté +x. On arrive en haut à l'arrière, côté +x : c'est là que doit tomber le sol de l'étage.
+    UStairs = "Demi-tour", Structure, DEDANS, "hauteur";
+    /// Échelle de meunier : escalier raide (environ 50°, 62 cm de large) aux marches sans contremarche entre deux limons, qui monte vers l'avant sur `height` mètres. Pour une mezzanine ou un grenier, peu d'emprise au sol.
+    Ladder = "Échelle de meunier", Structure, DEDANS, "hauteur";
+    /// Escalier suspendu droit qui monte vers l'avant sur `height` mètres : marches épaisses sans contremarche scellées dans un limon côté -x local (l'ouest à rot 0), à placer contre un mur.
+    FloatingStairs = "Escalier suspendu", Structure, DEDANS, "hauteur";
+    /// Perron en pierre (3 m de large avec ses murets) : un palier d'un mètre à l'arrière, dos contre la façade sous la porte, et des marches de 16 cm environ qui descendent vers l'avant. `height` = hauteur du seuil : 0,5 m donne 3 marches, 0,65 m en donne 4.
+    StoneSteps = "Perron", Structure, DEHORS, "hauteur";
+    /// Escalator qui monte vers l'avant sur `height` mètres à 30°, avec un palier d'un mètre en bas et en haut, balustrades vitrées et mains courantes (centre commercial, gare).
+    Escalator = "Escalator", Structure, DEDANS, "hauteur";
+    /// Rampe d'accès PMR qui monte vers l'avant de `height` mètres à 5 %, soit 20 m de pente par mètre monté, puis un palier de 1,4 m ; 1,2 m de passage entre deux garde-corps. Pour une entrée, `height` de 0,2 à 0,8 m.
+    Ramp = "Rampe d'accès", Structure, DEHORS, "hauteur";
     /// Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).
     Pillar = "Pilier", Structure, DEDANS, "hauteur";
 
@@ -303,7 +315,18 @@ catalog! {
 impl PropKind {
     /// Escalier : son palier d'arrivée doit tomber dans un sol de l'étage visé (`maison3d check`).
     pub fn climbs(self) -> bool {
-        matches!(self, Self::Stairs | Self::SpiralStairs | Self::LStairs)
+        matches!(
+            self,
+            Self::Stairs
+                | Self::SpiralStairs
+                | Self::LStairs
+                | Self::UStairs
+                | Self::Ladder
+                | Self::FloatingStairs
+                | Self::StoneSteps
+                | Self::Escalator
+                | Self::Ramp
+        )
     }
 }
 
