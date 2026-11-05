@@ -131,13 +131,15 @@ impl Editor {
             }
         }
         if let (Some(sel), Some(p), Some((start, orig, by)), true) = (self.selected, p, &mut self.move_drag, held) {
-            // aperçu en direct ; la vraie commande part au relâché
-            *by = p - *start;
-            let mut h = orig.clone();
-            h.translate(sel, *by);
-            if h != self.house {
-                self.house = h;
-                self.dirty = true;
+            // aperçu en direct, refait seulement si le décalage change ; la vraie commande part au relâché
+            if p - *start != *by {
+                *by = p - *start;
+                let mut h = orig.clone();
+                h.translate(sel, *by);
+                if h != self.house {
+                    self.house = h;
+                    self.dirty = true;
+                }
             }
             if p != *start {
                 self.measure = Some(format!("Δ {:.2} ; {:.2} m", p.x - start.x, p.y - start.y));
@@ -316,6 +318,23 @@ mod tests {
         ed.undo();
         assert_eq!(ed.house.props[0].pos, Vec2::ZERO);
         assert!(!ed.can_undo());
+    }
+
+    #[test]
+    fn holding_still_during_a_drag_rebuilds_nothing() {
+        let mut ed = with_table();
+        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true, false);
+        ed.dirty = false;
+        ed.select_input(Some(Vec2::ZERO), None, false, true, false);
+        assert!(!ed.dirty, "pas encore bougé");
+        ed.select_input(Some(v(1.0, 0.0)), None, false, true, false);
+        assert!(ed.dirty && ed.house.props[0].pos == v(1.0, 0.0));
+        ed.dirty = false;
+        // marqueur : un aperçu recalculé repartirait de la maison d'origine et l'effacerait
+        ed.house.props[0].color = [0.0; 3];
+        ed.select_input(Some(v(1.0, 0.0)), None, false, true, false);
+        assert!(!ed.dirty, "même décalage : l'aperçu n'est pas recalculé");
+        assert_eq!(ed.house.props[0].color, [0.0; 3]);
     }
 
     #[test]
