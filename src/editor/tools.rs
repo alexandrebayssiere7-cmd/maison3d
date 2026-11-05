@@ -257,7 +257,7 @@ impl Editor {
             Tool::Paint => {
                 let (color, texture) = (Some(self.paint_color), Some(self.paint_texture));
                 // refus déjà affiché dans le message par Editor::apply
-                let _ = self.apply([Command::Paint { target: e, part, color, texture }]);
+                let _ = self.apply([Command::Paint { target: Some(e), targets: vec![], part, color, texture }]);
             }
             Tool::Eyedropper => {
                 if let Some((c, t)) = self.house.finish_mut(e, part) {

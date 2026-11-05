@@ -147,6 +147,8 @@ Exemples complets et testés dans `docs/exemples/` :
   d'un canapé, battant, cadre et poignée d'une porte… `paint` avec `"part": n` ne peint que la
   partie n ; sans `part`, c'est la partie 0, qui est aussi `color` / `texture` de l'élément.
   Exemple : `{"op": "paint", "target": {"Prop": 3}, "part": 1, "color": [0.1, 0.1, 0.1]}`.
+- Pour repeindre plusieurs éléments d'un coup (les 4 murs d'une pièce…), lister les autres dans
+  `targets` : `{"op": "paint", "target": {"Wall": 0}, "targets": [{"Wall": 1}, {"Wall": 2}], "texture": 12}`.
 - Éclairage public : `StreetLamp` (4,5 m) ou `Lantern` (réverbère). `Lamp` et `CeilingLamp`
   éclairent l'intérieur.
 - Pour une rangée régulière (haie, clôture, arbres, lampadaires), utiliser `place_row`.
