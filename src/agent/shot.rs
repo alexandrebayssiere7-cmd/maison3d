@@ -207,6 +207,7 @@ fn count_saved(_: Trigger<ScreenshotCaptured>, mut shot: ResMut<Shot>) {
 mod tests {
     use super::*;
     use crate::command::Command;
+    use crate::terrain::{SIDE, Terrain};
 
     fn opts(flags: &[(&'static str, Option<&'static str>)]) -> Result<ShotOpts, CliError> {
         ShotOpts::parse(flags)
@@ -253,10 +254,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(frame(&h, &ShotOpts::default()).eye, low.eye);
-        // des montagnes autour : la caméra passe au-dessus
-        h.terrain.h = vec![40.0; crate::terrain::SIDE * crate::terrain::SIDE];
+        // une colline entre la caméra (sud-ouest) et la maison : la caméra passe au-dessus
+        h.terrain.h = (0..SIDE * SIDE)
+            .map(|k| {
+                let p = Terrain::vertex(k % SIDE, k / SIDE);
+                if p.x < -6.0 && p.y > 14.0 { 60.0 } else { 0.0 }
+            })
+            .collect();
         let high = frame(&h, &ShotOpts::default());
-        assert!(high.eye.y > low.eye.y, "{high:?}");
+        assert_eq!(high.look, low.look, "la cible ne bouge pas, seule la caméra monte");
+        assert!(high.eye.y > low.eye.y + 20.0, "{high:?}");
+        let clear = (1..24).all(|k| {
+            let p = high.eye.lerp(high.look, k as f32 / 24.0);
+            h.ground(Vec2::new(p.x, p.z)) + 1.0 <= p.y
+        });
+        assert!(clear, "plus rien ne masque la vue");
         let ne = frame(&h, &ShotOpts { from: "ne".into(), ..ShotOpts::default() });
         assert!(ne.eye.x > ne.look.x && ne.eye.z < ne.look.z, "nord-est : {ne:?}");
     }

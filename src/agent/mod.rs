@@ -441,6 +441,23 @@ mod tests {
     }
 
     #[test]
+    fn cli_errors_explain_what_to_do() {
+        let world = CliError::World(WorldError::Io(std::io::Error::other("disque plein")));
+        let cmds =
+            CliError::Commands { path: "c.json".into(), err: WorldError::Io(std::io::Error::other("illisible")) };
+        for (err, want) in [
+            (CliError::Usage, "usage"),
+            (CliError::BadOption("--vite".into()), "option invalide : --vite"),
+            (CliError::NoWorld("m.json".into()), "--new"),
+            (CliError::UnknownOp("voler".into()), "schema --brief"),
+            (world, "disque plein"),
+            (cmds, "c.json : illisible"),
+        ] {
+            assert!(err.to_string().contains(want), "{err:?} → {err}");
+        }
+    }
+
+    #[test]
     fn warnings_are_listed_and_capped() {
         assert_eq!(warnings_text(&[], 3), "Aucun problème détecté.\n");
         let w: Vec<String> = (0..5).map(|i| format!("p{i}")).collect();

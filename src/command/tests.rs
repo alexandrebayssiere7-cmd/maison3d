@@ -164,9 +164,52 @@ fn move_and_duplicate_every_kind() {
         assert_ne!(h, before, "{target:?} n'a pas bougé");
     }
     assert_eq!(h.walls[0].openings[0].t, 2.5);
-    let n = h.props.len();
-    assert_eq!(h.apply(Command::Duplicate { target: ElemRef::Prop(0), by: Vec2::Y }), Ok(Some(ElemRef::Prop(n))));
-    assert!(h.apply(Command::Duplicate { target: ElemRef::Opening(0, 0), by: Vec2::Y }).is_err());
+    for target in ALL_REFS.into_iter().filter(|t| !matches!(t, ElemRef::Opening(..))) {
+        let n = h.count(target);
+        let copy = h.apply(Command::Duplicate { target, by: Vec2::new(0.0, 20.0) }).unwrap();
+        assert_eq!(copy.map(|c| h.count(c)), Some(n + 1), "{target:?}");
+    }
+    assert_eq!(
+        h.apply(Command::Duplicate { target: ElemRef::Opening(0, 0), by: Vec2::Y }),
+        Err(EditError::OpeningNotDuplicable)
+    );
+    // une copie qui sortirait du terrain est refusée
+    let err = h.apply(Command::Duplicate { target: ElemRef::Slab(0), by: Vec2::new(0.0, 150.0) }).unwrap_err();
+    assert!(matches!(err, EditError::OutOfWorld(_)), "{err}");
+}
+
+/// Chaque refus a un message qui dit quoi corriger (un libellé par variante).
+#[test]
+fn every_error_has_an_actionable_message() {
+    let k = OpeningKind::Door;
+    let cases = [
+        (EditError::LevelOutOfRange(12), "-1 à 9"),
+        (EditError::EmptyRect { min: Vec2::ONE, max: Vec2::ZERO }, "doit être < max"),
+        (EditError::NotFound(ElemRef::Prop(4), 0), "aucun élément"),
+        (EditError::NotFound(ElemRef::Prop(4), 3), "0 à 2"),
+        (EditError::WallTooShort, "5 cm"),
+        (EditError::PoolOffGrid, "mètre"),
+        (EditError::RoadTooShort, "5 cm"),
+        (EditError::WallNotFound(9, 4), "il y a 4 murs"),
+        (EditError::OpeningOutsideWall { kind: k, t: 1.0, t_min: 2.0, t_max: 1.0, wall_len: 0.5 }, "trop court"),
+        (
+            EditError::OpeningOutsideWall { kind: k, t: 0.2, t_min: 0.6, t_max: 3.4, wall_len: 4.0 },
+            "entre 0.60 et 3.40",
+        ),
+        (EditError::OpeningOverlaps { kind: k, t: 2.0, other: 1 }, "l'ouverture 1"),
+        (EditError::OpeningTooTall { top: 4.0, wall_height: 3.0 }, "dépasse le mur de 3 m"),
+        (EditError::OpeningNotDuplicable, "ouvertures"),
+        (EditError::NotRotatable, "Prop"),
+        (EditError::OutOfWorld(Vec2::new(200.0, 0.0)), "-80 et 80"),
+        (EditError::OutOfRange { field: "thick", value: 0.0, min: 0.02, max: 3.0 }, "thick = 0"),
+        (EditError::BadColor([2.0, 0.0, 0.0]), "entre 0 et 1"),
+        (EditError::UnknownTexture { texture: 99, max: 61 }, "0 (aucune) à 61"),
+        (EditError::BadFields("champ inconnu `x`".into()), "champ inconnu"),
+        (EditError::TooMany { count: 300, max: 200 }, "200 au plus"),
+    ];
+    for (err, want) in cases {
+        assert!(err.to_string().contains(want), "{err:?} → {err}");
+    }
 }
 
 #[test]
@@ -328,6 +371,12 @@ fn set_changes_fields_in_place_and_validates() {
     assert_eq!(h.walls[0].openings[0].width, 1.2);
     h.apply(set(ElemRef::Road(0), r#"{"width": 6}"#)).unwrap();
     assert_eq!(h.roads[0].width, 6.0);
+    h.apply(set(ElemRef::Roof(0), r#"{"overhang": 0.2, "kind": "Flat"}"#)).unwrap();
+    assert_eq!((h.roofs[0].overhang, h.roofs[0].kind), (0.2, RoofKind::Flat));
+    // une piscine agrandie est recreusée : son nouveau coin est au fond
+    h.apply(set(ElemRef::Pool(0), r#"{"max": [16, 12], "depth": 2}"#)).unwrap();
+    assert_eq!(h.pools[0].depth, 2.0);
+    assert!(h.ground(Vec2::new(15.5, 11.0)) < -1.0);
     let before = h.clone();
     for (target, bad) in [
         (ElemRef::Wall(0), r#"{"thick": 0}"#),
