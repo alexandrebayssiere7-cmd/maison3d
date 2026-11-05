@@ -418,7 +418,7 @@ fn new_world_form(ui: &mut egui::Ui, form: &mut WorldForm) -> Option<(House, Str
         if create.clicked() || enter {
             match new_world(name) {
                 Ok(c) => chosen = Some(c),
-                Err(e) => form.error = e,
+                Err(e) => form.error = e.to_string(),
             }
         }
         cancel = ui.add(egui::Button::new(RichText::new("Annuler").size(17.0)).min_size(vec2(90.0, 36.0))).clicked();
@@ -429,14 +429,32 @@ fn new_world_form(ui: &mut egui::Ui, form: &mut WorldForm) -> Option<(House, Str
     chosen
 }
 
+/// Pourquoi un nouveau monde ne peut pas être créé.
+#[derive(Debug)]
+enum NewWorldError {
+    /// Nom vide ou contenant un séparateur de chemin.
+    InvalidName,
+    /// Un monde porte déjà ce nom.
+    Exists(String),
+}
+
+impl std::fmt::Display for NewWorldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::InvalidName => write!(f, "Nom invalide"),
+            Self::Exists(name) => write!(f, "« {name} » existe déjà"),
+        }
+    }
+}
+
 /// Monde vide nommé `name` dans le dossier des mondes, ou pourquoi c'est impossible.
-fn new_world(name: &str) -> Result<(House, String, String), String> {
+fn new_world(name: &str) -> Result<(House, String, String), NewWorldError> {
     let name = name.trim();
     let file = format!("{DIR}/{name}.json");
     if name.is_empty() || name.contains(['/', '\\']) {
-        Err("Nom invalide".into())
+        Err(NewWorldError::InvalidName)
     } else if Path::new(&file).exists() {
-        Err(format!("« {name} » existe déjà"))
+        Err(NewWorldError::Exists(name.into()))
     } else {
         Ok((House::default(), file, format!("Nouveau monde « {name} »")))
     }
@@ -569,14 +587,21 @@ mod tests {
 
     #[test]
     fn new_world_names_are_checked() {
-        assert_eq!(new_world("  ").unwrap_err(), "Nom invalide");
-        assert_eq!(new_world("a/b").unwrap_err(), "Nom invalide");
+        assert!(matches!(new_world("  "), Err(NewWorldError::InvalidName)));
+        assert!(matches!(new_world("a/b"), Err(NewWorldError::InvalidName)));
+        assert!(matches!(new_world("a\\b"), Err(NewWorldError::InvalidName)));
         let (house, file, msg) = new_world(" Chalet ").unwrap();
         assert_eq!(
             (house, file.as_str(), msg.as_str()),
             (House::default(), "mondes/Chalet.json", "Nouveau monde « Chalet »")
         );
         assert!(free_name().starts_with("mondes/monde "));
+    }
+
+    #[test]
+    fn new_world_errors_have_labels() {
+        assert_eq!(NewWorldError::InvalidName.to_string(), "Nom invalide");
+        assert_eq!(NewWorldError::Exists("Chalet".into()).to_string(), "« Chalet » existe déjà");
     }
 
     #[test]
