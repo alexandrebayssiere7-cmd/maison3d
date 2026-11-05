@@ -35,8 +35,8 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `--size LxH` | Taille des images (1280x800 par défaut). |
 | `--only 3/4` ou `--only plan` | Une seule image. |
 
-La caméra se place d'elle-même au-dessus du relief. `shot` ouvre une fenêtre environ 2 secondes
-et écrit sur la sortie standard le chemin de chaque image produite.
+La caméra se place d'elle-même au-dessus du relief. `shot` rend hors écran (aucune fenêtre
+ne s'ouvre, en 2 à 3 secondes) et écrit sur la sortie standard le chemin de chaque image produite.
 
 ## Boucle de travail
 

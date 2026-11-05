@@ -1,11 +1,16 @@
-//! `maison3d shot` : rend un monde dans une fenêtre, enregistre une vue 3/4 et un plan, puis quitte.
+//! `maison3d shot` : rend un monde hors écran, enregistre une vue 3/4 et un plan, puis quitte.
+//! Aucune fenêtre ne s'ouvre : la caméra rend dans une image, l'agent ne vole pas le focus.
 
+use bevy::app::ScheduleRunnerPlugin;
+use bevy::asset::RenderAssetUsages;
 use bevy::log::{Level, LogPlugin};
 use bevy::prelude::*;
 use bevy::render::RenderPlugin;
-use bevy::render::camera::ScalingMode;
+use bevy::render::camera::{RenderTarget, ScalingMode};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
-use bevy::window::WindowResolution;
+use bevy::window::ExitCondition;
+use bevy::winit::WinitPlugin;
 
 use super::CliError;
 use super::describe::building_bounds;
@@ -110,6 +115,9 @@ pub(super) struct Shot {
     pub framing: Framing,
     pub plan_level: i32,
     pub saved: usize,
+    /// Image dans laquelle rend la caméra (pas de fenêtre).
+    pub target: Handle<Image>,
+    pub size: (u32, u32),
 }
 
 impl Shot {
@@ -118,7 +126,7 @@ impl Shot {
     }
 }
 
-/// Ouvre une fenêtre, rend le monde, enregistre les images demandées et quitte.
+/// Rend le monde hors écran, enregistre les images demandées et quitte.
 pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
     let top = match png.rsplit_once('.') {
         Some((stem, ext)) => format!("{stem}_dessus.{ext}"),
@@ -132,25 +140,51 @@ pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
     }
     let [a, b] = o.views;
     let paths = [a.then(|| png.to_owned()), b.then_some(top)];
-    let window = Window {
-        title: "Maison 3D — capture".into(),
-        resolution: WindowResolution::new(o.size.0 as f32, o.size.1 as f32).with_scale_factor_override(1.0),
-        ..default()
-    };
+    let shot =
+        Shot { paths, framing, plan_level: o.level.unwrap_or(0), saved: 0, target: Handle::default(), size: o.size };
     App::new()
         .add_plugins(
             DefaultPlugins
-                .set(WindowPlugin { primary_window: Some(window), ..default() })
+                // pas de fenêtre ni de boucle d'événements : rendu hors écran, la boucle tourne seule
+                .set(WindowPlugin {
+                    primary_window: None,
+                    exit_condition: ExitCondition::DontExit,
+                    close_when_requested: false,
+                })
+                .disable::<WinitPlugin>()
                 // sinon les premières images sortent sans les maillages encore en compilation
                 .set(RenderPlugin { synchronous_pipeline_compilation: true, ..default() })
                 // la sortie standard ne doit contenir que les chemins des images
                 .set(LogPlugin { level: Level::ERROR, ..default() }),
         )
+        .add_plugins(ScheduleRunnerPlugin::run_loop(std::time::Duration::ZERO))
         .insert_resource(ed)
-        .insert_resource(Shot { paths, framing, plan_level: o.level.unwrap_or(0), saved: 0 })
-        .add_systems(Startup, render::setup_scene)
+        .insert_resource(shot)
+        .add_systems(Startup, (render::setup_scene, render_to_image).chain())
         .add_systems(Update, (render::rebuild, render::update_sun, take_shots).chain())
         .run();
+}
+
+/// Image vide aux dimensions demandées, utilisable comme cible de rendu et lisible pour la capture.
+fn target_image((width, height): (u32, u32)) -> Image {
+    let size = Extent3d { width, height, depth_or_array_layers: 1 };
+    let format = TextureFormat::Rgba8UnormSrgb;
+    let mut img = Image::new_fill(size, TextureDimension::D2, &[0, 0, 0, 255], format, RenderAssetUsages::default());
+    img.texture_descriptor.usage = TextureUsages::TEXTURE_BINDING
+        | TextureUsages::COPY_DST
+        | TextureUsages::COPY_SRC
+        | TextureUsages::RENDER_ATTACHMENT;
+    img
+}
+
+/// Fait rendre la caméra principale dans une image plutôt que dans une fenêtre.
+fn render_to_image(
+    mut images: ResMut<Assets<Image>>,
+    mut shot: ResMut<Shot>,
+    mut cam: Single<&mut Camera, With<MainCamera>>,
+) {
+    shot.target = images.add(target_image(shot.size));
+    cam.target = RenderTarget::Image(shot.target.clone().into());
 }
 
 pub(super) fn take_shots(
@@ -167,7 +201,7 @@ pub(super) fn take_shots(
     match *frame {
         // quelques images pour que les ombres et l'exposition se posent
         5 => *tf = Transform::from_translation(f.eye).looking_at(f.look, Vec3::Y),
-        10 => capture(&mut commands, shot.paths[0].as_ref()),
+        10 => capture(&mut commands, &shot.target, shot.paths[0].as_ref()),
         15 => {
             // vue de dessus orthographique, le nord (-z) en haut : les distances se lisent à l'échelle
             let (center, size) = f.plan;
@@ -182,7 +216,7 @@ pub(super) fn take_shots(
             // plan de l'étage choisi : ce qui est au-dessus est masqué
             (ed.level, ed.hide_upper, ed.dirty) = (shot.plan_level, true, true);
         }
-        20 => capture(&mut commands, shot.paths[1].as_ref()),
+        20 => capture(&mut commands, &shot.target, shot.paths[1].as_ref()),
         _ if shot.saved >= shot.expected() => {
             for p in shot.paths.iter().flatten() {
                 println!("{p}");
@@ -193,9 +227,9 @@ pub(super) fn take_shots(
     }
 }
 
-fn capture(commands: &mut Commands, path: Option<&String>) {
+fn capture(commands: &mut Commands, target: &Handle<Image>, path: Option<&String>) {
     if let Some(path) = path {
-        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path.clone())).observe(count_saved);
+        commands.spawn(Screenshot::image(target.clone())).observe(save_to_disk(path.clone())).observe(count_saved);
     }
 }
 
@@ -274,12 +308,21 @@ mod tests {
     }
 
     #[test]
+    fn target_image_is_a_readable_render_target() {
+        let img = target_image((320, 200));
+        assert_eq!((img.width(), img.height()), (320, 200));
+        let usage = img.texture_descriptor.usage;
+        assert!(usage.contains(TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC), "{usage:?}");
+    }
+
+    #[test]
     fn shots_aim_capture_then_quit() {
         let mut world = World::new();
         world.init_resource::<Events<AppExit>>();
         let framing = frame(&House::default(), &ShotOpts::default());
         let paths = [Some("a.png".to_string()), None];
-        world.insert_resource(Shot { paths, framing, plan_level: 2, saved: 0 });
+        let (target, size) = (Handle::default(), (64, 32));
+        world.insert_resource(Shot { paths, framing, plan_level: 2, saved: 0, target, size });
         world.insert_resource(Editor::default());
         let cam = world.spawn((MainCamera, Transform::default())).id();
         let id = world.register_system(take_shots);
