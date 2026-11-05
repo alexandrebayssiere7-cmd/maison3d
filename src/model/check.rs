@@ -20,17 +20,22 @@ impl House {
     }
 
     fn prop_warnings(&self, out: &mut Vec<String>) {
-        let indoor: Vec<(usize, &Prop, [Vec2; 4])> = self
+        // emprise au sol et hauteurs occupées (un meuble haut passe au-dessus d'un meuble bas)
+        let indoor: Vec<(usize, &Prop, [Vec2; 4], (f32, f32))> = self
             .props
             .iter()
             .enumerate()
             // tapis et tracés au sol passent sous les meubles
             .filter(|(_, p)| !p.kind.outdoor() && !p.kind.flat())
-            .map(|(i, p)| (i, p, p.corners()))
+            .map(|(i, p)| {
+                let (lo, hi) = p.local_box();
+                (i, p, p.corners(), (lo.y, hi.y))
+            })
             .collect();
-        for (k, &(i, p, a)) in indoor.iter().enumerate() {
-            for &(j, q, b) in &indoor[k + 1..] {
-                if p.level == q.level && overlap(&a, &b) {
+        for (k, &(i, p, a, (y0, y1))) in indoor.iter().enumerate() {
+            for &(j, q, b, (z0, z1)) in &indoor[k + 1..] {
+                let stacked = y1 <= z0 + SLACK || z1 <= y0 + SLACK;
+                if p.level == q.level && !stacked && overlap(&a, &b) {
                     out.push(format!("Prop {i} ({:?}) et Prop {j} ({:?}) se chevauchent", p.kind, q.kind));
                 }
             }
@@ -221,6 +226,21 @@ mod tests {
         assert!(has(&h, "Prop 0 (Table) et Prop 1 (Bed) se chevauchent"));
         assert!(has(&h, "Prop 2 (Wardrobe) traverse le mur 1"));
         assert!(has(&h, "Prop 3 (Sofa) flotte"));
+    }
+
+    #[test]
+    fn wall_units_above_furniture_do_not_overlap_it() {
+        let mut h = House::default();
+        room(&mut h, Vec2::ZERO, Vec2::new(8.0, 6.0), 0);
+        h.props.push(prop(PropKind::BaseCabinet, Vec2::new(3.0, 0.4), 0, 0.0));
+        h.props.push(prop(PropKind::WallCabinet, Vec2::new(3.0, 0.3), 0, 0.0));
+        assert_eq!(h.warnings(), Vec::<String>::new());
+        h.props.push(prop(PropKind::Fridge, Vec2::new(3.0, 0.5), 0, 0.0));
+        assert!(has(&h, "Prop 0 (BaseCabinet) et Prop 2 (Fridge) se chevauchent"));
+        assert!(
+            has(&h, "Prop 1 (WallCabinet) et Prop 2 (Fridge) se chevauchent"),
+            "le frigo monte jusqu'au meuble haut"
+        );
     }
 
     #[test]
