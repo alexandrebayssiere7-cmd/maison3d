@@ -24,7 +24,8 @@ impl House {
             .props
             .iter()
             .enumerate()
-            .filter(|(_, p)| !p.kind.outdoor())
+            // tapis et tracés au sol passent sous les meubles
+            .filter(|(_, p)| !p.kind.outdoor() && !p.kind.flat())
             .map(|(i, p)| (i, p, p.corners()))
             .collect();
         for (k, &(i, p, a)) in indoor.iter().enumerate() {

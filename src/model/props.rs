@@ -16,6 +16,10 @@ impl PropKind {
     pub fn default_color(self) -> Rgb {
         self.slots().first().map_or(WHITE, |s| s.color)
     }
+    /// Posé à plat au sol (moins de 5 cm : tapis, tracé, plaque) : les autres objets vont dessus.
+    pub fn flat(self) -> bool {
+        self.size().z < 0.05
+    }
     /// S'ouvre pendant la visite (armoire, placards, portes) : sa géométrie bouge avec `open`.
     pub fn openable(self) -> bool {
         prop_shapes(self, 0.0, LEVEL_H) != prop_shapes(self, 1.0, LEVEL_H)
