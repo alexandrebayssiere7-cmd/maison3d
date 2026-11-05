@@ -303,9 +303,12 @@ fn catalog() -> serde_json::Value {
         .iter()
         .map(|&k| {
             let s: Vec3 = k.size();
+            let a = k.annotation();
             serde_json::json!({
                 "kind": k, "name": k.name(), "category": k.category().name(), "size": [r2(s.x), r2(s.y), r2(s.z)],
                 "outdoor": k.outdoor(), "dim": k.dim(), "parts": part_names(k.slots()),
+                "placement": a.map(|a| a.placement), "rooms": a.map(|a| a.rooms), "front": a.map(|a| r2(a.front)),
+                "goes_with": a.map(|a| a.goes_with), "needs": a.map(|a| a.needs), "synonyms": a.map(|a| a.synonyms),
             })
         })
         .collect();
@@ -321,7 +324,7 @@ fn catalog() -> serde_json::Value {
         .collect();
     let roofs: Vec<_> = RoofKind::ALL.iter().map(|&k| serde_json::json!({ "kind": k, "name": k.name() })).collect();
     serde_json::json!({
-        "note": "size = [largeur x, profondeur z, hauteur] en mètres à rot 0, avant vers +z ; outdoor = posé sur le relief ; dim = ce que règle le champ height (hauteur, longueur, rayon), null s'il ne sert pas ; parts = parties colorables, dans l'ordre des indices `part` de paint (0 = color/texture de l'élément)",
+        "note": "size = [largeur x, profondeur z, hauteur] en mètres à rot 0, avant vers +z ; outdoor = posé sur le relief ; dim = ce que règle le champ height (hauteur, longueur, rayon), null s'il ne sert pas ; parts = parties colorables, dans l'ordre des indices `part` de paint (0 = color/texture de l'élément) ; placement = Floor (au sol, dégagé), AgainstWall (dos au mur, avant vers la pièce), OnWall (fixé au mur en hauteur), OnTop (posé sur un meuble), Ceiling (au plafond), Row (module à aligner avec place_row) ; rooms = pièces où l'objet a sa place ; front = espace libre à laisser devant (m) ; goes_with = objets posés habituellement avec ; needs = Road (sur une route ou une allée), StairOpening (trémie dans le sol d'arrivée) ; synonyms = mots pour le chercher",
         "props": props, "openings": openings, "roofs": roofs,
     })
 }
@@ -341,6 +344,9 @@ mod tests {
         assert_eq!(c["props"].as_array().map(Vec::len), Some(PropKind::ALL.len()));
         assert_eq!(c["openings"][0]["kind"], "Door");
         assert_eq!(c["openings"][0]["parts"][2], "Poignée");
+        let bed = c["props"].as_array().unwrap().iter().find(|p| p["kind"] == "Bed").unwrap();
+        assert_eq!((bed["placement"].as_str(), bed["rooms"][0].as_str()), (Some("AgainstWall"), Some("Bedroom")));
+        assert!(bed["synonyms"].as_array().unwrap().iter().any(|s| s == "bed"));
         let sofa = &c["props"][2];
         assert_eq!(
             (&sofa["kind"], &sofa["category"], &sofa["parts"][1]),

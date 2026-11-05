@@ -6,6 +6,7 @@ use bevy::transform::components::Transform;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod annotations;
 mod catalog;
 mod check;
 mod demo;

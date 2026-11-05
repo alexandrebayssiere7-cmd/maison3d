@@ -99,6 +99,15 @@ Exemples complets et testés dans `docs/exemples/` :
 
 ### Objets
 
+- **Choisir un objet** : chaque entrée de `catalog` dit
+  - `rooms` : dans quelles pièces il a sa place ;
+  - `placement` : comment le poser (`AgainstWall` = dos au mur, `Floor` = dégagé, `Row` = en rangée…) ;
+  - `front` : l'espace à laisser libre devant lui ;
+  - `goes_with` : les objets qu'on pose avec lui ;
+  - `needs` : ce qu'il exige (une route pour une voiture, une trémie pour un escalier) ;
+  - `synonyms` : les mots pour le retrouver.
+  
+  Pour meubler une chambre, partir des objets dont `rooms` contient `Bedroom`.
 - `pos` est le **centre** de l'objet.
 - À `rot` 0, l'avant regarde +z (le sud) ; l'avant pointe vers `[sin rot, cos rot]`.
   90 = est, 180 = nord, 270 = ouest.
