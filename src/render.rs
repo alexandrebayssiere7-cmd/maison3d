@@ -37,9 +37,14 @@ pub struct Library {
     cone: Handle<Mesh>,
     glass: Handle<StandardMaterial>,
     mats: HashMap<([u8; 3], usize), Handle<StandardMaterial>>,
+    /// Boîtes déjà maillées, par bits exacts des dimensions et du décalage des UV (rendu inchangé).
+    boxes: HashMap<([u32; 3], [u32; 3]), Handle<Mesh>>,
     /// Textures du catalogue : (nom, image, taille du motif en m). Index = id de texture - 1.
     pub textures: Vec<(&'static str, Handle<Image>, f32)>,
 }
+
+/// Taille maximale du cache de boîtes.
+const MAX_BOXES: usize = 4096;
 
 impl Library {
     /// Bibliothèque sans maillages ni textures chargés, pour les tests sans moteur de rendu.
@@ -52,8 +57,22 @@ impl Library {
             cone: Handle::default(),
             glass: Handle::default(),
             mats: HashMap::new(),
+            boxes: HashMap::new(),
             textures: vec![("Herbe", Handle::default(), 2.0)],
         }
+    }
+
+    /// Maillage d'une boîte placée par `tf`, partagé entre les boîtes identiques.
+    /// Les UV dépendent de la position dans le repère de la boîte (les morceaux d'un même mur
+    /// partagent ce repère, la texture se raccorde autour des fenêtres) ; sans texture ils ne servent pas.
+    fn box_handle(&mut self, meshes: &mut Assets<Mesh>, tf: Transform, textured: bool) -> Handle<Mesh> {
+        let uv = if textured { tf.rotation.inverse() * tf.translation } else { Vec3::ZERO };
+        let key = (tf.scale.to_array().map(f32::to_bits), uv.to_array().map(f32::to_bits));
+        // borné : les entités gardent leurs propres poignées, vider le cache ne fait que perdre le partage
+        if self.boxes.len() >= MAX_BOXES && !self.boxes.contains_key(&key) {
+            self.boxes.clear();
+        }
+        self.boxes.entry(key).or_insert_with(|| meshes.add(box_mesh(tf.scale, uv))).clone()
     }
 
     fn material(&mut self, assets: &mut Assets<StandardMaterial>, c: Rgb, texture: usize) -> Handle<StandardMaterial> {
@@ -125,6 +144,7 @@ pub fn setup_scene(
             ..default()
         }),
         mats: HashMap::new(),
+        boxes: HashMap::new(),
         textures,
     });
 }
@@ -227,7 +247,7 @@ pub fn part_bundle(
     let mesh = match p.shape {
         Shape::Cube => {
             tf.scale = Vec3::ONE;
-            meshes.add(box_mesh(p.tf))
+            lib.box_handle(meshes, p.tf, p.texture != 0)
         }
         Shape::Wheel => {
             // cylindre couché : son axe (Y) passe sur X
@@ -296,11 +316,9 @@ fn roof_mesh(kind: RoofKind, size: Vec3) -> Mesh {
     flat_mesh(&crate::model::roof_tris(kind, size), Vec3::new(0.0, size.y * 0.3, 0.0), Vec3::ZERO)
 }
 
-/// Boîte aux dimensions réelles de `tf.scale` (à afficher avec une échelle 1).
-/// Les UV dépendent de la position dans le repère de la boîte : les morceaux d'un même mur
-/// partagent ce repère, donc la texture se raccorde autour des fenêtres.
-fn box_mesh(tf: Transform) -> Mesh {
-    let h = tf.scale / 2.0;
+/// Boîte aux dimensions réelles `size` (à afficher avec une échelle 1), UV décalés de `uv_offset`.
+fn box_mesh(size: Vec3, uv_offset: Vec3) -> Mesh {
+    let h = size / 2.0;
     let c = |x: f32, y: f32, z: f32| Vec3::new(x, y, z) * h;
     let quads = [
         [c(1., -1., -1.), c(1., 1., -1.), c(1., 1., 1.), c(1., -1., 1.)],
@@ -311,7 +329,7 @@ fn box_mesh(tf: Transform) -> Mesh {
         [c(-1., -1., -1.), c(1., -1., -1.), c(1., 1., -1.), c(-1., 1., -1.)],
     ];
     let tris: Vec<[Vec3; 3]> = quads.iter().flat_map(|[a, b, c, d]| [[*a, *b, *c], [*a, *c, *d]]).collect();
-    flat_mesh(&tris, Vec3::ZERO, tf.rotation.inverse() * tf.translation)
+    flat_mesh(&tris, Vec3::ZERO, uv_offset)
 }
 
 /// Maillage à facettes ; chaque triangle est orienté à l'opposé de `inside`.
@@ -384,6 +402,22 @@ mod tests {
         assert!(lib.mats.len() < parts.len(), "matériaux réutilisés");
         lib.material(&mut mats, WHITE_TEX, 1);
         assert!(lib.mats.contains_key(&([255; 3], 1)));
+    }
+
+    #[test]
+    fn identical_boxes_share_a_mesh_and_the_cache_stays_bounded() {
+        let (mut lib, mut meshes) = (Library::empty(), Assets::<Mesh>::default());
+        let at = |x: f32| Transform::from_xyz(x, 0.0, 0.0).with_scale(Vec3::new(1.0, 2.0, 0.5));
+        let a = lib.box_handle(&mut meshes, at(0.0), false);
+        assert_eq!(a, lib.box_handle(&mut meshes, at(3.0), false), "sans texture, la position est sans effet");
+        assert_ne!(a, lib.box_handle(&mut meshes, at(3.0).with_scale(Vec3::ONE), false));
+        let t = lib.box_handle(&mut meshes, at(0.0), true);
+        assert_ne!(t, lib.box_handle(&mut meshes, at(3.0), true), "texturée : les UV suivent la position");
+        assert_eq!(t, lib.box_handle(&mut meshes, at(0.0), true));
+        for i in 0..MAX_BOXES {
+            lib.box_handle(&mut meshes, at(i as f32), true);
+        }
+        assert!(lib.boxes.len() <= MAX_BOXES);
     }
 
     #[test]
