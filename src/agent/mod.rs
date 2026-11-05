@@ -498,7 +498,9 @@ mod tests {
     fn step_json_lists_reusable_references() {
         let mut h = House::default();
         let before = Counts::of(&h);
-        let e = h.apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0 }).unwrap();
+        let e = h
+            .apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None })
+            .unwrap();
         let v = step_json(2, &before, &Counts::of(&h), e);
         assert_eq!(
             v,
@@ -628,7 +630,14 @@ mod tests {
     #[test]
     fn bounds_cover_every_element() {
         let mut h = House::default();
-        h.apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::new(-3.0, 2.0), level: 0, rot: 0.0 }).unwrap();
+        h.apply(Command::PlaceProp {
+            kind: PropKind::Lamp,
+            pos: Vec2::new(-3.0, 2.0),
+            level: 0,
+            rot: 0.0,
+            scale: None,
+        })
+        .unwrap();
         h.apply(Command::AddRoad(Road {
             a: Vec2::new(5.0, -1.0),
             b: Vec2::new(5.0, 7.0),

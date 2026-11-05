@@ -151,6 +151,15 @@
               "type": "number",
               "format": "float",
               "default": 0.0
+            },
+            "scale": {
+              "description": "Échelle uniforme, 0,2 à 5 (1 par défaut) : multiplie toutes les dimensions de l'objet.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -554,6 +563,12 @@
               "items": {
                 "$ref": "#/$defs/Finish"
               }
+            },
+            "scale": {
+              "description": "Échelle uniforme, 0,2 à 5 (1 par défaut) : tournesol géant, maquette réduite. Multiplie\ntoutes les dimensions, `height` comprise (un escalier à l'échelle 2 monte deux fois plus haut).",
+              "type": "number",
+              "format": "float",
+              "default": 1.0
             }
           },
           "additionalProperties": false,

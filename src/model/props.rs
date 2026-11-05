@@ -64,13 +64,17 @@ pub struct Prop {
     /// une partie absente garde sa finition d'origine. Plus simple : `paint` avec `part`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub finishes: Vec<Finish>,
+    /// Échelle uniforme, 0,2 à 5 (1 par défaut) : tournesol géant, maquette réduite. Multiplie
+    /// toutes les dimensions, `height` comprise (un escalier à l'échelle 2 monte deux fois plus haut).
+    #[serde(default = "one")]
+    pub scale: f32,
 }
 
 impl Prop {
     /// Objet aux finitions et à la dimension d'origine de sa sorte.
     pub fn new(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Self {
         let (color, texture, height) = (kind.default_color(), kind.default_texture(), kind.default_height());
-        Prop { kind, pos, level, rot, color, texture, height, finishes: vec![] }
+        Prop { kind, pos, level, rot, color, texture, height, finishes: vec![], scale: 1.0 }
     }
     /// Finition de la partie `slot` (0 = `color` et `texture`).
     pub fn finish(&self, slot: usize) -> Finish {
@@ -118,9 +122,15 @@ fn level_h() -> f32 {
     LEVEL_H
 }
 
+fn one() -> f32 {
+    1.0
+}
+
 /// Pièces d'un objet posé à l'altitude `y` (voir `House::prop_y`).
 pub fn prop_parts(p: &Prop, owner: ElemRef, open: f32, y: f32) -> Vec<Part> {
-    let base = Transform::from_xyz(p.pos.x, y, p.pos.y).with_rotation(Quat::from_rotation_y(p.rot.to_radians()));
+    let base = Transform::from_xyz(p.pos.x, y, p.pos.y)
+        .with_rotation(Quat::from_rotation_y(p.rot.to_radians()))
+        .with_scale(Vec3::splat(p.scale));
     prop_shapes(p.kind, open, p.height)
         .into_iter()
         .map(|pc| {
@@ -166,6 +176,13 @@ mod tests {
         assert!((Prop::new(PropKind::Stairs, Vec2::ZERO, 0, 0.0).height - LEVEL_H).abs() < 1e-6);
         let trunk = Prop::new(PropKind::Tree, Vec2::ZERO, 0, 0.0).finish(1);
         assert_eq!(trunk.texture, crate::textures::find("Écorce"));
+    }
+    #[test]
+    fn scale_grows_every_dimension() {
+        let bed = Prop::new(PropKind::Bed, Vec2::new(3.0, 1.0), 0, 90.0);
+        let big = Prop { scale: 2.0, ..bed.clone() };
+        let ((lo, hi), (blo, bhi)) = (bed.local_box(), big.local_box());
+        assert!(((bhi - blo) - 2.0 * (hi - lo)).abs().max_element() < 1e-3, "{lo} {hi} → {blo} {bhi}");
     }
     #[test]
     fn stairs_reach_their_height() {

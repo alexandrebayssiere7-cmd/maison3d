@@ -76,7 +76,7 @@ fn furnished() -> House {
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Door, t: 2.0 },
         Command::AddSlab(slab(0, Vec2::ZERO, Vec2::splat(4.0))),
         Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::splat(4.0), level: 1, kind: RoofKind::Hip, texture: None },
-        Command::PlaceProp { kind: PropKind::Bed, pos: Vec2::ONE, level: 0, rot: 0.0 },
+        Command::PlaceProp { kind: PropKind::Bed, pos: Vec2::ONE, level: 0, rot: 0.0, scale: None },
         Command::AddPool(pool(Vec2::new(10.0, 10.0), Vec2::new(14.0, 12.0))),
         Command::AddRoad(road(Vec2::new(-20.0, 0.0), Vec2::new(-20.0, 30.0))),
     ] {
@@ -106,7 +106,7 @@ fn invalid_additions_are_refused() {
         Command::AddSlab(slab(12, Vec2::ZERO, Vec2::ONE)),
         Command::PlaceRoof { min: Vec2::ONE, max: Vec2::ONE, level: 1, kind: RoofKind::Flat, texture: None },
         Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::ONE, level: 10, kind: RoofKind::Flat, texture: None },
-        Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: -2, rot: 0.0 },
+        Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: -2, rot: 0.0, scale: None },
         Command::AddPool(pool(Vec2::new(0.5, 0.0), Vec2::new(3.0, 3.0))),
         Command::AddPool(pool(Vec2::new(3.0, 0.0), Vec2::new(0.0, 3.0))),
         Command::AddRoad(road(Vec2::ONE, Vec2::ONE)),
@@ -305,7 +305,7 @@ fn every_command_roundtrips_through_json() {
             floor_texture: None,
         },
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Window, t: 1.5 },
-        Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0 },
+        Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0, scale: Some(1.5) },
         Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::ONE, level: 1, kind: RoofKind::Shed, texture: None },
         Command::AddWall(h.walls[0].clone()),
         Command::AddSlab(h.slabs[0].clone()),
@@ -343,6 +343,8 @@ fn absurd_values_are_refused_with_the_bounds() {
         (r#"{"op":"generate_terrain","seed":1,"amp":8,"scale":0,"mountains":false}"#, "scale"),
         (r#"{"op":"generate_terrain","seed":1,"amp":-3,"scale":30,"mountains":false}"#, "amp"),
         (r#"{"op":"place_prop","kind":"Sofa","pos":[1e39,2],"level":0}"#, "hors du terrain"),
+        (r#"{"op":"place_prop","kind":"Sofa","pos":[1,2],"level":0,"scale":0}"#, "scale"),
+        (r#"{"op":"set","target":{"Prop":0},"fields":{"scale":10}}"#, "scale"),
         (r#"{"op":"room","min":[195,0],"max":[200,4],"level":0}"#, "hors du terrain"),
         (
             r#"{"op":"add_wall","a":[0,0],"b":[4,0],"level":0,"height":-3,"thick":0.2,"color":[1,1,1],"openings":[]}"#,
@@ -521,7 +523,7 @@ mod props {
             (0..6usize, prop::sample::select(&OpeningKind::ALL[..]), -1.0f32..6.0)
                 .prop_map(|(wall, kind, t)| Command::PlaceOpening { wall, kind, t }),
             (prop::sample::select(&PropKind::ALL[..]), v2(), level.clone(), -400.0f32..400.0)
-                .prop_map(|(kind, pos, level, rot)| Command::PlaceProp { kind, pos, level, rot }),
+                .prop_map(|(kind, pos, level, rot)| Command::PlaceProp { kind, pos, level, rot, scale: None }),
             (corner(), corner(), level.clone(), prop::sample::select(&RoofKind::ALL[..]))
                 .prop_map(|(min, max, level, kind)| Command::PlaceRoof { min, max, level, kind, texture: None }),
             (v2(), v2(), level.clone()).prop_map(|(a, b, level)| {

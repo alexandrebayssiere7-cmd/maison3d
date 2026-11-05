@@ -19,8 +19,9 @@ pub(super) fn yaw_head_towards(d: Vec3) -> f32 {
 
 /// Où s'asseoir (`lie` = faux) ou s'allonger sur un meuble : (posture, point d'appui, orientation).
 pub(super) fn furniture_spot(p: &Prop, lie: bool, viewer: Vec3) -> Option<(Stance, Vec3, f32)> {
-    let base =
-        Transform::from_xyz(p.pos.x, elev(p.level), p.pos.y).with_rotation(Quat::from_rotation_y(p.rot.to_radians()));
+    let base = Transform::from_xyz(p.pos.x, elev(p.level), p.pos.y)
+        .with_rotation(Quat::from_rotation_y(p.rot.to_radians()))
+        .with_scale(Vec3::splat(p.scale));
     let local_viewer = base.compute_affine().inverse().transform_point3(viewer);
     let side = if local_viewer.x < 0.0 { -1.0 } else { 1.0 };
     let world = |x: f32, y: f32, z: f32| base.transform_point(Vec3::new(x, y, z));
@@ -171,6 +172,8 @@ mod tests {
         let (stance, at, yaw) = furniture_spot(&chair, false, Vec3::new(0.0, 0.0, 2.0)).unwrap();
         assert_eq!(stance, Stance::Sit);
         assert!((at.y - 0.48).abs() < 1e-4);
+        let big = Prop { scale: 2.0, ..chair.clone() };
+        assert!((furniture_spot(&big, false, Vec3::Z).unwrap().1.y - 0.96).abs() < 1e-4, "assise à l'échelle");
         // assis, on regarde vers l'avant de la chaise (+z)
         let facing = Quat::from_rotation_y(yaw) * Vec3::NEG_Z;
         assert!(facing.z > 0.99, "{facing}");

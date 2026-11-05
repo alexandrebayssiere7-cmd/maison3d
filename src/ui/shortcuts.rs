@@ -149,8 +149,14 @@ mod tests {
 
     fn with_lamp() -> Editor {
         let mut ed = Editor::default();
-        ed.apply([crate::command::Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0 }])
-            .unwrap();
+        ed.apply([crate::command::Command::PlaceProp {
+            kind: PropKind::Lamp,
+            pos: Vec2::ZERO,
+            level: 0,
+            rot: 0.0,
+            scale: None,
+        }])
+        .unwrap();
         ed.selected = Some(ElemRef::Prop(0));
         ed
     }

@@ -688,6 +688,7 @@ mod tests {
         let h = House::load(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/monde_v0.json")).unwrap();
         assert_eq!(h.version, VERSION);
         assert_eq!((h.walls.len(), h.slabs.len(), h.props.len()), (4, 1, 1));
+        assert!((h.props[0].scale - 1.0).abs() < f32::EPSILON, "objet sans échelle : 1");
     }
     #[test]
     fn refuses_files_from_a_newer_format() {

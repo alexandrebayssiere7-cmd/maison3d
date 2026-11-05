@@ -109,6 +109,7 @@ pub(super) fn prop(p: &Prop) -> Result<(), EditError> {
     // une ligne de terrain peut traverser tout le monde
     let max = if p.kind.category() == Category::Markings { 2.0 * HALF } else { 30.0 };
     range("height", p.height, 0.1, max)?;
+    range("scale", p.scale, 0.2, 5.0)?;
     look(p.color, p.texture)?;
     finishes(&p.finishes, p.kind.slots())
 }

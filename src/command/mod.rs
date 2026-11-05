@@ -87,6 +87,9 @@ pub enum Command {
         /// 90 = vers +x (l'est), 180 = vers -z (le nord), 270 = vers -x (l'ouest).
         #[serde(default)]
         rot: f32,
+        /// Échelle uniforme, 0,2 à 5 (1 par défaut) : multiplie toutes les dimensions de l'objet.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`
     /// mètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.
@@ -276,7 +279,9 @@ impl House {
                 self.add_room(min, max, level, walls, textures)
             }
             Command::PlaceOpening { wall, kind, t } => self.add_opening(wall, Opening::new(kind, t)),
-            Command::PlaceProp { kind, pos, level, rot } => self.add_prop(Prop::new(kind, pos, level, rot)),
+            Command::PlaceProp { kind, pos, level, rot, scale } => {
+                self.add_prop(Prop { scale: scale.unwrap_or(1.0), ..Prop::new(kind, pos, level, rot) })
+            }
             Command::PlaceRow { kind, from, to, step, level, rot } => {
                 self.place_row(kind, (from, to), step, level, rot)
             }
