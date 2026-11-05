@@ -1,7 +1,7 @@
 //! Mode ligne de commande pour piloter le monde sans souris (agents, scripts) :
 //!
 //! ```text
-//! maison3d apply <monde.json> <commandes.json> [--new] [--quiet]
+//! maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] [--out <autre.json>] [--json]
 //!                                       applique une liste de commandes (tout ou rien)
 //! maison3d describe <monde.json>        résumé texte du monde
 //! maison3d check <monde.json>           avertissements de cohérence
@@ -53,7 +53,8 @@ enum CliError {
     Refused { index: usize, cmd: String, err: EditError },
 }
 
-const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] | describe <monde.json> | \
+const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
+[--out <autre.json>] [--json] | describe <monde.json> | \
 check <monde.json> | schema [--brief] | help <op> | textures | catalog | guide | \
 shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1] [--size LxH] [--only 3/4|plan]";
 
@@ -78,7 +79,7 @@ impl From<WorldError> for CliError {
 }
 
 /// Options sans valeur ; toutes les autres en prennent une.
-const SWITCHES: [&str; 3] = ["--new", "--quiet", "--brief"];
+const SWITCHES: [&str; 5] = ["--new", "--quiet", "--brief", "--dry-run", "--json"];
 
 /// Sépare les arguments positionnels des options `--nom [valeur]`.
 fn split<'a>(args: &[&'a str]) -> (Vec<&'a str>, Vec<(&'a str, Option<&'a str>)>) {
@@ -105,8 +106,19 @@ fn run(args: &[&str]) -> Result<(), CliError> {
     };
     match pos.as_slice() {
         ["apply", world, cmds] => {
-            only(&["--new", "--quiet"])?;
-            apply(world, cmds, has("--new"), has("--quiet"))
+            only(&["--new", "--quiet", "--dry-run", "--out", "--json"])?;
+            let out = match flags.iter().find(|(n, _)| *n == "--out") {
+                Some((_, None)) => return Err(CliError::BadOption("--out sans valeur".into())),
+                found => found.and_then(|(_, v)| *v),
+            };
+            let o = ApplyOpts {
+                new: has("--new"),
+                quiet: has("--quiet"),
+                dry_run: has("--dry-run"),
+                json: has("--json"),
+                out,
+            };
+            apply(world, cmds, &o)
         }
         ["shot", world, png] => {
             let o = shot::ShotOpts::parse(&flags)?;
@@ -144,53 +156,112 @@ fn run_simple(args: &[&str]) -> Result<(), CliError> {
     Ok(())
 }
 
+/// Options de `apply`.
+#[derive(Default)]
+struct ApplyOpts<'a> {
+    /// Créer le monde s'il est absent.
+    new: bool,
+    /// Ne pas afficher `describe` à la fin.
+    quiet: bool,
+    /// Tout valider et afficher, sans rien écrire.
+    dry_run: bool,
+    /// Une ligne JSON par commande puis une pour le bilan, au lieu du texte.
+    json: bool,
+    /// Écrire le résultat ici plutôt que dans le monde lu.
+    out: Option<&'a str>,
+}
+
 /// Applique toutes les commandes ou aucune. Un monde absent n'est créé qu'avec `--new`.
-fn apply(world: &str, cmds: &str, new: bool, quiet: bool) -> Result<(), CliError> {
-    let exists = std::path::Path::new(world).exists();
-    if !exists && !new {
-        return Err(CliError::NoWorld(world.into()));
-    }
-    let mut h = if exists { House::load(world)? } else { House::default() };
-    let bad = |err: WorldError| CliError::Commands { path: cmds.into(), err };
-    let text = std::fs::read_to_string(cmds).map_err(|e| bad(e.into()))?;
-    let list: Vec<Command> = serde_json::from_str(&text).map_err(|e| bad(e.into()))?;
-    for (i, c) in list.into_iter().enumerate() {
+fn apply(world: &str, cmds: &str, o: &ApplyOpts) -> Result<(), CliError> {
+    let mut h = load_or_new(world, o.new)?;
+    for (i, c) in read_commands(cmds)?.into_iter().enumerate() {
         let what = serde_json::to_string(&c).unwrap_or_else(|_| format!("{c:?}"));
         let before = Counts::of(&h);
         match h.apply(c) {
+            Ok(e) if o.json => println!("{}", step_json(i, &before, &Counts::of(&h), e)),
             Ok(e) => println!("#{i} ok{}", changes(&before, &Counts::of(&h), e)),
-            Err(err) => return Err(CliError::Refused { index: i, cmd: what, err }),
+            Err(err) => {
+                if o.json {
+                    println!("{}", serde_json::json!({ "index": i, "ok": false, "error": err.to_string() }));
+                }
+                return Err(CliError::Refused { index: i, cmd: what, err });
+            }
         }
     }
-    h.save(world)?;
-    print!("{}", warnings_text(&h.warnings(), 30));
-    if !quiet {
-        print!("\n{}", describe(&h));
+    let saved = if o.dry_run { None } else { Some(o.out.unwrap_or(world)) };
+    if let Some(path) = saved {
+        h.save(path)?;
     }
+    print!("{}", summary(&h, saved, o));
     Ok(())
 }
 
+fn load_or_new(world: &str, new: bool) -> Result<House, CliError> {
+    match std::path::Path::new(world).exists() {
+        true => Ok(House::load(world)?),
+        false if new => Ok(House::default()),
+        false => Err(CliError::NoWorld(world.into())),
+    }
+}
+
+fn read_commands(cmds: &str) -> Result<Vec<Command>, CliError> {
+    let bad = |err: WorldError| CliError::Commands { path: cmds.into(), err };
+    let text = std::fs::read_to_string(cmds).map_err(|e| bad(e.into()))?;
+    serde_json::from_str(&text).map_err(|e| bad(e.into()))
+}
+
+/// Bilan de fin d'`apply` : avertissements, fichier écrit (ou simulation), puis `describe`.
+fn summary(h: &House, saved: Option<&str>, o: &ApplyOpts) -> String {
+    if o.json {
+        return format!("{}\n", serde_json::json!({ "saved": saved, "warnings": h.warnings() }));
+    }
+    let mut s = warnings_text(&h.warnings(), 30);
+    match saved {
+        None => s.push_str("Simulation (--dry-run) : rien n'a été écrit.\n"),
+        Some(path) if o.out.is_some() => {
+            let _ = writeln!(s, "Écrit dans {path}.");
+        }
+        Some(_) => {}
+    }
+    if !o.quiet {
+        let _ = write!(s, "\n{}", describe(h));
+    }
+    s
+}
+
 /// Taille de chaque liste du monde, pour dire ce qu'une commande a créé ou supprimé.
-#[derive(PartialEq)]
-struct Counts([(&'static str, usize); 6]);
+struct Counts([(&'static str, fn(usize) -> ElemRef, usize); 6]);
 
 impl Counts {
     fn of(h: &House) -> Self {
         Self([
-            ("Wall", h.walls.len()),
-            ("Slab", h.slabs.len()),
-            ("Roof", h.roofs.len()),
-            ("Prop", h.props.len()),
-            ("Pool", h.pools.len()),
-            ("Road", h.roads.len()),
+            ("Wall", ElemRef::Wall, h.walls.len()),
+            ("Slab", ElemRef::Slab, h.slabs.len()),
+            ("Roof", ElemRef::Roof, h.roofs.len()),
+            ("Prop", ElemRef::Prop, h.props.len()),
+            ("Pool", ElemRef::Pool, h.pools.len()),
+            ("Road", ElemRef::Road, h.roads.len()),
         ])
     }
+}
+
+/// `{"index":3,"ok":true,"elem":{"Prop":3},"created":[{"Wall":4},…],"removed":{"Wall":1}}` :
+/// les références se recopient telles quelles dans le `target` d'une commande suivante.
+fn step_json(index: usize, before: &Counts, after: &Counts, elem: Option<ElemRef>) -> serde_json::Value {
+    let (mut created, mut removed) = (vec![], serde_json::Map::new());
+    for ((name, mk, b), (_, _, a)) in before.0.iter().zip(&after.0) {
+        created.extend((*b..*a).map(mk));
+        if a < b {
+            removed.insert((*name).to_owned(), (b - a).into());
+        }
+    }
+    serde_json::json!({ "index": index, "ok": true, "elem": elem, "created": created, "removed": removed })
 }
 
 /// ` → créé : Wall 4 à 7, Slab 1` ; ` → supprimé : …` ; ` → Prop 3` pour une modification.
 fn changes(before: &Counts, after: &Counts, result: Option<ElemRef>) -> String {
     let mut parts = vec![];
-    for ((name, b), (_, a)) in before.0.iter().zip(&after.0) {
+    for ((name, _, b), (_, _, a)) in before.0.iter().zip(&after.0) {
         match a.cmp(b) {
             std::cmp::Ordering::Greater if a - b == 1 => parts.push(format!("créé {name} {b}")),
             std::cmp::Ordering::Greater => parts.push(format!("créés {name} {b} à {}", a - 1)),
@@ -393,6 +464,49 @@ mod tests {
         assert!(text.starts_with("#1 refusée") && text.contains(r#"{"op":"remove","target":{"Wall":42}}"#), "{text}");
         assert_eq!(House::load(&world).unwrap(), saved);
         let _ = std::fs::remove_dir_all(dir); // nettoyage best effort
+    }
+
+    #[test]
+    fn dry_run_and_out_leave_the_world_untouched() {
+        let dir = tmp("dry_run");
+        let (world, cmds, copy) = (dir.join("monde.json"), dir.join("cmds.json"), dir.join("copie.json"));
+        std::fs::write(&cmds, r#"[{"op": "room", "min": [0, 0], "max": [4, 3], "level": 0}]"#).unwrap();
+        run(&["apply", s(&world), s(&cmds), "--new", "--dry-run"]).unwrap();
+        assert!(!world.exists(), "--dry-run n'écrit rien");
+        run(&["apply", s(&world), s(&cmds), "--new", "--quiet"]).unwrap();
+        let saved = House::load(&world).unwrap();
+        run(&["apply", s(&world), s(&cmds), "--out", s(&copy), "--json"]).unwrap();
+        assert_eq!(House::load(&world).unwrap(), saved, "--out laisse le monde lu intact");
+        assert_eq!(House::load(&copy).unwrap().walls.len(), 8);
+        assert!(matches!(run(&["apply", s(&world), s(&cmds), "--out"]), Err(CliError::BadOption(_))));
+        let _ = std::fs::remove_dir_all(dir); // nettoyage best effort
+    }
+
+    #[test]
+    fn summary_says_where_the_world_went() {
+        let h = House::default();
+        let dry = ApplyOpts { dry_run: true, quiet: true, ..ApplyOpts::default() };
+        assert!(summary(&h, None, &dry).contains("--dry-run"));
+        let out = ApplyOpts { out: Some("b.json"), quiet: true, ..ApplyOpts::default() };
+        assert!(summary(&h, Some("b.json"), &out).contains("Écrit dans b.json"));
+        let json = ApplyOpts { json: true, ..ApplyOpts::default() };
+        let v: serde_json::Value = serde_json::from_str(&summary(&h, None, &json)).unwrap();
+        assert_eq!(v, serde_json::json!({ "saved": null, "warnings": [] }));
+    }
+
+    #[test]
+    fn step_json_lists_reusable_references() {
+        let mut h = House::default();
+        let before = Counts::of(&h);
+        let e = h.apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0 }).unwrap();
+        let v = step_json(2, &before, &Counts::of(&h), e);
+        assert_eq!(
+            v,
+            serde_json::json!({ "index": 2, "ok": true, "elem": {"Prop": 0}, "created": [{"Prop": 0}], "removed": {} })
+        );
+        let before = Counts::of(&h);
+        let e = h.apply(Command::Remove { target: ElemRef::Prop(0) }).unwrap();
+        assert_eq!(step_json(0, &before, &Counts::of(&h), e)["removed"], serde_json::json!({ "Prop": 1 }));
     }
 
     #[test]

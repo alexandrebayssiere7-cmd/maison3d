@@ -190,6 +190,31 @@ fn catalog_and_guide_are_available() {
 }
 
 #[test]
+fn apply_json_prints_one_line_per_command_then_a_summary() {
+    let dir = tmp_dir("json");
+    let world = world_with_room(&dir);
+    let cmds = write(
+        &dir,
+        "two.json",
+        r#"[{"op": "place_prop", "kind": "Lamp", "pos": [2, 2], "level": 0}, {"op": "remove", "target": {"Wall": 0}}]"#,
+    );
+    let o = run(&["apply", &world, &cmds, "--json", "--dry-run"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let lines: Vec<Value> = stdout(&o).lines().map(|l| serde_json::from_str(l).expect("ligne JSON")).collect();
+    assert_eq!(lines.len(), 3, "{}", stdout(&o));
+    assert_eq!(lines[0]["created"], serde_json::json!([{"Prop": 0}]));
+    assert_eq!(lines[1]["removed"], serde_json::json!({"Wall": 1}));
+    assert_eq!(lines[2]["saved"], Value::Null);
+    assert_eq!(read_json(&world)["walls"].as_array().map(Vec::len), Some(4), "--dry-run n'a rien écrit");
+
+    let bad = write(&dir, "bad.json", r#"[{"op": "remove", "target": {"Wall": 42}}]"#);
+    let o = run(&["apply", &world, &bad, "--json"]);
+    assert_eq!(o.status.code(), Some(1));
+    let refused: Value = serde_json::from_str(stdout(&o).trim()).expect("refus en JSON");
+    assert_eq!((&refused["index"], &refused["ok"]), (&Value::from(0), &Value::from(false)));
+}
+
+#[test]
 fn check_brief_and_help_for_agents() {
     let dir = tmp_dir("check");
     let world = world_with_room(&dir);

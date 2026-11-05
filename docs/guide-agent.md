@@ -11,7 +11,7 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `maison3d schema` | Schéma JSON complet (31 Ko). |
 | `maison3d catalog` | Objets (rangés par catégorie), ouvertures et toits disponibles, avec leurs dimensions réelles et leurs parties colorables. |
 | `maison3d textures` | Numéros des matières (champ `texture`). |
-| `maison3d apply monde.json cmds.json [--new] [--quiet]` | Applique une liste de commandes. |
+| `maison3d apply monde.json cmds.json [--new] [--quiet] [--dry-run] [--out autre.json] [--json]` | Applique une liste de commandes. |
 | `maison3d describe monde.json` | Résumé texte par étage, avec l'indice, le type JSON et l'emprise au sol de chaque élément. |
 | `maison3d check monde.json` | Avertissements de cohérence. `apply` les affiche aussi après chaque lot. |
 | `maison3d shot monde.json vue.png [options]` | Vue 3/4 (`vue.png`) et plan à l'échelle (`vue_dessus.png`, nord en haut). |
@@ -24,6 +24,13 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 - **Sortie** : pour chaque commande, `apply` affiche les éléments qu'elle a créés
   (`#3 ok → créés Wall 4 à 7, créé Slab 1`), puis les avertissements de `check`, puis `describe`.
   `--quiet` supprime le `describe`.
+- **Essayer sans risque** : `--dry-run` valide et affiche tout sans rien écrire ; `--out autre.json`
+  écrit le résultat ailleurs et laisse le monde lu intact (variante jetable).
+- **Sortie pour un script** : `--json` remplace le texte par une ligne JSON par commande,
+  `{"index":0,"ok":true,"elem":{"Prop":3},"created":[{"Prop":3}],"removed":{}}`, puis une ligne
+  `{"saved":"monde.json","warnings":[…]}` (`saved` vaut `null` avec `--dry-run`). Les références
+  se recopient telles quelles dans `target`. Un refus donne `{"index":…,"ok":false,"error":"…"}`
+  et le code de sortie 1.
 
 ### Options de `shot`
 
