@@ -251,14 +251,11 @@ fn terrain_settings(ui: &mut egui::Ui, ed: &mut Editor) {
 
 /// Relief aléatoire selon les réglages du panneau.
 fn generate_relief(ed: &mut Editor, seed: u32) {
-    // refus déjà affiché dans le message par Editor::apply
-    let _ = ed.apply([Command::GenerateTerrain {
-        seed,
-        amp: ed.gen_amp,
-        scale: ed.gen_scale,
-        mountains: ed.gen_mountains,
-    }]);
-    ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
+    let cmd = Command::GenerateTerrain { seed, amp: ed.gen_amp, scale: ed.gen_scale, mountains: ed.gen_mountains };
+    // un refus garde le message posé par Editor::apply
+    if ed.apply([cmd]).is_ok() {
+        ed.message = "Relief généré (Ctrl+Z pour revenir)".into();
+    }
 }
 
 pub(super) fn selection_section(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thumbs) {
@@ -396,5 +393,14 @@ mod tests {
         assert!(ed.message.contains("Ctrl+Z"), "{}", ed.message);
         ed.undo();
         assert_eq!(ed.house.terrain, Terrain::default(), "Ctrl+Z rend le terrain plat");
+    }
+
+    #[test]
+    fn refused_relief_keeps_the_error_message() {
+        let mut ed = Editor::default();
+        ed.gen_amp = 100.0;
+        generate_relief(&mut ed, 7);
+        assert_eq!(ed.house.terrain, Terrain::default());
+        assert!(ed.message.contains("amp"), "le refus reste affiché : {}", ed.message);
     }
 }
