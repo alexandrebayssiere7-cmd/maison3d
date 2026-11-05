@@ -44,6 +44,16 @@ pub enum EditError {
         max: f32,
     },
     BadColor(Rgb),
+    /// Partie demandée et nombre de parties de l'élément.
+    NoSuchPart {
+        part: usize,
+        count: usize,
+    },
+    /// Plus de finitions que l'objet ou l'ouverture n'a de parties après la principale.
+    TooManyFinishes {
+        count: usize,
+        max: usize,
+    },
     UnknownTexture {
         texture: usize,
         max: usize,
@@ -102,6 +112,18 @@ impl std::fmt::Display for EditError {
             Self::UnknownTexture { texture, max } => {
                 write!(f, "Texture {texture} inconnue : 0 (aucune) à {max}, voir `maison3d textures`")
             }
+            Self::NoSuchPart { part, count: 1 } => {
+                write!(f, "Partie {part} inexistante : cet élément n'a que la partie 0")
+            }
+            Self::NoSuchPart { part, count } => write!(
+                f,
+                "Partie {part} inexistante : cet élément a {count} parties (0 à {}, voir `maison3d catalog`)",
+                count.saturating_sub(1)
+            ),
+            Self::TooManyFinishes { count, max } => write!(
+                f,
+                "{count} finitions données, {max} au plus : une par partie après la principale (`maison3d catalog`)"
+            ),
             Self::BadFields(e) => write!(f, "Champs refusés par set : {e}"),
             Self::TooMany { count, max } => write!(f, "{count} objets demandés, {max} au plus par rangée"),
         }
@@ -135,6 +157,9 @@ mod tests {
             (EditError::OutOfWorld(Vec2::splat(99.0)), "hors du terrain"),
             (EditError::OutOfRange { field: "amp", value: 99.0, min: 0.0, max: 60.0 }, "amp = 99"),
             (EditError::BadColor([2.0, 0.0, 0.0]), "Couleur"),
+            (EditError::NoSuchPart { part: 1, count: 1 }, "que la partie 0"),
+            (EditError::NoSuchPart { part: 9, count: 3 }, "0 à 2"),
+            (EditError::TooManyFinishes { count: 4, max: 1 }, "1 au plus"),
             (EditError::UnknownTexture { texture: 99, max: 40 }, "Texture 99"),
             (EditError::BadFields("x".into()), "set : x"),
             (EditError::TooMany { count: 500, max: 200 }, "500 objets"),

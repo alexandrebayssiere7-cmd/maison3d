@@ -57,13 +57,10 @@ impl Editor {
 
     pub(super) fn new_prop(&self, kind: PropKind, pos: Vec2) -> Prop {
         Prop {
-            kind,
-            pos,
-            level: self.level,
-            rot: self.prop_rot,
             color: self.prop_color,
             texture: self.prop_texture,
             height: self.prop_height,
+            ..Prop::new(kind, pos, self.level, self.prop_rot)
         }
     }
 
@@ -230,7 +227,7 @@ impl Editor {
         let step = if free { 0.05 } else { self.grid.min(0.25) };
         let t = (along / step).round() * step;
         let (width, height, sill) = self.op_dims[kind as usize];
-        let op = Opening { kind, t, width, height, sill, color: self.op_colors[kind as usize] };
+        let op = Opening { width, height, sill, color: self.op_colors[kind as usize], ..Opening::new(kind, t) };
         Some((op, wall.fits(t, width, None)))
     }
 
@@ -254,18 +251,17 @@ impl Editor {
         }
     }
 
-    /// Clic sur un élément avec la peinture, la pipette ou la gomme.
-    pub(super) fn pick_click(&mut self, e: ElemRef) {
+    /// Clic sur la partie `part` d'un élément avec la peinture, la pipette ou la gomme.
+    pub(super) fn pick_click(&mut self, e: ElemRef, part: usize) {
         match self.tool {
             Tool::Paint => {
                 let (color, texture) = (Some(self.paint_color), Some(self.paint_texture));
                 // refus déjà affiché dans le message par Editor::apply
-                let _ = self.apply([Command::Paint { target: e, color, texture }]);
+                let _ = self.apply([Command::Paint { target: e, part, color, texture }]);
             }
             Tool::Eyedropper => {
-                if let Some(c) = self.house.color_mut(e).copied() {
-                    self.paint_color = c;
-                    self.paint_texture = self.house.texture_mut(e).map_or(0, |t| *t);
+                if let Some((c, t)) = self.house.finish_mut(e, part) {
+                    (self.paint_color, self.paint_texture) = (*c, *t);
                     self.tool = Tool::Paint;
                     self.message = "Couleur récupérée — cliquez pour peindre".into();
                 }
@@ -442,15 +438,22 @@ mod tests {
         let mut ed = with_table();
         ed.set_tool(Tool::Eyedropper);
         ed.house.props[0].texture = 4;
-        ed.pick_click(ElemRef::Prop(0));
+        ed.pick_click(ElemRef::Prop(0), 0);
         assert_eq!((ed.tool, ed.paint_color, ed.paint_texture), (Tool::Paint, ed.house.props[0].color, 4));
         ed.paint_color = [0.0, 0.0, 1.0];
         ed.house.props.push(ed.new_prop(PropKind::Chair, Vec2::X));
-        ed.pick_click(ElemRef::Prop(1));
+        ed.pick_click(ElemRef::Prop(1), 0);
         assert_eq!((ed.house.props[1].color, ed.house.props[1].texture), ([0.0, 0.0, 1.0], 4));
+        // les pieds (partie 1) se peignent à part
+        ed.paint_color = [1.0, 0.0, 0.0];
+        ed.pick_click(ElemRef::Prop(1), 1);
+        assert_eq!((ed.house.props[1].color, ed.house.props[1].finish(1).color), ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]));
+        ed.set_tool(Tool::Eyedropper);
+        ed.pick_click(ElemRef::Prop(1), 1);
+        assert_eq!(ed.paint_color, [1.0, 0.0, 0.0], "la pipette lit la partie visée");
         ed.set_tool(Tool::Erase);
         ed.selected = Some(ElemRef::Prop(0));
-        ed.pick_click(ElemRef::Prop(0));
+        ed.pick_click(ElemRef::Prop(0), 0);
         assert_eq!((ed.house.props.len(), ed.selected), (1, None));
     }
 

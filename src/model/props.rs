@@ -5,210 +5,23 @@ use bevy::transform::components::Transform;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::shapes::prop_shapes;
-use super::{BARK, BIRCH_BARK, ElemRef, LEVEL_H, Part, Rgb, Shape, WHITE, WHITE_TEX};
-
-/// Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Encombrement, hauteur
-/// et extérieur ou non : `maison3d catalog`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, JsonSchema)]
-pub enum PropKind {
-    /// Table de repas rectangulaire.
-    Table,
-    /// Chaise ; l'avant est le côté où l'on s'assoit (dossier à l'arrière). À tourner vers la table.
-    Chair,
-    /// Canapé trois places ; l'avant est l'assise, à tourner vers la pièce ou la télé, dossier contre un mur.
-    Sofa,
-    /// Lit double ; la tête est à l'arrière (à coller au mur), les pieds vers l'avant.
-    Bed,
-    /// Armoire, s'ouvre pendant la visite ; dos contre un mur, portes vers l'avant.
-    Wardrobe,
-    /// Bloc cuisine (meubles bas, évier, plaques), placards ouvrables ; dos contre un mur.
-    Kitchen,
-    /// Réfrigérateur, s'ouvre pendant la visite ; dos contre un mur.
-    Fridge,
-    /// Baignoire.
-    Bathtub,
-    /// WC ; réservoir à l'arrière, contre un mur.
-    Toilet,
-    /// Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.
-    Stairs,
-    /// Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).
-    Pillar,
-    /// Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.
-    Lamp,
-    /// Plante d'intérieur en pot.
-    Plant,
-    /// Arbre feuillu.
-    Tree,
-    /// Buisson rond.
-    Bush,
-    /// Sapin.
-    Pine,
-    /// Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.
-    Hedge,
-    /// Module de clôture de 2 m de long, à aligner comme la haie.
-    Fence,
-    /// Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.
-    Car,
-    /// Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.
-    SpiralStairs,
-    /// Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.
-    LStairs,
-    /// Bouleau.
-    Birch,
-    /// Palmier.
-    Palm,
-    /// Cyprès, haut et étroit (alignements, bords de terrain).
-    Cypress,
-    /// Pommier.
-    AppleTree,
-    /// Massif de fleurs.
-    Flowers,
-    /// Rosier.
-    Rosebush,
-    /// Tournesols.
-    Sunflower,
-    /// Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet
-    /// (à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.
-    StreetLamp,
-    /// Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à
-    /// dos avec une autre pour former un rayon.
-    Shelf,
-}
+use super::shapes::{prop_shapes, prop_slots};
+use super::{ElemRef, Finish, LEVEL_H, Part, PropKind, Rgb, Shape, Slot, WHITE, finish_at, finish_at_mut};
 
 impl PropKind {
-    pub const ALL: [PropKind; 30] = [
-        Self::Table,
-        Self::Chair,
-        Self::Sofa,
-        Self::Bed,
-        Self::Wardrobe,
-        Self::Kitchen,
-        Self::Fridge,
-        Self::Bathtub,
-        Self::Toilet,
-        Self::Stairs,
-        Self::Pillar,
-        Self::Lamp,
-        Self::Plant,
-        Self::Tree,
-        Self::Bush,
-        Self::Pine,
-        Self::Hedge,
-        Self::Fence,
-        Self::Car,
-        Self::SpiralStairs,
-        Self::LStairs,
-        Self::Birch,
-        Self::Palm,
-        Self::Cypress,
-        Self::AppleTree,
-        Self::Flowers,
-        Self::Rosebush,
-        Self::Sunflower,
-        Self::StreetLamp,
-        Self::Shelf,
-    ];
-    /// Libellés dans l'ordre de déclaration (indexés par la variante).
-    const NAMES: [&'static str; 30] = [
-        "Table",
-        "Chaise",
-        "Canapé",
-        "Lit",
-        "Armoire",
-        "Cuisine",
-        "Frigo",
-        "Baignoire",
-        "WC",
-        "Escalier",
-        "Pilier",
-        "Lampe sur pied",
-        "Plante",
-        "Arbre",
-        "Buisson",
-        "Sapin",
-        "Haie",
-        "Clôture",
-        "Voiture",
-        "Colimaçon",
-        "Quart tournant",
-        "Bouleau",
-        "Palmier",
-        "Cyprès",
-        "Pommier",
-        "Fleurs",
-        "Rosier",
-        "Tournesols",
-        "Lampadaire de rue",
-        "Étagère",
-    ];
-    pub fn name(self) -> &'static str {
-        Self::NAMES[self as usize]
-    }
-    /// Pousse dehors : posé sur le relief du terrain plutôt qu'à plat.
-    pub fn outdoor(self) -> bool {
-        use PropKind::{
-            AppleTree, Birch, Bush, Car, Cypress, Fence, Flowers, Hedge, Palm, Pine, Rosebush, StreetLamp, Sunflower,
-            Tree,
-        };
-        matches!(
-            self,
-            Car | StreetLamp
-                | Tree
-                | Bush
-                | Pine
-                | Hedge
-                | Fence
-                | Birch
-                | Palm
-                | Cypress
-                | AppleTree
-                | Flowers
-                | Rosebush
-                | Sunflower
-        )
-    }
-    /// Escaliers et piliers ont une hauteur réglable.
-    pub fn has_height(self) -> bool {
-        matches!(self, Self::Stairs | Self::SpiralStairs | Self::LStairs | Self::Pillar)
+    /// Parties colorables (`prop_slots`) ; la partie 0 reçoit `color` et `texture` de l'objet.
+    pub fn slots(self) -> &'static [Slot] {
+        prop_slots(self)
     }
     pub fn default_color(self) -> Rgb {
-        match self {
-            Self::Table | Self::Chair => [0.55, 0.37, 0.2],
-            Self::Sofa => [0.3, 0.42, 0.62],
-            Self::Bed => [0.45, 0.3, 0.2],
-            Self::Wardrobe | Self::Shelf => [0.72, 0.56, 0.4],
-            Self::Kitchen => [0.88, 0.88, 0.85],
-            Self::Fridge | Self::Bathtub | Self::Toilet => WHITE,
-            Self::Stairs | Self::LStairs | Self::Fence => [0.6, 0.45, 0.3],
-            Self::SpiralStairs => [0.35, 0.36, 0.38],
-            Self::Flowers => [0.85, 0.15, 0.25],
-            Self::Rosebush => [0.95, 0.45, 0.6],
-            Self::Sunflower => [0.98, 0.8, 0.1],
-            Self::Car => [0.72, 0.08, 0.1],
-            Self::Pillar => [0.85, 0.85, 0.8],
-            Self::Lamp => [1.0, 0.9, 0.7],
-            Self::StreetLamp => [0.2, 0.22, 0.25],
-            // le feuillage est coloré par sa texture : teinte blanche
-            Self::Plant
-            | Self::Tree
-            | Self::Bush
-            | Self::Pine
-            | Self::Hedge
-            | Self::Birch
-            | Self::Palm
-            | Self::Cypress
-            | Self::AppleTree => WHITE_TEX,
-        }
+        self.slots().first().map_or(WHITE, |s| s.color)
+    }
+    /// S'ouvre pendant la visite (armoire, placards, portes) : sa géométrie bouge avec `open`.
+    pub fn openable(self) -> bool {
+        prop_shapes(self, 0.0, LEVEL_H) != prop_shapes(self, 1.0, LEVEL_H)
     }
     pub fn default_texture(self) -> usize {
-        use crate::textures::find;
-        match self {
-            Self::Tree | Self::Hedge | Self::AppleTree | Self::Palm => find("Feuillage"),
-            Self::Bush | Self::Plant | Self::Birch => find("Feuillage clair"),
-            Self::Pine | Self::Cypress => find("Aiguilles de pin"),
-            _ => 0,
-        }
+        self.slots().first().map_or(0, |s| s.finish().texture)
     }
 }
 
@@ -230,13 +43,30 @@ pub struct Prop {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
-    /// Hauteur montée par un escalier ou hauteur d'un pilier, en mètres (3 par défaut) ;
-    /// ignorée pour les autres objets.
+    /// Dimension réglable en mètres (3 par défaut) : hauteur montée par un escalier, hauteur d'un
+    /// pilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée
+    /// pour les autres objets.
     #[serde(default = "level_h")]
     pub height: f32,
+    /// Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;
+    /// une partie absente garde sa finition d'origine. Plus simple : `paint` avec `part`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finishes: Vec<Finish>,
 }
 
 impl Prop {
+    /// Objet aux finitions d'origine de sa sorte, de hauteur 3 m.
+    pub fn new(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Self {
+        let (color, texture) = (kind.default_color(), kind.default_texture());
+        Prop { kind, pos, level, rot, color, texture, height: LEVEL_H, finishes: vec![] }
+    }
+    /// Finition de la partie `slot` (0 = `color` et `texture`).
+    pub fn finish(&self, slot: usize) -> Finish {
+        finish_at(Finish { color: self.color, texture: self.texture }, &self.finishes, self.kind.slots(), slot)
+    }
+    pub fn finish_mut(&mut self, slot: usize) -> Option<(&mut Rgb, &mut usize)> {
+        finish_at_mut((&mut self.color, &mut self.texture), &mut self.finishes, self.kind.slots(), slot)
+    }
     /// Boîte englobante dans le repère de l'objet (x = largeur, y = hauteur, z = profondeur,
     /// avant vers +z), tirée de sa géométrie réelle.
     pub fn local_box(&self) -> (Vec3, Vec3) {
@@ -266,8 +96,7 @@ impl Prop {
 impl PropKind {
     /// Encombrement `[largeur x, profondeur z, hauteur]` à `rot` 0 et hauteur par défaut.
     pub fn size(self) -> Vec3 {
-        let p = Prop { kind: self, pos: Vec2::ZERO, level: 0, rot: 0.0, color: WHITE, texture: 0, height: LEVEL_H };
-        let (lo, hi) = p.local_box();
+        let (lo, hi) = Prop::new(self, Vec2::ZERO, 0, 0.0).local_box();
         let s = hi - lo;
         Vec3::new(s.x, s.z, s.y)
     }
@@ -282,19 +111,10 @@ pub fn prop_parts(p: &Prop, owner: ElemRef, open: f32, y: f32) -> Vec<Part> {
     let base = Transform::from_xyz(p.pos.x, y, p.pos.y).with_rotation(Quat::from_rotation_y(p.rot.to_radians()));
     prop_shapes(p.kind, open, p.height)
         .into_iter()
-        .map(|(shape, c, s, color, rot)| Part {
-            tf: base
-                .mul_transform(Transform::from_translation(c).with_rotation(Quat::from_rotation_y(rot)).with_scale(s)),
-            shape,
-            color: color.unwrap_or(p.color),
-            // seules les pièces à la couleur du meuble reçoivent sa texture ; les troncs ont leur écorce
-            texture: match color {
-                None => p.texture,
-                Some(BARK) => crate::textures::find("Écorce"),
-                Some(BIRCH_BARK) => crate::textures::find("Écorce de bouleau"),
-                Some(_) => 0,
-            },
-            owner,
+        .map(|pc| {
+            let Finish { color, texture } = p.finish(pc.slot);
+            let local = Transform::from_translation(pc.at).with_rotation(pc.rot).with_scale(pc.size);
+            Part { tf: base.mul_transform(local), shape: pc.shape, color, texture, owner, slot: pc.slot }
         })
         .collect()
 }
@@ -306,33 +126,38 @@ mod tests {
 
     #[test]
     fn local_frame_and_corners_agree() {
-        let p = Prop {
-            kind: PropKind::Bed,
-            pos: Vec2::new(5.0, 2.0),
-            level: 0,
-            rot: 90.0,
-            color: WHITE,
-            texture: 0,
-            height: 3.0,
-        };
+        let p = Prop::new(PropKind::Bed, Vec2::new(5.0, 2.0), 0, 90.0);
         let (lo, hi) = p.corners().iter().fold((Vec2::MAX, Vec2::MIN), |(lo, hi), c| (lo.min(*c), hi.max(*c)));
         assert!((hi - lo).abs_diff_eq(Vec2::new(2.0, 1.6), 0.05), "lit tourné : {lo} {hi}");
         let lamp = PropKind::StreetLamp.size();
         assert!(lamp.z > 4.0 && PropKind::StreetLamp.outdoor() && PropKind::Shelf.size().y < 0.5);
     }
     #[test]
-    fn names_follow_declaration_order() {
-        for (i, k) in PropKind::ALL.into_iter().enumerate() {
-            assert_eq!(k as usize, i, "{k:?} : ALL et NAMES doivent suivre l'ordre de déclaration");
+    fn each_part_keeps_its_own_finish() {
+        let mut p = Prop::new(PropKind::Sofa, Vec2::ZERO, 0, 0.0);
+        assert_eq!(p.finish(1), PropKind::Sofa.slots()[1].finish(), "pieds d'origine");
+        assert!(p.finish_mut(2).is_none(), "le canapé n'a que deux parties");
+        *p.finish_mut(1).unwrap().0 = [1.0, 0.0, 0.0];
+        assert_eq!(p.finishes.len(), 1);
+        let parts = prop_parts(&p, ElemRef::Prop(0), 0.0, 0.0);
+        for q in &parts {
+            assert_eq!(q.color, if q.slot == 1 { [1.0, 0.0, 0.0] } else { p.color });
         }
-        assert_eq!((PropKind::Table.name(), PropKind::Shelf.name()), ("Table", "Étagère"));
-        assert_eq!(PropKind::Cypress.name(), "Cyprès");
+        // une partie lointaine complète les finitions intermédiaires avec celles d'origine
+        let mut car = Prop::new(PropKind::Car, Vec2::ZERO, 0, 0.0);
+        *car.finish_mut(6).unwrap().1 = 3;
+        assert_eq!(car.finishes.len(), 6);
+        assert_eq!(car.finish(3), PropKind::Car.slots()[3].finish());
+        assert_eq!(car.finish(6).texture, 3);
+        assert_eq!(car.finish(9), car.finish(0), "partie inconnue : la principale");
+        let trunk = Prop::new(PropKind::Tree, Vec2::ZERO, 0, 0.0).finish(1);
+        assert_eq!(trunk.texture, crate::textures::find("Écorce"));
     }
     #[test]
     fn stairs_reach_their_height() {
         for kind in [PropKind::Stairs, PropKind::SpiralStairs, PropKind::LStairs] {
             for height in [1.0, 3.0, 4.5] {
-                let p = Prop { kind, pos: Vec2::ZERO, level: 0, rot: 0.0, color: WHITE, texture: 0, height };
+                let p = Prop { height, ..Prop::new(kind, Vec2::ZERO, 0, 0.0) };
                 let top = prop_parts(&p, ElemRef::Prop(0), 0.0, 0.0)
                     .iter()
                     .filter(|p| p.shape == Shape::Cube)
@@ -360,6 +185,6 @@ mod tests {
             assert!(w > 0.0 && h > 0.0 && sill >= 0.0 && sill + h <= LEVEL_H, "{k:?}");
         }
         assert!(PropKind::Pine.outdoor() && !PropKind::Sofa.outdoor());
-        assert!(PropKind::Pillar.has_height() && !PropKind::Bed.has_height());
+        assert!(PropKind::Pillar.dim().is_some() && PropKind::Bed.dim().is_none());
     }
 }

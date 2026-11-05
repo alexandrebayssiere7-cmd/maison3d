@@ -230,7 +230,7 @@ fn tools_section(ui: &mut egui::Ui, ed: &mut Editor) {
             (Tool::Opening(OpeningKind::FrenchDoor), "Porte-fenêtre", ""),
             (Tool::Opening(OpeningKind::Fixed), "Vitre fixe", ""),
             (Tool::Opening(OpeningKind::Grid), "Fenêtre carreaux", ""),
-            (Tool::Prop(PropKind::Table), "Mobilier / jardin", "N"),
+            (Tool::Prop(PropKind::Table), "📚 Bibliothèque", "N"),
             (Tool::Pool, "Piscine", "J"),
             (Tool::Road, "Route", "U"),
             (Tool::Terrain, "Relief", "K"),
@@ -321,7 +321,7 @@ mod tests {
         ed.house.add_storey(0, None);
         let mut targets: Vec<ElemRef> = vec![ElemRef::Wall(0), ElemRef::Opening(0, 0), ElemRef::Slab(0)];
         targets.extend([ElemRef::Roof(0), ElemRef::Prop(0), ElemRef::Pool(0), ElemRef::Road(0)]);
-        let stairs = ed.house.props.iter().position(|p| p.kind.has_height());
+        let stairs = ed.house.props.iter().position(|p| p.kind.dim().is_some());
         targets.extend(stairs.map(ElemRef::Prop));
         targets.push(ElemRef::Wall(999));
         for t in targets {

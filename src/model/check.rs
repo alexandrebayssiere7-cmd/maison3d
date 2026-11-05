@@ -50,7 +50,7 @@ impl House {
     }
 
     fn stairs_warnings(&self, out: &mut Vec<String>) {
-        let stairs = self.props.iter().enumerate().filter(|(_, p)| p.kind.has_height() && p.kind != PropKind::Pillar);
+        let stairs = self.props.iter().enumerate().filter(|(_, p)| p.kind.climbs());
         for (i, p) in stairs {
             let climb = (p.height / 3.0).round().max(1.0) as i32;
             for l in p.level + 1..=p.level + climb {
@@ -177,7 +177,7 @@ mod tests {
     use super::*;
 
     fn prop(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Prop {
-        Prop { kind, pos, level, rot, color: WHITE, texture: 0, height: LEVEL_H }
+        Prop { color: WHITE, texture: 0, ..Prop::new(kind, pos, level, rot) }
     }
 
     fn room(h: &mut House, lo: Vec2, hi: Vec2, level: i32) {
@@ -253,7 +253,16 @@ mod tests {
         });
         let mut up = h.walls[1].clone();
         up.level = 1;
-        up.openings.push(Opening { kind: OpeningKind::Door, t: 3.0, width: 0.9, height: 2.1, sill: 0.0, color: WHITE });
+        up.openings.push(Opening {
+            kind: OpeningKind::Door,
+            t: 3.0,
+            width: 0.9,
+            height: 2.1,
+            sill: 0.0,
+            color: WHITE,
+            texture: 0,
+            finishes: vec![],
+        });
         h.walls.push(up);
         h.pools.push(Pool { min: Vec2::new(2.0, 2.0), max: Vec2::new(4.0, 4.0), depth: 1.5, color: WHITE, texture: 0 });
         h.roads.push(Road { a: Vec2::new(4.0, -5.0), b: Vec2::new(4.0, 10.0), width: 3.0, color: WHITE, texture: 0 });

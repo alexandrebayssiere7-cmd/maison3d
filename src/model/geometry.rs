@@ -4,8 +4,8 @@ use bevy::math::{Quat, Vec2, Vec3};
 use bevy::transform::components::Transform;
 
 use super::{
-    ElemRef, METAL, OpenFn, OpeningKind, Part, Pool, Rgb, Road, Roof, RoofKind, Shape, Terrain, WHITE, Wall, cube,
-    elev, local_box,
+    ElemRef, Finish, OpenFn, OpeningKind, Part, Pool, Road, Roof, RoofKind, Shape, Terrain, WHITE, Wall, cube, elev,
+    local_box,
 };
 
 pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>) {
@@ -16,10 +16,15 @@ pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>)
     let frame = w.frame();
     let (h, th) = (w.height, w.thick);
     let owner = ElemRef::Wall(wi);
-    let mut push = |b: Option<Transform>, shape: Shape, color: Rgb, owner: ElemRef| {
+    // pièce `slot` de l'élément `owner` : le mur lui-même, ou une de ses ouvertures
+    let mut push = |b: Option<Transform>, shape: Shape, owner: ElemRef, slot: usize| {
+        let finish = match owner {
+            ElemRef::Opening(_, oi) => w.openings[oi].finish(slot),
+            _ => Finish { color: w.color, texture: w.texture },
+        };
         if let Some(b) = b {
-            let texture = if owner == ElemRef::Wall(wi) { w.texture } else { 0 };
-            out.push(Part { tf: frame.mul_transform(b), shape, color, texture, owner });
+            let (color, texture) = (finish.color, finish.texture);
+            out.push(Part { tf: frame.mul_transform(b), shape, color, texture, owner, slot });
         }
     };
     let mut order: Vec<usize> = (0..w.openings.len()).collect();
@@ -30,18 +35,19 @@ pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>)
         let o = &w.openings[oi];
         let (x0, x1) = (o.t - o.width / 2.0, o.t + o.width / 2.0);
         let top = (o.sill + o.height).min(h);
-        push(local_box(x, x0, 0.0, h, th), Shape::Cube, w.color, owner);
-        push(local_box(x0, x1, 0.0, o.sill, th), Shape::Cube, w.color, owner);
-        push(local_box(x0, x1, top, h, th), Shape::Cube, w.color, owner);
+        push(local_box(x, x0, 0.0, h, th), Shape::Cube, owner, 0);
+        push(local_box(x0, x1, 0.0, o.sill, th), Shape::Cube, owner, 0);
+        push(local_box(x0, x1, top, h, th), Shape::Cube, owner, 0);
         x = x1;
 
         let own = ElemRef::Opening(wi, oi);
         let f = 0.07;
         let fd = th + 0.04;
-        let frame_color = if o.kind == OpeningKind::Door { WHITE } else { o.color };
-        push(local_box(x0, x0 + f, o.sill, top, fd), Shape::Cube, frame_color, own);
-        push(local_box(x1 - f, x1, o.sill, top, fd), Shape::Cube, frame_color, own);
-        push(local_box(x0, x1, top - f, top, fd), Shape::Cube, frame_color, own);
+        // le cadre est la partie 1 d'une porte (le battant la 0), la partie 0 des autres
+        let fr = usize::from(o.kind == OpeningKind::Door);
+        push(local_box(x0, x0 + f, o.sill, top, fd), Shape::Cube, own, fr);
+        push(local_box(x1 - f, x1, o.sill, top, fd), Shape::Cube, own, fr);
+        push(local_box(x0, x1, top - f, top, fd), Shape::Cube, own, fr);
         match o.kind {
             OpeningKind::FrenchDoor => {
                 // deux battants vitrés qui s'ouvrent vers l'intérieur
@@ -51,7 +57,7 @@ pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>)
                         Transform::from_xyz(hx, 0.0, 0.0).with_rotation(Quat::from_rotation_y(-side * open(own) * 1.6));
                     let mut leaf = |a: f32, b: f32, y0: f32, y1: f32, d: f32, shape: Shape| {
                         let (a, b) = if side > 0.0 { (a, b) } else { (-b, -a) };
-                        push(local_box(a, b, y0, y1, d).map(|b| hinge.mul_transform(b)), shape, o.color, own);
+                        push(local_box(a, b, y0, y1, d).map(|b| hinge.mul_transform(b)), shape, own, 0);
                     };
                     leaf(0.0, f, 0.0, top - f, 0.06, Shape::Cube);
                     leaf(pw - f, pw, 0.0, top - f, 0.06, Shape::Cube);
@@ -65,34 +71,34 @@ pub(super) fn wall_parts(w: &Wall, wi: usize, open: OpenFn, out: &mut Vec<Part>)
                 let hinge =
                     Transform::from_xyz(x0 + f, 0.0, 0.0).with_rotation(Quat::from_rotation_y(-open(own) * 1.6));
                 let pw = x1 - x0 - 2.0 * f;
-                push(local_box(0.0, pw, 0.0, top - f, 0.05).map(|b| hinge.mul_transform(b)), Shape::Cube, o.color, own);
+                push(local_box(0.0, pw, 0.0, top - f, 0.05).map(|b| hinge.mul_transform(b)), Shape::Cube, own, 0);
                 let knob = local_box(pw - 0.13, pw - 0.06, 0.98, 1.04, 0.14).map(|b| hinge.mul_transform(b));
-                push(knob, Shape::Cube, METAL, own);
+                push(knob, Shape::Cube, own, 2);
             }
             OpeningKind::Window | OpeningKind::Bay | OpeningKind::Fixed | OpeningKind::Grid => {
-                push(local_box(x0, x1, o.sill, o.sill + f, fd), Shape::Cube, frame_color, own);
+                push(local_box(x0, x1, o.sill, o.sill + f, fd), Shape::Cube, own, 0);
                 if o.sill > 0.0 {
                     let sill = local_box(x0 - 0.05, x1 + 0.05, o.sill - 0.04, o.sill, th + 0.12);
-                    push(sill, Shape::Cube, WHITE, own);
+                    push(sill, Shape::Cube, own, 1);
                 }
                 if o.kind == OpeningKind::Bay {
                     let m = o.t;
-                    push(local_box(m - f / 2.0, m + f / 2.0, o.sill, top, fd), Shape::Cube, frame_color, own);
+                    push(local_box(m - f / 2.0, m + f / 2.0, o.sill, top, fd), Shape::Cube, own, 0);
                 }
                 if o.kind == OpeningKind::Grid {
                     // petits bois : un montant et deux traverses
                     let (m, b) = (o.t, 0.015);
-                    push(local_box(m - b, m + b, o.sill, top, 0.06), Shape::Cube, frame_color, own);
+                    push(local_box(m - b, m + b, o.sill, top, 0.06), Shape::Cube, own, 0);
                     for k in [1.0, 2.0] {
                         let y = o.sill + f + (top - o.sill - 2.0 * f) * k / 3.0;
-                        push(local_box(x0, x1, y - b, y + b, 0.06), Shape::Cube, frame_color, own);
+                        push(local_box(x0, x1, y - b, y + b, 0.06), Shape::Cube, own, 0);
                     }
                 }
-                push(local_box(x0 + f, x1 - f, o.sill + f, top - f, 0.02), Shape::Glass, o.color, own);
+                push(local_box(x0 + f, x1 - f, o.sill + f, top - f, 0.02), Shape::Glass, own, 0);
             }
         }
     }
-    push(local_box(x, len + th / 2.0, 0.0, h, th), Shape::Cube, w.color, owner);
+    push(local_box(x, len + th / 2.0, 0.0, h, th), Shape::Cube, owner, 0);
 }
 
 pub(super) fn roof_part(r: &Roof, owner: ElemRef) -> Part {
@@ -113,6 +119,7 @@ pub(super) fn roof_part(r: &Roof, owner: ElemRef) -> Part {
         color: r.color,
         texture: r.texture,
         owner,
+        slot: 0,
     }
 }
 
@@ -154,7 +161,7 @@ pub(super) fn pool_parts(p: &Pool, top: f32, owner: ElemRef, out: &mut Vec<Part>
         out.push(cube(boxed(Vec2::new(x, min.y + t), Vec2::new(x + 0.35, min.y + t + w), bottom, y), WHITE, 0, owner));
     }
     let water = boxed(min + t, max - t, top - 0.17, top - 0.15);
-    out.push(Part { tf: water, shape: Shape::Glass, color: p.color, texture: 0, owner });
+    out.push(Part { tf: water, shape: Shape::Glass, color: p.color, texture: 0, owner, slot: 0 });
 }
 
 /// Ruban incliné d'un bout à l'autre, au ras du terrain.
@@ -250,10 +257,15 @@ pub fn ray_obb(origin: Vec3, dir: Vec3, tf: &Transform) -> Option<f32> {
 
 /// Élément le plus proche touché par le rayon, avec la distance.
 pub fn pick(parts: &[Part], origin: Vec3, dir: Vec3) -> Option<(ElemRef, f32)> {
+    pick_part(parts, origin, dir).map(|(p, d)| (p.owner, d))
+}
+
+/// Pièce la plus proche touchée par le rayon (pour peindre la partie visée d'un objet), avec la distance.
+pub fn pick_part(parts: &[Part], origin: Vec3, dir: Vec3) -> Option<(&Part, f32)> {
     parts
         .iter()
         .filter(|p| p.shape != Shape::Light)
-        .filter_map(|p| Some((p.owner, ray_obb(origin, dir, &p.bounds())?)))
+        .filter_map(|p| Some((p, ray_obb(origin, dir, &p.bounds())?)))
         .min_by(|a, b| a.1.total_cmp(&b.1))
 }
 
@@ -285,7 +297,16 @@ mod tests {
     #[test]
     fn door_leaves_a_hole_in_the_wall() {
         let mut w = wall(4.0);
-        w.openings.push(Opening { kind: OpeningKind::Door, t: 2.0, width: 1.0, height: 2.1, sill: 0.0, color: WHITE });
+        w.openings.push(Opening {
+            kind: OpeningKind::Door,
+            t: 2.0,
+            width: 1.0,
+            height: 2.1,
+            sill: 0.0,
+            color: WHITE,
+            texture: 0,
+            finishes: vec![],
+        });
         let mut parts = vec![];
         wall_parts(&w, 0, &|_| 0.0, &mut parts);
         // un point au milieu de la porte, à 1 m de haut, ne doit toucher aucun morceau de mur

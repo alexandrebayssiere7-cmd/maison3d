@@ -6,6 +6,7 @@ use bevy::transform::components::Transform;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod catalog;
 mod check;
 mod demo;
 mod edit;
@@ -13,10 +14,11 @@ mod geometry;
 mod props;
 mod shapes;
 
+pub use catalog::{Category, PropKind};
 pub use demo::demo_house;
-pub use geometry::{pick, ray_obb, roof_tris};
+pub use geometry::{pick, pick_part, ray_obb, roof_tris};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
-pub use props::{Prop, PropKind, prop_parts};
+pub use props::{Prop, prop_parts};
 
 use crate::terrain::Terrain;
 
@@ -37,6 +39,71 @@ pub const WHITE_TEX: Rgb = [1.0, 1.0, 1.0];
 const BARK: Rgb = [0.95, 0.92, 0.9];
 const BIRCH_BARK: Rgb = [0.96, 0.95, 0.94];
 const LEAF: Rgb = [0.25, 0.5, 0.2];
+
+/// Teinte et matière d'une partie d'un objet ou d'une ouverture.
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Finish {
+    /// Teinte `[r, g, b]`, multipliée par la texture.
+    pub color: Rgb,
+    /// Matière (`maison3d textures`), 0 = aucune.
+    #[serde(default)]
+    pub texture: usize,
+}
+
+/// Partie colorable d'une sorte d'objet ou d'ouverture : son nom et sa finition d'origine.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Slot {
+    pub name: &'static str,
+    pub color: Rgb,
+    /// Nom de la texture d'origine (`maison3d textures`), vide pour aucune.
+    pub texture: &'static str,
+}
+
+impl Slot {
+    pub const fn new(name: &'static str, color: Rgb, texture: &'static str) -> Self {
+        Self { name, color, texture }
+    }
+    /// Couleur unie.
+    pub const fn plain(name: &'static str, color: Rgb) -> Self {
+        Self::new(name, color, "")
+    }
+    /// Texture montrée telle quelle (teinte blanche).
+    pub const fn textured(name: &'static str, texture: &'static str) -> Self {
+        Self::new(name, WHITE_TEX, texture)
+    }
+    pub fn finish(&self) -> Finish {
+        Finish { color: self.color, texture: crate::textures::find(self.texture) }
+    }
+}
+
+/// Finition de la partie `slot` d'un élément dont la partie 0 est `main` et les suivantes
+/// `finishes` (complétées par les finitions d'origine de `slots`).
+fn finish_at(main: Finish, finishes: &[Finish], slots: &[Slot], slot: usize) -> Finish {
+    match slot.checked_sub(1) {
+        None => main,
+        Some(i) => finishes.get(i).copied().or_else(|| slots.get(slot).map(Slot::finish)).unwrap_or(main),
+    }
+}
+
+/// Couleur et matière modifiables de la partie `slot` ; complète `finishes` jusqu'à elle avec
+/// les finitions d'origine. `None` si l'élément n'a pas cette partie.
+fn finish_at_mut<'a>(
+    (color, texture): (&'a mut Rgb, &'a mut usize),
+    finishes: &'a mut Vec<Finish>,
+    slots: &[Slot],
+    slot: usize,
+) -> Option<(&'a mut Rgb, &'a mut usize)> {
+    if slot >= slots.len().max(1) {
+        return None;
+    }
+    let Some(i) = slot.checked_sub(1) else { return Some((color, texture)) };
+    while finishes.len() <= i {
+        finishes.push(slots[finishes.len() + 1].finish());
+    }
+    let f = &mut finishes[i];
+    Some((&mut f.color, &mut f.texture))
+}
 
 // ---------------------------------------------------------------- éléments
 
@@ -80,11 +147,18 @@ impl OpeningKind {
             Self::Grid => (1.0, 1.3, 0.9),
         }
     }
-    pub fn default_color(self) -> Rgb {
+    /// Parties colorables ; la partie 0 reçoit `color` et `texture` de l'ouverture. Le verre ne se peint pas.
+    pub fn slots(self) -> &'static [Slot] {
+        const FRAME: Slot = Slot::plain("Cadre", WHITE);
+        const SILL: Slot = Slot::plain("Appui", WHITE);
         match self {
-            Self::Door => [0.5, 0.33, 0.2],
-            _ => WHITE,
+            Self::Door => const { &[Slot::plain("Battant", [0.5, 0.33, 0.2]), FRAME, Slot::plain("Poignée", METAL)] },
+            Self::FrenchDoor => &[FRAME],
+            Self::Window | Self::Bay | Self::Fixed | Self::Grid => &[FRAME, SILL],
         }
+    }
+    pub fn default_color(self) -> Rgb {
+        self.slots()[0].color
     }
 }
 
@@ -101,8 +175,29 @@ pub struct Opening {
     pub height: f32,
     /// Allège : hauteur du bas de l'ouverture au-dessus du sol de l'étage (0 pour une porte).
     pub sill: f32,
-    /// Couleur du cadre et du battant `[r, g, b]`.
+    /// Teinte `[r, g, b]` de la partie principale (battant d'une porte, cadre d'une fenêtre).
     pub color: Rgb,
+    /// Matière de la partie principale (`maison3d textures`), 0 = aucune.
+    #[serde(default)]
+    pub texture: usize,
+    /// Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;
+    /// une partie absente garde sa finition d'origine.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finishes: Vec<Finish>,
+}
+
+impl Opening {
+    /// Ouverture aux dimensions et aux finitions d'origine de son type, centrée en `t`.
+    pub fn new(kind: OpeningKind, t: f32) -> Self {
+        let (width, height, sill) = kind.default_dims();
+        Self { kind, t, width, height, sill, color: kind.default_color(), texture: 0, finishes: vec![] }
+    }
+    pub fn finish(&self, slot: usize) -> Finish {
+        finish_at(Finish { color: self.color, texture: self.texture }, &self.finishes, self.kind.slots(), slot)
+    }
+    pub fn finish_mut(&mut self, slot: usize) -> Option<(&mut Rgb, &mut usize)> {
+        finish_at_mut((&mut self.color, &mut self.texture), &mut self.finishes, self.kind.slots(), slot)
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, JsonSchema)]
@@ -389,6 +484,8 @@ pub struct Part {
     pub color: Rgb,
     pub texture: usize,
     pub owner: ElemRef,
+    /// Partie colorable de l'élément à laquelle appartient la pièce (0 hors objets et ouvertures).
+    pub slot: usize,
 }
 
 impl Part {
@@ -404,7 +501,7 @@ impl Part {
 }
 
 fn cube(tf: Transform, color: Rgb, texture: usize, owner: ElemRef) -> Part {
-    Part { tf, shape: Shape::Cube, color, texture, owner }
+    Part { tf, shape: Shape::Cube, color, texture, owner, slot: 0 }
 }
 
 /// Ouverture (0 = fermé, 1 = ouvert) des portes et placards, pour l'animation de la visite.
@@ -589,6 +686,8 @@ mod tests {
             height: 1.0,
             sill: 1.0,
             color: WHITE,
+            texture: 0,
+            finishes: vec![],
         });
         assert!(!w.fits(2.5, 1.0, None), "chevauche");
         assert!(w.fits(2.5, 1.0, Some(0)));

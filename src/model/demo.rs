@@ -67,10 +67,7 @@ fn demo_walls() -> Vec<Wall> {
         openings: vec![],
         texture: find("Plâtre"),
     });
-    let op = |kind: OpeningKind, t: f32| {
-        let (width, height, sill) = kind.default_dims();
-        Opening { kind, t, width, height, sill, color: kind.default_color() }
-    };
+    let op = Opening::new;
     walls[0].openings = vec![op(OpeningKind::Door, 3.0), op(OpeningKind::Window, 1.2), op(OpeningKind::Window, 8.0)];
     walls[1].openings = vec![op(OpeningKind::Window, 4.0)];
     walls[2].openings = vec![op(OpeningKind::Bay, 6.5), op(OpeningKind::Window, 2.0)];
@@ -82,15 +79,7 @@ fn demo_walls() -> Vec<Wall> {
 fn demo_props() -> Vec<Prop> {
     let mut props = Vec::new();
     let mut prop = |kind: PropKind, x: f32, z: f32, rot: f32| {
-        props.push(Prop {
-            kind,
-            pos: Vec2::new(x, z),
-            level: 0,
-            rot,
-            color: kind.default_color(),
-            texture: kind.default_texture(),
-            height: LEVEL_H,
-        });
+        props.push(Prop::new(kind, Vec2::new(x, z), 0, rot));
     };
     prop(PropKind::Sofa, 2.5, 6.8, 180.0);
     prop(PropKind::Table, 3.0, 3.5, 0.0);

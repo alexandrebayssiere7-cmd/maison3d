@@ -183,7 +183,7 @@ fn catalog_and_guide_are_available() {
     let o = run(&["catalog"]);
     assert!(o.status.success());
     let c: Value = serde_json::from_str(&stdout(&o)).expect("catalogue JSON");
-    assert_eq!(c["props"][3]["kind"], "Bed");
+    assert_eq!((&c["props"][0]["kind"], &c["props"][0]["category"]), (&Value::from("Table"), &Value::from("Salon")));
     assert_eq!(c["openings"][0]["width"], 0.9);
     let g = run(&["guide"]);
     assert!(g.status.success() && stdout(&g).contains("Boucle de travail"));

@@ -9,7 +9,7 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `maison3d schema --brief` | Une ligne par commande : champs (`?` = facultatif) et rôle. **À lire en premier.** |
 | `maison3d help <op>` | Détail d'une commande : description, chaque champ, ses bornes et sa valeur par défaut. |
 | `maison3d schema` | Schéma JSON complet (31 Ko). |
-| `maison3d catalog` | Objets, ouvertures et toits disponibles, avec leurs dimensions réelles. |
+| `maison3d catalog` | Objets (rangés par catégorie), ouvertures et toits disponibles, avec leurs dimensions réelles et leurs parties colorables. |
 | `maison3d textures` | Numéros des matières (champ `texture`). |
 | `maison3d apply monde.json cmds.json [--new] [--quiet]` | Applique une liste de commandes. |
 | `maison3d describe monde.json` | Résumé texte par étage, avec l'indice, le type JSON et l'emprise au sol de chaque élément. |
@@ -109,7 +109,15 @@ Exemples complets et testés dans `docs/exemples/` :
   `face du mur + profondeur / 2`. Exemple : canapé (profondeur 0,9) contre un mur nord de 20 cm
   en z = 0 → `rot` 0, `pos.z` = 0,1 + 0,45 = 0,55.
 - Lit : la tête est à l'arrière, contre le mur. Chaise : tournée vers la table.
+- `catalog` range les objets par `category` (Salon, Cuisine, Mobilier urbain, Sport…). Pour un
+  décor, parcourir la catégorie voulue plutôt que deviner un nom.
 - Les objets `outdoor` du rez-de-chaussée se posent sur le relief.
+- `dim` dit ce que règle le champ `height` d'un objet : la hauteur d'un escalier ou d'un pilier,
+  la longueur d'une ligne, le rayon d'un cercle. `null` : le champ ne sert pas.
+- Chaque objet et chaque ouverture a des **parties** (`parts` dans `catalog`) : tissu et pieds
+  d'un canapé, battant, cadre et poignée d'une porte… `paint` avec `"part": n` ne peint que la
+  partie n ; sans `part`, c'est la partie 0, qui est aussi `color` / `texture` de l'élément.
+  Exemple : `{"op": "paint", "target": {"Prop": 3}, "part": 1, "color": [0.1, 0.1, 0.1]}`.
 - Éclairage public : `StreetLamp` (4,5 m). `Lamp` est une lampe d'intérieur.
 - Rayonnages : `Shelf`.
 - Pour une rangée régulière (haie, clôture, arbres, lampadaires), utiliser `place_row`.

@@ -543,10 +543,17 @@
               "default": 0
             },
             "height": {
-              "description": "Hauteur montée par un escalier ou hauteur d'un pilier, en mètres (3 par défaut) ;\nignorée pour les autres objets.",
+              "description": "Dimension réglable en mètres (3 par défaut) : hauteur montée par un escalier, hauteur d'un\npilier, longueur d'une ligne, rayon d'un cercle (`maison3d catalog` : `dim`) ; ignorée\npour les autres objets.",
               "type": "number",
               "format": "float",
               "default": 3.0
+            },
+            "finishes": {
+              "description": "Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;\nune partie absente garde sa finition d'origine. Plus simple : `paint` avec `part`.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Finish"
+              }
             }
           },
           "additionalProperties": false,
@@ -905,7 +912,7 @@
           ]
         },
         {
-          "description": "Change la couleur et/ou la matière d'un élément.",
+          "description": "Change la couleur et/ou la matière d'un élément, ou d'une seule de ses parties : un objet\nou une ouverture en a plusieurs (tissu et pieds d'un canapé, battant et poignée d'une\nporte…), listées par `maison3d catalog` (`parts`).",
           "type": "object",
           "properties": {
             "op": {
@@ -914,6 +921,13 @@
             },
             "target": {
               "$ref": "#/$defs/ElemRef"
+            },
+            "part": {
+              "description": "Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,\nsols, toits, piscines et routes n'ont que la partie 0.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0,
+              "default": 0
             },
             "color": {
               "description": "Nouvelle couleur `[r, g, b]` (0 à 1) ; absente ou `null` : inchangée.",
@@ -929,7 +943,7 @@
               "maxItems": 3
             },
             "texture": {
-              "description": "Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.\nIgnoré pour une ouverture, qui n'a pas de matière.",
+              "description": "Nouvel indice de matière (`maison3d textures`) ; absent ou `null` : inchangé.",
               "type": [
                 "integer",
                 "null"
@@ -1006,7 +1020,7 @@
       ]
     },
     "PropKind": {
-      "description": "Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Encombrement, hauteur\net extérieur ou non : `maison3d catalog`.",
+      "description": "Type d'objet posé. À `rot` 0, l'avant de l'objet regarde +z (le sud). Catégorie,\nencombrement, parties colorables et extérieur ou non : `maison3d catalog`.",
       "oneOf": [
         {
           "description": "Table de repas rectangulaire.",
@@ -1022,6 +1036,11 @@
           "description": "Canapé trois places ; l'avant est l'assise, à tourner vers la pièce ou la télé, dossier contre un mur.",
           "type": "string",
           "const": "Sofa"
+        },
+        {
+          "description": "Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.",
+          "type": "string",
+          "const": "Lamp"
         },
         {
           "description": "Lit double ; la tête est à l'arrière (à coller au mur), les pieds vers l'avant.",
@@ -1054,24 +1073,14 @@
           "const": "Toilet"
         },
         {
-          "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
+          "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",
           "type": "string",
-          "const": "Stairs"
+          "const": "Shelf"
         },
         {
-          "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
+          "description": "Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet\n(à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.",
           "type": "string",
-          "const": "Pillar"
-        },
-        {
-          "description": "Lampe sur pied d'intérieur (1,85 m) qui éclaire réellement la pièce. Pour l'éclairage public : `StreetLamp`.",
-          "type": "string",
-          "const": "Lamp"
-        },
-        {
-          "description": "Plante d'intérieur en pot.",
-          "type": "string",
-          "const": "Plant"
+          "const": "StreetLamp"
         },
         {
           "description": "Arbre feuillu.",
@@ -1079,39 +1088,9 @@
           "const": "Tree"
         },
         {
-          "description": "Buisson rond.",
-          "type": "string",
-          "const": "Bush"
-        },
-        {
           "description": "Sapin.",
           "type": "string",
           "const": "Pine"
-        },
-        {
-          "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
-          "type": "string",
-          "const": "Hedge"
-        },
-        {
-          "description": "Module de clôture de 2 m de long, à aligner comme la haie.",
-          "type": "string",
-          "const": "Fence"
-        },
-        {
-          "description": "Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.",
-          "type": "string",
-          "const": "Car"
-        },
-        {
-          "description": "Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.",
-          "type": "string",
-          "const": "SpiralStairs"
-        },
-        {
-          "description": "Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.",
-          "type": "string",
-          "const": "LStairs"
         },
         {
           "description": "Bouleau.",
@@ -1134,6 +1113,16 @@
           "const": "AppleTree"
         },
         {
+          "description": "Plante d'intérieur en pot.",
+          "type": "string",
+          "const": "Plant"
+        },
+        {
+          "description": "Buisson rond.",
+          "type": "string",
+          "const": "Bush"
+        },
+        {
           "description": "Massif de fleurs.",
           "type": "string",
           "const": "Flowers"
@@ -1149,14 +1138,39 @@
           "const": "Sunflower"
         },
         {
-          "description": "Lampadaire de rue de 4,5 m qui éclaire réellement ; la lanterne avance vers l'avant de l'objet\n(à tourner vers la chaussée). Un tous les 10 à 15 m sur un trottoir.",
+          "description": "Module de haie de 2 m de long (axe gauche-droite de l'objet). Aligner des modules tous les 2 m pour une haie continue ; `rot` 90 pour une haie nord-sud.",
           "type": "string",
-          "const": "StreetLamp"
+          "const": "Hedge"
         },
         {
-          "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",
+          "description": "Module de clôture de 2 m de long, à aligner comme la haie.",
           "type": "string",
-          "const": "Shelf"
+          "const": "Fence"
+        },
+        {
+          "description": "Escalier droit qui monte vers l'avant sur `height` mètres (3 = un étage). Le palier d'arrivée doit tomber dans un sol de l'étage au-dessus.",
+          "type": "string",
+          "const": "Stairs"
+        },
+        {
+          "description": "Escalier en colimaçon qui monte de `height` mètres, encombrement réduit.",
+          "type": "string",
+          "const": "SpiralStairs"
+        },
+        {
+          "description": "Escalier quart tournant : une volée vers l'avant jusqu'à un palier, puis une volée vers le +x local de l'objet (l'est à rot 0), sur `height` mètres.",
+          "type": "string",
+          "const": "LStairs"
+        },
+        {
+          "description": "Pilier carré de 30 cm, haut de `height` mètres (portique, auvent, véranda).",
+          "type": "string",
+          "const": "Pillar"
+        },
+        {
+          "description": "Berline de 4,2 m que l'on peut conduire pendant la visite ; à poser sur une route ou une allée.",
+          "type": "string",
+          "const": "Car"
         }
       ]
     },
@@ -1223,7 +1237,7 @@
           "format": "float"
         },
         "color": {
-          "description": "Couleur du cadre et du battant `[r, g, b]`.",
+          "description": "Teinte `[r, g, b]` de la partie principale (battant d'une porte, cadre d'une fenêtre).",
           "type": "array",
           "items": {
             "type": "number",
@@ -1231,6 +1245,20 @@
           },
           "minItems": 3,
           "maxItems": 3
+        },
+        "texture": {
+          "description": "Matière de la partie principale (`maison3d textures`), 0 = aucune.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 0
+        },
+        "finishes": {
+          "description": "Finitions des parties suivantes (`maison3d catalog` : `parts`), à partir de la partie 1 ;\nune partie absente garde sa finition d'origine.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Finish"
+          }
         }
       },
       "additionalProperties": false,
@@ -1240,6 +1268,33 @@
         "width",
         "height",
         "sill",
+        "color"
+      ]
+    },
+    "Finish": {
+      "description": "Teinte et matière d'une partie d'un objet ou d'une ouverture.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "Teinte `[r, g, b]`, multipliée par la texture.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "texture": {
+          "description": "Matière (`maison3d textures`), 0 = aucune.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
         "color"
       ]
     },

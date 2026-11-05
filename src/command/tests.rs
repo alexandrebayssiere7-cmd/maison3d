@@ -148,7 +148,7 @@ fn missing_targets_are_refused() {
             Command::Move { target, by: Vec2::X },
             Command::Duplicate { target, by: Vec2::X },
             Command::Rotate { target, deg: 90.0 },
-            Command::Paint { target, color: None, texture: None },
+            Command::Paint { target, part: 0, color: None, texture: None },
         ] {
             assert!(matches!(h.apply(c), Err(EditError::NotFound(t, 0)) if t == target));
         }
@@ -227,13 +227,55 @@ fn rotate_wraps_and_only_applies_to_props() {
 fn paint_sets_color_and_texture_when_given() {
     let mut h = furnished();
     let red = [1.0, 0.0, 0.0];
-    h.apply(Command::Paint { target: ElemRef::Slab(0), color: Some(red), texture: Some(3) }).unwrap();
+    h.apply(Command::Paint { target: ElemRef::Slab(0), part: 0, color: Some(red), texture: Some(3) }).unwrap();
     assert_eq!((h.slabs[0].color, h.slabs[0].texture), (red, 3));
-    h.apply(Command::Paint { target: ElemRef::Slab(0), color: None, texture: Some(5) }).unwrap();
+    h.apply(Command::Paint { target: ElemRef::Slab(0), part: 0, color: None, texture: Some(5) }).unwrap();
     assert_eq!((h.slabs[0].color, h.slabs[0].texture), (red, 5));
-    // une ouverture n'a pas de texture : seule la couleur change
-    h.apply(Command::Paint { target: ElemRef::Opening(0, 0), color: Some(red), texture: Some(5) }).unwrap();
-    assert_eq!(h.walls[0].openings[0].color, red);
+    h.apply(Command::Paint { target: ElemRef::Opening(0, 0), part: 0, color: Some(red), texture: Some(5) }).unwrap();
+    assert_eq!((h.walls[0].openings[0].color, h.walls[0].openings[0].texture), (red, 5));
+}
+
+#[test]
+fn paint_reaches_each_part_and_refuses_missing_ones() {
+    let mut h = furnished();
+    let i = h.props.len();
+    h.apply(json(r#"{"op":"place_prop","kind":"Car","pos":[30,30],"level":0}"#)).unwrap();
+    let car = ElemRef::Prop(i);
+    let tyres = PropKind::Car.slots().len() - 1;
+    h.apply(Command::Paint { target: car, part: tyres, color: Some([1.0, 1.0, 0.0]), texture: None }).unwrap();
+    assert_eq!(h.props[i].finish(tyres).color, [1.0, 1.0, 0.0]);
+    assert_eq!(h.props[i].color, PropKind::Car.default_color(), "la carrosserie ne change pas");
+    let before = h.clone();
+    let err = h.apply(Command::Paint { target: car, part: tyres + 1, color: Some([0.0; 3]), texture: None });
+    assert!(matches!(err, Err(EditError::NoSuchPart { count, .. }) if count == tyres + 1));
+    let err = h.apply(Command::Paint { target: ElemRef::Wall(0), part: 1, color: Some([0.0; 3]), texture: None });
+    assert!(matches!(err, Err(EditError::NoSuchPart { count: 1, .. })));
+    assert_eq!(h, before, "un refus laisse la maison intacte");
+    // la partie est facultative en JSON
+    h.apply(json(r#"{"op":"paint","target":{"Opening":[0,0]},"color":[0,0,1]}"#)).unwrap();
+    assert_eq!(h.walls[0].openings[0].color, [0.0, 0.0, 1.0]);
+}
+
+#[test]
+fn finishes_given_by_add_or_set_are_validated() {
+    let mut h = furnished();
+    let i = h.props.len();
+    let sofa = r#"{"op":"add_prop","kind":"Sofa","pos":[30,30],"level":0,"rot":0,"color":[1,1,1],"texture":0,"height":3,"finishes":[{"color":[0,0,0]}]}"#;
+    h.apply(json(sofa)).unwrap();
+    assert_eq!(h.props[i].finish(1).color, [0.0; 3]);
+    let two = serde_json::json!({ "finishes": [{"color": [0, 0, 0]}, {"color": [0, 0, 0]}] });
+    let set = |fields: serde_json::Value| Command::Set {
+        target: ElemRef::Prop(i),
+        fields: serde_json::from_value(fields).unwrap(),
+    };
+    assert!(matches!(h.apply(set(two)), Err(EditError::TooManyFinishes { count: 2, max: 1 })));
+    let bad = serde_json::json!({ "finishes": [{"color": [2, 0, 0]}] });
+    assert!(matches!(h.apply(set(bad)), Err(EditError::BadColor(_))));
+    let line = serde_json::json!({ "height": 50 });
+    assert!(
+        matches!(h.apply(set(line)), Err(EditError::OutOfRange { field: "height", .. })),
+        "30 m au plus hors tracés"
+    );
 }
 
 #[test]
@@ -279,7 +321,7 @@ fn every_command_roundtrips_through_json() {
         Command::Move { target: ElemRef::Road(0), by: Vec2::new(0.5, -1.0) },
         Command::Duplicate { target: ElemRef::Pool(0), by: Vec2::Y },
         Command::Rotate { target: ElemRef::Prop(0), deg: -90.0 },
-        Command::Paint { target: ElemRef::Wall(0), color: Some([0.1, 0.2, 0.3]), texture: None },
+        Command::Paint { target: ElemRef::Wall(0), part: 0, color: Some([0.1, 0.2, 0.3]), texture: None },
         Command::PlaceRow { kind: PropKind::Hedge, from: Vec2::ZERO, to: Vec2::X, step: 2.0, level: 0, rot: None },
         Command::Set { target: ElemRef::Prop(0), fields: serde_json::from_str(r#"{"height": 2}"#).unwrap() },
     ];
@@ -503,8 +545,9 @@ mod props {
             }),
             (prop::sample::select(&PropKind::ALL[..]), v2(), v2(), 0.5f32..5.0, level)
                 .prop_map(|(kind, from, to, step, level)| Command::PlaceRow { kind, from, to, step, level, rot: None }),
-            (target(), any::<bool>(), 0..10usize).prop_map(|(target, c, t)| Command::Paint {
+            (target(), any::<bool>(), 0..10usize, 0..8usize).prop_map(|(target, c, t, part)| Command::Paint {
                 target,
+                part,
                 color: c.then_some([0.5, 0.2, 0.1]),
                 texture: Some(t),
             }),

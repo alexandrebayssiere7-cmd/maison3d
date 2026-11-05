@@ -19,7 +19,7 @@ use std::fmt::Write;
 use bevy::math::Vec3;
 
 use crate::command::{Command, EditError};
-use crate::model::{ElemRef, House, OpeningKind, PropKind, RoofKind, WorldError};
+use crate::model::{ElemRef, House, OpeningKind, PropKind, RoofKind, Slot, WorldError};
 
 mod describe;
 mod shot;
@@ -291,6 +291,10 @@ fn help(op: &str) -> Option<String> {
     Some(s)
 }
 
+fn part_names(slots: &[Slot]) -> Vec<&'static str> {
+    slots.iter().map(|s| s.name).collect()
+}
+
 /// Dimensions par défaut de tout ce que les commandes `place_*` savent poser.
 fn catalog() -> serde_json::Value {
     // en f64 pour que le JSON affiche 1.6 et non 1.600000023841858
@@ -300,8 +304,8 @@ fn catalog() -> serde_json::Value {
         .map(|&k| {
             let s: Vec3 = k.size();
             serde_json::json!({
-                "kind": k, "name": k.name(), "size": [r2(s.x), r2(s.y), r2(s.z)],
-                "outdoor": k.outdoor(), "has_height": k.has_height(),
+                "kind": k, "name": k.name(), "category": k.category().name(), "size": [r2(s.x), r2(s.y), r2(s.z)],
+                "outdoor": k.outdoor(), "dim": k.dim(), "parts": part_names(k.slots()),
             })
         })
         .collect();
@@ -309,12 +313,15 @@ fn catalog() -> serde_json::Value {
         .iter()
         .map(|&k| {
             let (width, height, sill) = k.default_dims();
-            serde_json::json!({ "kind": k, "name": k.name(), "width": r2(width), "height": r2(height), "sill": r2(sill) })
+            serde_json::json!({
+                "kind": k, "name": k.name(), "width": r2(width), "height": r2(height), "sill": r2(sill),
+                "parts": part_names(k.slots()),
+            })
         })
         .collect();
     let roofs: Vec<_> = RoofKind::ALL.iter().map(|&k| serde_json::json!({ "kind": k, "name": k.name() })).collect();
     serde_json::json!({
-        "note": "size = [largeur x, profondeur z, hauteur] en mètres à rot 0, avant vers +z ; outdoor = posé sur le relief ; has_height = hauteur réglable (champ height de add_prop)",
+        "note": "size = [largeur x, profondeur z, hauteur] en mètres à rot 0, avant vers +z ; outdoor = posé sur le relief ; dim = ce que règle le champ height (hauteur, longueur, rayon), null s'il ne sert pas ; parts = parties colorables, dans l'ordre des indices `part` de paint (0 = color/texture de l'élément)",
         "props": props, "openings": openings, "roofs": roofs,
     })
 }
@@ -333,6 +340,16 @@ mod tests {
         let c = catalog();
         assert_eq!(c["props"].as_array().map(Vec::len), Some(PropKind::ALL.len()));
         assert_eq!(c["openings"][0]["kind"], "Door");
+        assert_eq!(c["openings"][0]["parts"][2], "Poignée");
+        let sofa = &c["props"][2];
+        assert_eq!(
+            (&sofa["kind"], &sofa["category"], &sofa["parts"][1]),
+            (&"Sofa".into(), &"Salon".into(), &"Pieds".into())
+        );
+        assert_eq!(
+            c["props"].as_array().and_then(|p| p.iter().find(|p| p["kind"] == "Stairs")).map(|s| &s["dim"]),
+            Some(&"hauteur".into())
+        );
         assert!(PropKind::ALL.iter().all(|&k| k.size().min_element() > 0.0));
     }
 
