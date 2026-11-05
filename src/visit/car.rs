@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
-use super::collide::{camera_clearance, floor_at, push_out};
+use super::collide::{camera_clearance, push_out, support_height};
 use super::{VisitInput, Visitor, lerp_angle, yaw_facing};
 use crate::editor::Editor;
 use crate::model::{ElemRef, House, Part, Prop, Shape, prop_parts};
@@ -13,54 +13,187 @@ use crate::model::{ElemRef, House, Part, Prop, Shape, prop_parts};
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Car {
     prop: usize,
+    /// Point de la caisse au niveau du sol, sous son centre.
     pos: Vec3,
+    vel: Vec3,
     heading: f32,
-    /// m/s, négatif en marche arrière.
-    speed: f32,
+    /// Tangage (nez vers le haut > 0) et roulis (côté +x vers le haut > 0), suivant le sol.
+    pitch: f32,
+    roll: f32,
     steer: f32,
     /// Rotation des roues (pour l'affichage).
     spin: f32,
+    grounded: bool,
+    /// Débattement de suspension de chaque roue (ordre de `WHEELS`), pour l'affichage.
+    drop: [f32; 4],
     /// Temps sans bouger la souris : la caméra se recale alors derrière la voiture.
     look_idle: f32,
+}
+
+/// Commandes du conducteur : accélérateur (-1 frein / marche arrière .. 1), volant (1 = gauche), frein à main.
+struct DriveInput {
+    throttle: f32,
+    steer: f32,
+    handbrake: bool,
 }
 
 const MAX_SPEED: f32 = 33.0;
 const MAX_REVERSE: f32 = 6.0;
 const WHEELBASE: f32 = 2.7;
+const TRACK: f32 = 1.64;
 const WHEEL_RADIUS: f32 = 0.34;
+/// Position (x, z) des roues dans le repère de la voiture : avant gauche, avant droite, arrière gauche, arrière droite.
+const WHEELS: [(f32, f32); 4] = [(-0.82, 1.35), (0.82, 1.35), (-0.82, -1.35), (0.82, -1.35)];
 const DRIVE_BOOM: f32 = 6.5;
+const G: f32 = 9.81;
 
 fn car_tf(c: &Car) -> Transform {
-    Transform::from_translation(c.pos).with_rotation(Quat::from_rotation_y(c.heading))
+    let rot = Quat::from_rotation_y(c.heading) * Quat::from_rotation_x(-c.pitch) * Quat::from_rotation_z(c.roll);
+    Transform::from_translation(c.pos).with_rotation(rot)
 }
 
 impl Car {
+    fn new(prop: usize, pos: Vec3, heading: f32) -> Self {
+        Car {
+            prop,
+            pos,
+            vel: Vec3::ZERO,
+            heading,
+            pitch: 0.0,
+            roll: 0.0,
+            steer: 0.0,
+            spin: 0.0,
+            grounded: false,
+            drop: [0.0; 4],
+            look_idle: 2.0,
+        }
+    }
+
     fn forward(&self) -> Vec3 {
         Vec3::new(self.heading.sin(), 0.0, self.heading.cos())
     }
 
-    /// Moteur, freins et direction (modèle « bicyclette »), puis collisions et sol.
-    fn advance(&mut self, throttle: f32, steer_in: f32, handbrake: bool, solids: &[Transform], house: &House, dt: f32) {
-        self.speed = car_speed(self.speed, throttle, handbrake, dt);
-        // la direction braque moins à haute vitesse
-        let max_steer = 0.6 / (1.0 + self.speed.abs() * 0.1);
-        self.steer += (steer_in * max_steer - self.steer) * (1.0 - (-6.0 * dt).exp());
-        self.heading += self.speed / WHEELBASE * self.steer.tan() * dt;
-        let f = self.forward();
-        let mut pos = self.pos + f * self.speed * dt;
-        if collide_body(&mut pos, f, solids) && self.speed.abs() > 0.5 {
-            // choc : la voiture rebondit et perd l'essentiel de sa vitesse
-            self.speed *= -0.3;
+    /// Vitesse au sol, en m/s.
+    fn speed(&self) -> f32 {
+        Vec2::new(self.vel.x, self.vel.z).length()
+    }
+
+    #[cfg(test)]
+    fn forward_speed(&self) -> f32 {
+        self.vel.dot(self.forward())
+    }
+
+    /// Un pas de conduite, découpé en petits pas : suspension et collisions restent stables même à 120 km/h.
+    fn advance(&mut self, input: &DriveInput, solids: &[Transform], house: &House, dt: f32) {
+        let support = |p: Vec2, y: f32| support_height(p, y, house.ground(p), solids);
+        for _ in 0..4 {
+            self.step(input, dt / 4.0, &support, solids);
         }
-        pos.y = floor_at(pos, solids, house.ground(Vec2::new(pos.x, pos.z)));
+    }
+
+    /// Un pas de physique : la caisse repose sur ses quatre roues qui suivent le sol (relief, dalles,
+    /// routes), la gravité la fait retomber après une bosse, les pentes freinent ou accélèrent,
+    /// les pneus adhèrent latéralement (sauf au frein à main) et les obstacles l'arrêtent.
+    /// `support(xz, y)` donne la hauteur du sol franchissable sous un point.
+    fn step(&mut self, input: &DriveInput, dt: f32, support: &dyn Fn(Vec2, f32) -> f32, solids: &[Transform]) {
+        let ground_before = self.wheel_ground(self.pos, support).iter().sum::<f32>() / 4.0;
+        if self.grounded {
+            self.roll_on_ground(input, dt);
+        }
+        self.vel.y -= G * dt;
+        let mut pos = self.pos + self.vel * dt;
+        let pushed = collide_body(&mut pos, self.forward(), solids);
+        self.bounce(pushed);
+        let h = self.wheel_ground(pos, support);
+        self.settle(pos, h, ground_before, dt);
+        self.suspend(h, dt);
+    }
+
+    /// Hauteur du sol sous chaque roue, la caisse étant en `pos`.
+    fn wheel_ground(&self, pos: Vec3, support: &dyn Fn(Vec2, f32) -> f32) -> [f32; 4] {
+        let yaw = Quat::from_rotation_y(self.heading);
+        WHEELS.map(|(x, z)| {
+            let p = pos + yaw * Vec3::new(x, 0.0, z);
+            support(Vec2::new(p.x, p.z), pos.y)
+        })
+    }
+
+    /// Moteur, freins, pente, direction (modèle « bicyclette ») et adhérence des pneus.
+    fn roll_on_ground(&mut self, input: &DriveInput, dt: f32) {
+        let yaw = Quat::from_rotation_y(self.heading);
+        let (mut v_f, mut v_s) = (self.vel.dot(yaw * Vec3::Z), self.vel.dot(yaw * Vec3::X));
+        v_f = car_speed(v_f, input.throttle, input.handbrake, dt);
+        // la pente tire la voiture vers le bas
+        v_f -= G * self.pitch.sin() * dt;
+        // la direction braque moins à haute vitesse
+        let max_steer = 0.6 / (1.0 + v_f.abs() * 0.1);
+        self.steer += (input.steer * max_steer - self.steer) * (1.0 - (-6.0 * dt).exp());
+        self.heading += v_f / WHEELBASE * self.steer.tan() * dt;
+        // adhérence latérale : forte, sauf roues bloquées au frein à main (dérapage)
+        let grip = if input.handbrake { 2.5 } else { 14.0 } * dt;
+        v_s -= v_s.clamp(-grip, grip);
+        let yaw = Quat::from_rotation_y(self.heading);
+        let h = yaw * Vec3::Z * v_f + yaw * Vec3::X * v_s;
+        self.vel.x = h.x;
+        self.vel.z = h.z;
+        self.spin = (self.spin + v_f * dt / WHEEL_RADIUS) % TAU;
+    }
+
+    /// Choc contre un obstacle (repoussée de `pushed`) : on annule la vitesse vers lui avec un
+    /// petit rebond, et on perd de l'élan.
+    fn bounce(&mut self, pushed: Vec3) {
+        if pushed.length_squared() <= 1e-10 {
+            return;
+        }
+        let n = pushed.normalize();
+        let vn = self.vel.dot(n);
+        if vn < 0.0 {
+            self.vel -= n * vn * 1.3;
+            self.vel.x *= 0.8;
+            self.vel.z *= 0.8;
+        }
+    }
+
+    /// Contact avec le sol `h` (sous chaque roue) : jamais en dessous ; en montée la caisse est
+    /// portée vers le haut, et décolle si le sol se dérobe d'un coup, en haut d'une bosse.
+    fn settle(&mut self, mut pos: Vec3, h: [f32; 4], ground_before: f32, dt: f32) {
+        // la roue la plus enfoncée porte la caisse : aucune ne passe sous le sol
+        let tilted = car_tf(&Car { pos, ..*self });
+        let deficit = WHEELS
+            .iter()
+            .zip(h)
+            .map(|(&(x, z), g)| g - tilted.transform_point(Vec3::new(x, 0.0, z)).y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        self.grounded = deficit >= -0.02;
+        if self.grounded {
+            // au contact, la caisse est plaquée sur ses roues (y compris en descente)
+            pos.y += deficit;
+            // à l'atterrissage la suspension absorbe la chute ; en montée on garde l'élan vertical
+            let ground = h.iter().sum::<f32>() / 4.0;
+            self.vel.y = ((ground - ground_before) / dt).clamp(0.0, 12.0);
+            let (front, back) = (f32::midpoint(h[0], h[1]), f32::midpoint(h[2], h[3]));
+            let (left, right) = (f32::midpoint(h[0], h[2]), f32::midpoint(h[1], h[3]));
+            let k = 1.0 - (-14.0 * dt).exp();
+            self.pitch += (((front - back) / WHEELBASE).atan() - self.pitch) * k;
+            self.roll += (((right - left) / TRACK).atan() - self.roll) * k;
+        }
         self.pos = pos;
-        self.spin = (self.spin + self.speed * dt / WHEEL_RADIUS) % TAU;
+    }
+
+    /// Chaque roue descend ou remonte pour toucher le sol `h` (suspension), dans la limite du débattement.
+    fn suspend(&mut self, h: [f32; 4], dt: f32) {
+        let body = car_tf(self);
+        for (i, &(x, z)) in WHEELS.iter().enumerate() {
+            let contact = body.transform_point(Vec3::new(x, 0.0, z));
+            let target = if self.grounded { (h[i] - contact.y).clamp(-0.2, 0.2) } else { -0.15 };
+            self.drop[i] += (target - self.drop[i]) * (1.0 - (-20.0 * dt).exp());
+        }
     }
 }
 
-/// Carrosserie approchée par quatre cercles alignés sur sa longueur ; vrai si elle a touché.
-fn collide_body(pos: &mut Vec3, f: Vec3, solids: &[Transform]) -> bool {
-    let mut hit = false;
+/// Carrosserie approchée par quatre cercles alignés sur sa longueur ; renvoie de combien elle a été repoussée.
+fn collide_body(pos: &mut Vec3, f: Vec3, solids: &[Transform]) -> Vec3 {
+    let mut pushed = Vec3::ZERO;
     for _ in 0..2 {
         for o in [-1.45, -0.5, 0.5, 1.45] {
             let c0 = *pos + f * o;
@@ -68,27 +201,17 @@ fn collide_body(pos: &mut Vec3, f: Vec3, solids: &[Transform]) -> bool {
             for tf in solids {
                 push_out(&mut c, tf, 0.85, 1.4);
             }
-            if c != c0 {
-                *pos += c - c0;
-                hit = true;
-            }
+            *pos += c - c0;
+            pushed += c - c0;
         }
     }
-    hit
+    pushed
 }
 
 impl Visitor {
     /// Monte dans la voiture `i` du plan.
     pub(super) fn board(&mut self, i: usize, p: &Prop, ed: &mut Editor) {
-        self.car = Some(Car {
-            prop: i,
-            pos: Vec3::new(p.pos.x, ed.house.prop_y(p), p.pos.y),
-            heading: p.rot.to_radians(),
-            speed: 0.0,
-            steer: 0.0,
-            spin: 0.0,
-            look_idle: 2.0,
-        });
+        self.car = Some(Car::new(i, Vec3::new(p.pos.x, ed.house.prop_y(p), p.pos.y), p.rot.to_radians()));
         ed.driving = Some(i);
         ed.dirty = true;
         self.boom_cur = 1.0;
@@ -103,9 +226,10 @@ impl Visitor {
         solids: &[Transform],
         dt: f32,
     ) -> Transform {
-        car.advance(inp.mv.y, -inp.mv.x, inp.handbrake, solids, &ed.house, dt);
+        let input = DriveInput { throttle: inp.mv.y, steer: -inp.mv.x, handbrake: inp.handbrake };
+        car.advance(&input, solids, &ed.house, dt);
         let cam = self.car_camera(&mut car, &ed.parts, &ed.house, inp.look, dt);
-        self.speed_kmh = Some(car.speed.abs() * 3.6);
+        self.speed_kmh = Some(car.speed() * 3.6);
         self.target = None;
         self.actions = vec![
             "Z / S : accélérer, freiner, reculer",
@@ -132,7 +256,7 @@ impl Visitor {
         }
         let look = self.look();
         let body = car_tf(car);
-        self.fov += (0.8 + 0.25 * (car.speed.abs() / MAX_SPEED).min(1.0) - self.fov) * (1.0 - (-3.0 * dt).exp());
+        self.fov += (0.8 + 0.25 * (car.speed() / MAX_SPEED).min(1.0) - self.fov) * (1.0 - (-3.0 * dt).exp());
         if !self.third {
             // place conducteur, à gauche
             return Transform::from_translation(body.transform_point(Vec3::new(0.4, 1.25, -0.25))).with_rotation(look);
@@ -195,13 +319,14 @@ pub struct CarBody;
 #[derive(Component)]
 pub struct CarWheel {
     base: Transform,
-    front: bool,
+    /// Indice dans `WHEELS` (0 et 1 = roues avant, directrices).
+    index: usize,
 }
 
 impl CarWheel {
     /// Braquage (roues avant) et rotation de la roue autour de son axe.
     fn rotation(&self, car: &Car) -> Quat {
-        let steer = if self.front { car.steer } else { 0.0 };
+        let steer = if self.index < 2 { car.steer } else { 0.0 };
         Quat::from_rotation_y(steer) * Quat::from_rotation_x(car.spin) * self.base.rotation
     }
 }
@@ -227,6 +352,7 @@ pub fn sync_car(
         *tf = car_tf(&car);
         for (w, mut t) in &mut wheels {
             t.rotation = w.rotation(&car);
+            t.translation = w.base.translation + Vec3::Y * car.drop[w.index];
         }
     } else if let Some(p) = ed.house.props.get(car.prop) {
         spawn_car(&mut commands, &mut lib, &mut meshes, &mut materials, &car, p);
@@ -250,7 +376,8 @@ fn spawn_car(
             let base = bundle.2;
             let mut e = root.spawn(bundle);
             if part.shape == Shape::Wheel {
-                e.insert(CarWheel { base, front: part.tf.translation.z > 0.0 });
+                let (x, z) = (part.tf.translation.x, part.tf.translation.z);
+                e.insert(CarWheel { base, index: if z > 0.0 { 0 } else { 2 } + usize::from(x > 0.0) });
             }
         }
     });
@@ -290,6 +417,61 @@ mod tests {
         assert!(r < 0.0 && r > -MAX_REVERSE);
     }
 
+    /// Roule `secs` secondes plein gaz vers l'avant (+z) ; vérifie à chaque pas que la caisse
+    /// et chaque roue restent au-dessus du sol. Renvoie la voiture et la hauteur max de vol.
+    fn drive_on(ground: &dyn Fn(Vec2) -> f32, secs: f32, solids: &[Transform]) -> (Car, f32) {
+        let mut car = Car::new(0, Vec3::new(0.0, ground(Vec2::ZERO), 0.0), 0.0);
+        let input = DriveInput { throttle: 1.0, steer: 0.0, handbrake: false };
+        let support = |p: Vec2, _y: f32| ground(p);
+        let mut max_air: f32 = 0.0;
+        for _ in 0..(secs * 240.0) as usize {
+            car.step(&input, 1.0 / 240.0, &support, solids);
+            let under = ground(Vec2::new(car.pos.x, car.pos.z));
+            assert!(car.pos.y >= under - 0.06, "sous le sol : {} < {under}", car.pos.y);
+            for (x, z) in WHEELS {
+                let c = car_tf(&car).transform_point(Vec3::new(x, 0.0, z));
+                assert!(c.y >= ground(Vec2::new(c.x, c.z)) - 0.25, "roue enterrée");
+            }
+            max_air = max_air.max(car.pos.y - under);
+        }
+        (car, max_air)
+    }
+
+    #[test]
+    fn car_climbs_a_hill_tilted_and_never_clips() {
+        // pente de 25 % (14°) qui commence à z = 5
+        let hill = |p: Vec2| ((p.y - 5.0) * 0.25).max(0.0);
+        let (car, _) = drive_on(&hill, 6.0, &[]);
+        assert!(car.pos.z > 30.0, "n'a pas monté : {}", car.pos.z);
+        assert!((car.pitch - 0.25f32.atan()).abs() < 0.03, "caisse pas inclinée : {}", car.pitch);
+        assert!(car.forward_speed() < 25.0, "la pente doit freiner : {}", car.forward_speed());
+    }
+
+    #[test]
+    fn car_jumps_off_a_ramp_and_lands() {
+        // tremplin de 2 m entre z = 30 et z = 35, puis le sol retombe d'un coup
+        let ramp = |p: Vec2| if (30.0..35.0).contains(&p.y) { (p.y - 30.0) * 0.4 } else { 0.0 };
+        let (car, max_air) = drive_on(&ramp, 6.0, &[]);
+        assert!(max_air > 0.5, "aucun saut : {max_air}");
+        assert!(car.grounded && car.pos.y.abs() < 0.03, "pas retombé : {}", car.pos.y);
+    }
+
+    #[test]
+    fn parked_car_on_flat_ground_stays_put_and_walls_stop_it() {
+        let flat = |_: Vec2| 0.0;
+        let mut car = Car::new(0, Vec3::ZERO, 0.0);
+        let idle = DriveInput { throttle: 0.0, steer: 0.0, handbrake: false };
+        for _ in 0..240 {
+            car.step(&idle, 1.0 / 120.0, &|p, _| flat(p), &[]);
+        }
+        assert!(car.vel.length() < 1e-3 && car.pos.length() < 1e-3, "{:?} {:?}", car.pos, car.vel);
+        // mur de 3 m de haut en travers à z = 15
+        let wall = [Transform::from_xyz(0.0, 1.5, 15.0).with_scale(Vec3::new(20.0, 3.0, 0.3))];
+        let (car, _) = drive_on(&flat, 5.0, &wall);
+        assert!(car.pos.z + 1.45 < 15.0, "a traversé le mur : {}", car.pos.z);
+        assert!(car.forward_speed() < 5.0);
+    }
+
     #[test]
     fn car_parts_and_parking() {
         let mut ed = Editor::default();
@@ -301,15 +483,7 @@ mod tests {
             .count();
         assert_eq!(wheels, 4);
         ed.driving = Some(i);
-        let car = Car {
-            prop: i,
-            pos: Vec3::new(20.0, 0.0, 5.0),
-            heading: FRAC_PI_2,
-            speed: 0.0,
-            steer: 0.0,
-            spin: 0.0,
-            look_idle: 0.0,
-        };
+        let car = Car::new(i, Vec3::new(20.0, 0.0, 5.0), FRAC_PI_2);
         park(&car, &mut ed);
         assert_eq!(ed.house.props[i].pos, Vec2::new(20.0, 5.0));
         assert!((ed.house.props[i].rot - 90.0).abs() < 1e-3);
