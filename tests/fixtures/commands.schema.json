@@ -1063,6 +1063,56 @@
           "const": "Fridge"
         },
         {
+          "description": "Îlot central (1,9 × 1 × 0,92 m) : placards ouvrables à l'avant, plan de travail qui déborde\nde 40 cm à l'arrière pour s'y asseoir (tabourets `BarStool` non compris, à poser côté arrière).\nAu milieu de la cuisine, à 1 m au moins des meubles muraux.",
+          "type": "string",
+          "const": "KitchenIsland"
+        },
+        {
+          "description": "Meuble bas de cuisine, module de 60 × 62 × 90 cm plan de travail compris, porte qui s'ouvre ;\ndos contre un mur, à aligner tous les 60 cm avec `Range` et `Dishwasher` (même gabarit).",
+          "type": "string",
+          "const": "BaseCabinet"
+        },
+        {
+          "description": "Meuble haut de cuisine (60 × 38 cm), fixé au mur entre 1,4 et 2,1 m, porte qui s'ouvre ; dos\ncontre un mur, au-dessus des meubles bas, à aligner tous les 60 cm.",
+          "type": "string",
+          "const": "WallCabinet"
+        },
+        {
+          "description": "Cuisinière (60 × 60 × 90 cm) : quatre foyers, boutons à l'avant, four dont la porte s'abat\nvers l'avant ; dos contre un mur, alignée avec les meubles bas, `RangeHood` au-dessus.",
+          "type": "string",
+          "const": "Range"
+        },
+        {
+          "description": "Colonne four (60 × 60 × 220 cm) : placard bas, four encastré à abattant, micro-ondes et\nplacard haut ; dos contre un mur, en bout de rangée de meubles bas.",
+          "type": "string",
+          "const": "OvenTower"
+        },
+        {
+          "description": "Lave-vaisselle (60 × 60 × 85 cm), porte qui s'abat vers l'avant sur deux paniers garnis ;\ndos contre un mur, aligné avec les meubles bas.",
+          "type": "string",
+          "const": "Dishwasher"
+        },
+        {
+          "description": "Hotte murale (60 × 50 cm), bas à 1,6 m et cheminée jusqu'à 2,4 m ; dos contre un mur, à la\nmême position que la cuisinière `Range` ou les plaques, au-dessus d'elles.",
+          "type": "string",
+          "const": "RangeHood"
+        },
+        {
+          "description": "Tabouret de bar rond (assise à 72 cm) sur pied central ; autour d'un `KitchenIsland` ou d'un\n`HighTable`, tous les 50 cm environ.",
+          "type": "string",
+          "const": "BarStool"
+        },
+        {
+          "description": "Poubelle de cuisine à pédale (30 cm de diamètre, 66 cm de haut), pédale à l'avant ; contre un\nmur ou au bout d'un meuble bas.",
+          "type": "string",
+          "const": "KitchenBin"
+        },
+        {
+          "description": "Mange-debout rond (70 cm de diamètre, 1,09 m de haut) sur pied central ; avec deux à quatre\ntabourets `BarStool` autour.",
+          "type": "string",
+          "const": "HighTable"
+        },
+        {
           "description": "Baignoire.",
           "type": "string",
           "const": "Bathtub"
@@ -1071,6 +1121,46 @@
           "description": "WC ; réservoir à l'arrière, contre un mur.",
           "type": "string",
           "const": "Toilet"
+        },
+        {
+          "description": "Douche à l'italienne (1,4 × 0,9 m) : receveur extra-plat, paroi de verre fixe sur la gauche\nde l'avant (entrée de 60 cm à droite), colonne et pommeau contre le mur du fond ; dos contre un\nmur, idéalement dans un angle côté gauche.",
+          "type": "string",
+          "const": "WalkInShower"
+        },
+        {
+          "description": "Cabine de douche vitrée (90 × 90 × 210 cm), paroi pleine au fond, porte vitrée qui s'ouvre à\nl'avant ; dos contre un mur, souvent dans un angle.",
+          "type": "string",
+          "const": "ShowerCabin"
+        },
+        {
+          "description": "Lavabo sur colonne (56 × 45 cm, plan à 86 cm), robinet à l'arrière ; dos contre un mur.",
+          "type": "string",
+          "const": "Washbasin"
+        },
+        {
+          "description": "Meuble vasque (82 × 48 cm) : deux portes ouvrables, vasque à poser, mitigeur et miroir au mur\nau-dessus (1,15 à 1,85 m) ; dos contre un mur.",
+          "type": "string",
+          "const": "VanityUnit"
+        },
+        {
+          "description": "Miroir mural encadré (66 × 86 cm, de 1,07 à 1,93 m de haut, 3 cm d'épaisseur) ; dos contre un\nmur, au-dessus d'un lavabo `Washbasin`.",
+          "type": "string",
+          "const": "Mirror"
+        },
+        {
+          "description": "Sèche-serviettes à barreaux (54 cm de large, de 25 cm à 1,5 m), serviette posée dessus ; dos\ncontre un mur, près de la douche ou de la baignoire.",
+          "type": "string",
+          "const": "TowelRadiator"
+        },
+        {
+          "description": "Lave-linge à hublot (60 × 60 × 85 cm), le hublot s'ouvre à l'avant ; dos contre un mur, dans la\nsalle de bain, la buanderie ou le garage.",
+          "type": "string",
+          "const": "WashingMachine"
+        },
+        {
+          "description": "Panier à linge en osier (42 cm de diamètre, 60 cm de haut) ; dans un coin ou contre un mur.",
+          "type": "string",
+          "const": "Hamper"
         },
         {
           "description": "Étagère ouverte de magasin ou de bibliothèque (1 × 0,4 × 1,8 m), dos contre un mur ou dos à\ndos avec une autre pour former un rayon.",

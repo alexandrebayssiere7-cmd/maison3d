@@ -138,12 +138,66 @@ catalog! {
     Kitchen = "Cuisine", Kitchen, DEDANS;
     /// Réfrigérateur, s'ouvre pendant la visite ; dos contre un mur.
     Fridge = "Frigo", Kitchen, DEDANS;
+    /// Îlot central (1,9 × 1 × 0,92 m) : placards ouvrables à l'avant, plan de travail qui déborde
+    /// de 40 cm à l'arrière pour s'y asseoir (tabourets `BarStool` non compris, à poser côté arrière).
+    /// Au milieu de la cuisine, à 1 m au moins des meubles muraux.
+    KitchenIsland = "Îlot central", Kitchen, DEDANS;
+    /// Meuble bas de cuisine, module de 60 × 62 × 90 cm plan de travail compris, porte qui s'ouvre ;
+    /// dos contre un mur, à aligner tous les 60 cm avec `Range` et `Dishwasher` (même gabarit).
+    BaseCabinet = "Meuble bas", Kitchen, DEDANS;
+    /// Meuble haut de cuisine (60 × 38 cm), fixé au mur entre 1,4 et 2,1 m, porte qui s'ouvre ; dos
+    /// contre un mur, au-dessus des meubles bas, à aligner tous les 60 cm.
+    WallCabinet = "Meuble haut", Kitchen, DEDANS;
+    /// Cuisinière (60 × 60 × 90 cm) : quatre foyers, boutons à l'avant, four dont la porte s'abat
+    /// vers l'avant ; dos contre un mur, alignée avec les meubles bas, `RangeHood` au-dessus.
+    Range = "Cuisinière", Kitchen, DEDANS;
+    /// Colonne four (60 × 60 × 220 cm) : placard bas, four encastré à abattant, micro-ondes et
+    /// placard haut ; dos contre un mur, en bout de rangée de meubles bas.
+    OvenTower = "Colonne four", Kitchen, DEDANS;
+    /// Lave-vaisselle (60 × 60 × 85 cm), porte qui s'abat vers l'avant sur deux paniers garnis ;
+    /// dos contre un mur, aligné avec les meubles bas.
+    Dishwasher = "Lave-vaisselle", Kitchen, DEDANS;
+    /// Hotte murale (60 × 50 cm), bas à 1,6 m et cheminée jusqu'à 2,4 m ; dos contre un mur, à la
+    /// même position que la cuisinière `Range` ou les plaques, au-dessus d'elles.
+    RangeHood = "Hotte", Kitchen, DEDANS;
+    /// Tabouret de bar rond (assise à 72 cm) sur pied central ; autour d'un `KitchenIsland` ou d'un
+    /// `HighTable`, tous les 50 cm environ.
+    BarStool = "Tabouret de bar", Kitchen, DEDANS;
+    /// Poubelle de cuisine à pédale (30 cm de diamètre, 66 cm de haut), pédale à l'avant ; contre un
+    /// mur ou au bout d'un meuble bas.
+    KitchenBin = "Poubelle de cuisine", Kitchen, DEDANS;
+    /// Mange-debout rond (70 cm de diamètre, 1,09 m de haut) sur pied central ; avec deux à quatre
+    /// tabourets `BarStool` autour.
+    HighTable = "Mange-debout", Kitchen, DEDANS;
 
     // ------------------------------------------------------------ salle de bain
     /// Baignoire.
     Bathtub = "Baignoire", Bathroom, DEDANS;
     /// WC ; réservoir à l'arrière, contre un mur.
     Toilet = "WC", Bathroom, DEDANS;
+    /// Douche à l'italienne (1,4 × 0,9 m) : receveur extra-plat, paroi de verre fixe sur la gauche
+    /// de l'avant (entrée de 60 cm à droite), colonne et pommeau contre le mur du fond ; dos contre un
+    /// mur, idéalement dans un angle côté gauche.
+    WalkInShower = "Douche à l'italienne", Bathroom, DEDANS;
+    /// Cabine de douche vitrée (90 × 90 × 210 cm), paroi pleine au fond, porte vitrée qui s'ouvre à
+    /// l'avant ; dos contre un mur, souvent dans un angle.
+    ShowerCabin = "Cabine de douche", Bathroom, DEDANS;
+    /// Lavabo sur colonne (56 × 45 cm, plan à 86 cm), robinet à l'arrière ; dos contre un mur.
+    Washbasin = "Lavabo sur colonne", Bathroom, DEDANS;
+    /// Meuble vasque (82 × 48 cm) : deux portes ouvrables, vasque à poser, mitigeur et miroir au mur
+    /// au-dessus (1,15 à 1,85 m) ; dos contre un mur.
+    VanityUnit = "Meuble vasque", Bathroom, DEDANS;
+    /// Miroir mural encadré (66 × 86 cm, de 1,07 à 1,93 m de haut, 3 cm d'épaisseur) ; dos contre un
+    /// mur, au-dessus d'un lavabo `Washbasin`.
+    Mirror = "Miroir mural", Bathroom, DEDANS;
+    /// Sèche-serviettes à barreaux (54 cm de large, de 25 cm à 1,5 m), serviette posée dessus ; dos
+    /// contre un mur, près de la douche ou de la baignoire.
+    TowelRadiator = "Sèche-serviettes", Bathroom, DEDANS;
+    /// Lave-linge à hublot (60 × 60 × 85 cm), le hublot s'ouvre à l'avant ; dos contre un mur, dans la
+    /// salle de bain, la buanderie ou le garage.
+    WashingMachine = "Lave-linge", Bathroom, DEDANS;
+    /// Panier à linge en osier (42 cm de diamètre, 60 cm de haut) ; dans un coin ou contre un mur.
+    Hamper = "Panier à linge", Bathroom, DEDANS;
 
     // ------------------------------------------------------------ bureau
 
