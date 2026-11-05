@@ -48,7 +48,10 @@ impl ShotOpts {
                 "--level" => o.level = Some(v.parse().map_err(|_| bad(flag, v))?),
                 "--from" if ["so", "se", "no", "ne"].contains(&v) => o.from = v.into(),
                 "--zone" => match nums(v).as_deref() {
-                    Ok([x0, z0, x1, z1]) => o.zone = Some((Vec2::new(*x0, *z0), Vec2::new(*x1, *z1))),
+                    // `parse` accepte NaN et inf : une zone doit être finie et non vide
+                    Ok(&[x0, z0, x1, z1]) if [x0, z0, x1, z1].iter().all(|n| n.is_finite()) && x0 < x1 && z0 < z1 => {
+                        o.zone = Some((Vec2::new(x0, z0), Vec2::new(x1, z1)));
+                    }
                     _ => return Err(bad(flag, v)),
                 },
                 "--size" => match v.split_once('x').map(|(w, h)| (w.parse(), h.parse())) {
@@ -262,11 +265,15 @@ mod tests {
         for bad in [
             ("--from", Some("haut")),
             ("--zone", Some("1,2")),
+            ("--zone", Some("NaN,0,10,8")),
+            ("--zone", Some("0,0,inf,8")),
+            ("--zone", Some("10,0,0,8")),
+            ("--zone", Some("0,8,10,8")),
             ("--size", Some("10x10")),
             ("--level", None),
             ("--x", Some("1")),
         ] {
-            assert!(opts(&[bad]).is_err(), "{bad:?}");
+            assert!(matches!(opts(&[bad]), Err(CliError::BadOption(_))), "{bad:?}");
         }
     }
 
