@@ -79,6 +79,14 @@
               "format": "uint",
               "minimum": 0,
               "default": null
+            },
+            "name": {
+              "description": "Nom de la pièce (« cuisine », « chambre 1 »), posé en son centre comme `name_room`.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -87,6 +95,61 @@
             "min",
             "max",
             "level"
+          ]
+        },
+        {
+          "description": "Nomme la pièce qui contient le point `at` : l'espace fermé par les murs autour de lui,\ncloisons comprises. `maison3d query` la retrouve ensuite par ce nom. Redonner un nom déjà\npris le déplace. Ne crée ni ne change aucun élément.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "name_room"
+            },
+            "name": {
+              "description": "Nom, 1 à 40 caractères (« cuisine », « chambre 1 »).",
+              "type": "string"
+            },
+            "level": {
+              "description": "Étage (-1 à 9).",
+              "type": "integer",
+              "format": "int32"
+            },
+            "at": {
+              "description": "Un point `[x, z]` à l'intérieur de la pièce, hors des murs.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "name",
+            "level",
+            "at"
+          ]
+        },
+        {
+          "description": "Retire un nom posé par `name_room` (ou par le champ `name` de `room`). Ne change aucun\nélément. Pour renommer : `unname_room`, puis `name_room` avec le nouveau nom.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "unname_room"
+            },
+            "name": {
+              "description": "Nom à retirer, sans tenir compte de la casse ni des accents.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "name"
           ]
         },
         {

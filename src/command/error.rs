@@ -75,6 +75,8 @@ pub enum EditError {
         count: usize,
         max: usize,
     },
+    BadName(String),
+    NoSuchName(String),
 }
 
 impl std::fmt::Display for EditError {
@@ -149,6 +151,10 @@ impl std::fmt::Display for EditError {
             ),
             Self::BadFields(e) => write!(f, "Champs refusés par set : {e}"),
             Self::TooMany { count, max } => write!(f, "{count} objets demandés, {max} au plus par rangée"),
+            Self::NoSuchName(n) => {
+                write!(f, "Aucune pièce nommée « {n} » (noms : `maison3d query <monde.json> rooms`)")
+            }
+            Self::BadName(n) => write!(f, "Nom de pièce « {n} » refusé : 1 à 40 caractères, pas seulement des espaces"),
         }
     }
 }
@@ -190,6 +196,8 @@ mod tests {
             (EditError::UnknownTexture { texture: 99, max: 40 }, "Texture 99"),
             (EditError::BadFields("x".into()), "set : x"),
             (EditError::TooMany { count: 500, max: 200 }, "500 objets"),
+            (EditError::BadName(" ".into()), "1 à 40"),
+            (EditError::NoSuchName("cave".into()), "« cave »"),
         ];
         for (e, needle) in cases {
             let msg = e.to_string();

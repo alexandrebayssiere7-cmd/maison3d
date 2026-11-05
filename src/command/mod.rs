@@ -8,8 +8,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ElemRef, House, LEVEL_H, Opening, OpeningKind, Pool, Prop, PropKind, Rgb, Road, Roof, RoofKind, Side, Slab,
-    WHITE_TEX, Wall, room_walls,
+    ElemRef, House, LEVEL_H, Opening, OpeningKind, Pool, Prop, PropKind, Rgb, Road, Roof, RoofKind, RoomName, Side,
+    Slab, WHITE_TEX, Wall, room_walls, same_name,
 };
 use crate::textures::find;
 
@@ -62,6 +62,27 @@ pub enum Command {
         /// Matière du sol (« Parquet chêne clair » par défaut).
         #[serde(default)]
         floor_texture: Option<usize>,
+        /// Nom de la pièce (« cuisine », « chambre 1 »), posé en son centre comme `name_room`.
+        #[serde(default)]
+        name: Option<String>,
+    },
+    /// Nomme la pièce qui contient le point `at` : l'espace fermé par les murs autour de lui,
+    /// cloisons comprises. `maison3d query` la retrouve ensuite par ce nom. Redonner un nom déjà
+    /// pris le déplace. Ne crée ni ne change aucun élément.
+    NameRoom {
+        /// Nom, 1 à 40 caractères (« cuisine », « chambre 1 »).
+        name: String,
+        /// Étage (-1 à 9).
+        level: i32,
+        /// Un point `[x, z]` à l'intérieur de la pièce, hors des murs.
+        #[schemars(with = "[f32; 2]")]
+        at: Vec2,
+    },
+    /// Retire un nom posé par `name_room` (ou par le champ `name` de `room`). Ne change aucun
+    /// élément. Pour renommer : `unname_room`, puis `name_room` avec le nouveau nom.
+    UnnameRoom {
+        /// Nom à retirer, sans tenir compte de la casse ni des accents.
+        name: String,
     },
     /// Porte ou fenêtre aux dimensions et à la couleur par défaut de son type (`maison3d catalog`).
     /// Refusée si elle chevauche une autre ouverture ou sort de la plage permise : 5 cm plus la
@@ -291,11 +312,13 @@ impl House {
             self.found(target)?;
         }
         match cmd {
-            Command::Room { min, max, level, height, thick, wall_texture, floor_texture } => {
+            Command::Room { min, max, level, height, thick, wall_texture, floor_texture, name } => {
                 let walls = (height.unwrap_or(LEVEL_H), thick.unwrap_or(0.2));
                 let textures = (wall_texture.unwrap_or_else(|| find("Crépi blanc")), floor_texture);
-                self.add_room(min, max, level, walls, textures)
+                self.add_room(min, max, level, walls, textures, name)
             }
+            Command::NameRoom { name, level, at } => self.name_room(name, level, at),
+            Command::UnnameRoom { name } => self.unname_room(name),
             Command::PlaceOpening { wall, kind, t } => self.add_opening(wall, Opening::new(kind, t)),
             Command::PlaceProp { kind, pos, level, rot, scale } => {
                 self.add_prop(Prop { scale: scale.unwrap_or(1.0), ..Prop::new(kind, pos, level, rot) })
@@ -419,6 +442,7 @@ impl House {
         level: i32,
         (height, thick): (f32, f32),
         (wall_texture, floor_texture): (usize, Option<usize>),
+        name: Option<String>,
     ) -> Result<Option<ElemRef>, EditError> {
         validate::rect(min, max)?;
         for mut w in room_walls(min, max, level, height, thick, WHITE_TEX) {
@@ -426,7 +450,27 @@ impl House {
             self.add_wall(w)?;
         }
         let texture = floor_texture.unwrap_or_else(|| find("Parquet chêne clair"));
-        self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture })
+        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture })?;
+        match name {
+            Some(name) => self.name_room(name, level, (min + max) / 2.0).map(|_| made),
+            None => Ok(made),
+        }
+    }
+
+    /// Pose ou déplace le nom `name` (un même nom ne désigne qu'une pièce).
+    fn name_room(&mut self, name: String, level: i32, at: Vec2) -> Result<Option<ElemRef>, EditError> {
+        validate::room_name(&name)?;
+        validate::level(level)?;
+        validate::point(at)?;
+        self.names.retain(|n| !same_name(&n.name, &name));
+        self.names.push(RoomName { name, level, at });
+        Ok(None)
+    }
+
+    fn unname_room(&mut self, name: String) -> Result<Option<ElemRef>, EditError> {
+        let before = self.names.len();
+        self.names.retain(|n| !same_name(&n.name, &name));
+        if self.names.len() == before { Err(EditError::NoSuchName(name)) } else { Ok(None) }
     }
 
     fn add_wall(&mut self, w: Wall) -> Result<Option<ElemRef>, EditError> {

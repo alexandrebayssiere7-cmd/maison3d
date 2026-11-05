@@ -46,7 +46,8 @@ fn high_level_commands_fill_defaults() {
             height: None,
             thick: None,
             wall_texture: None,
-            floor_texture: None
+            floor_texture: None,
+            name: None
         })
         .is_err()
     );
@@ -361,7 +362,10 @@ fn every_command_roundtrips_through_json() {
             thick: None,
             wall_texture: None,
             floor_texture: None,
+            name: Some("salon".into()),
         },
+        Command::NameRoom { name: "cuisine".into(), level: 0, at: Vec2::ONE },
+        Command::UnnameRoom { name: "cuisine".into() },
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Window, t: 1.5 },
         Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0, scale: Some(1.5) },
         Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: Some(Side::Left) },
@@ -590,6 +594,36 @@ fn add_storey_can_target_one_building() {
     assert_eq!(h.slabs.iter().filter(|s| s.level == 1).count(), 1);
 }
 
+#[test]
+fn rooms_are_named_by_room_or_name_room() {
+    let mut h = House::default();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[8,4],"level":0,"name":"Séjour"}"#)).unwrap();
+    assert_eq!(h.names, [RoomName { name: "Séjour".into(), level: 0, at: Vec2::new(4.0, 2.0) }]);
+    // redonner le nom le déplace ; un autre nom s'ajoute
+    assert_eq!(h.apply(json(r#"{"op":"name_room","name":"séjour ","level":0,"at":[6,2]}"#)), Ok(None));
+    h.apply(json(r#"{"op":"name_room","name":"cuisine","level":1,"at":[1,1]}"#)).unwrap();
+    let names: Vec<(&str, Vec2)> = h.names.iter().map(|n| (n.name.as_str(), n.at)).collect();
+    assert_eq!(names, [("séjour ", Vec2::new(6.0, 2.0)), ("cuisine", Vec2::ONE)]);
+    for (bad, want) in [
+        (r#"{"op":"name_room","name":"  ","level":0,"at":[1,1]}"#, EditError::BadName("  ".into())),
+        (r#"{"op":"name_room","name":"x","level":12,"at":[1,1]}"#, EditError::LevelOutOfRange(12)),
+        (r#"{"op":"name_room","name":"x","level":0,"at":[9999,1]}"#, EditError::OutOfWorld(Vec2::new(9999.0, 1.0))),
+    ] {
+        assert_eq!(h.apply(json(bad)), Err(want));
+    }
+    // retirer un nom, sans tenir compte des accents ; un nom absent est refusé
+    assert_eq!(h.apply(json(r#"{"op":"unname_room","name":"SEJOUR"}"#)), Ok(None));
+    assert_eq!(h.names.len(), 1);
+    assert_eq!(h.apply(json(r#"{"op":"unname_room","name":"séjour"}"#)), Err(EditError::NoSuchName("séjour".into())));
+    let before = h.clone();
+    // un nom refusé dans `room` annule aussi les murs
+    assert!(matches!(
+        h.apply(json(&format!(r#"{{"op":"room","min":[20,0],"max":[24,4],"level":0,"name":"{}"}}"#, "x".repeat(41)))),
+        Err(EditError::BadName(_))
+    ));
+    assert_eq!(h, before);
+}
+
 /// Schéma figé : les agents en dépendent. Après un changement voulu : `UPDATE_SCHEMA=1 cargo test schema_is_frozen`.
 #[test]
 fn schema_is_frozen() {
@@ -638,7 +672,8 @@ mod props {
                 height: None,
                 thick: None,
                 wall_texture: None,
-                floor_texture: None
+                floor_texture: None,
+                name: None
             }),
             (0..6usize, prop::sample::select(&OpeningKind::ALL[..]), -1.0f32..6.0)
                 .prop_map(|(wall, kind, t)| Command::PlaceOpening { wall, kind, t }),
@@ -664,6 +699,8 @@ mod props {
             (any::<u32>(), 0.0f32..10.0, 5.0f32..50.0, any::<bool>())
                 .prop_map(|(seed, amp, scale, mountains)| Command::GenerateTerrain { seed, amp, scale, mountains }),
             Just(Command::FlattenTerrain),
+            (v2(), level.clone()).prop_map(|(at, level)| Command::NameRoom { name: "pièce".into(), level, at }),
+            Just(Command::UnnameRoom { name: "pièce".into() }),
             target().prop_map(|target| Command::Remove { target }),
             (target(), v2()).prop_map(|(target, by)| Command::Move { target, by }),
             (target(), v2()).prop_map(|(target, by)| Command::Duplicate { target, by }),

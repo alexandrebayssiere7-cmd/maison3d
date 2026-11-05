@@ -14,6 +14,7 @@ mod edit;
 mod geometry;
 mod openings;
 mod props;
+mod query;
 mod roofs;
 mod shapes;
 
@@ -24,6 +25,7 @@ pub use geometry::{pick, pick_part, ray_obb};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
 pub use openings::OpeningKind;
 pub use props::{Prop, Side, prop_parts};
+pub use query::{RoomInfo, RoomName, RoomSide, same_name};
 pub use roofs::{RoofKind, roof_tris};
 
 use crate::terrain::Terrain;
@@ -307,6 +309,9 @@ pub struct House {
     pub roads: Vec<Road>,
     #[serde(default)]
     pub terrain: Terrain,
+    /// Noms des pièces (`name_room`), absents des fichiers qui n'en ont pas.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<RoomName>,
 }
 
 impl Default for House {
@@ -320,6 +325,7 @@ impl Default for House {
             pools: vec![],
             roads: vec![],
             terrain: Terrain::default(),
+            names: vec![],
         }
     }
 }
@@ -646,7 +652,8 @@ mod tests {
     }
     #[test]
     fn save_format_roundtrips() {
-        let h = demo_house();
+        let mut h = demo_house();
+        h.names.push(RoomName { name: "séjour".into(), level: 0, at: Vec2::new(5.0, 4.0) });
         let json = serde_json::to_string(&h).unwrap();
         assert_eq!(serde_json::from_str::<House>(&json).unwrap(), h);
     }

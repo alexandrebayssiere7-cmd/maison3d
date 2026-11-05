@@ -14,6 +14,9 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `maison3d textures` | Numéros des matières (champ `texture`). |
 | `maison3d apply monde.json cmds.json [--new] [--quiet] [--dry-run] [--out autre.json] [--json]` | Applique une liste de commandes. |
 | `maison3d describe monde.json` | Résumé texte par étage, avec l'indice, le type JSON et l'emprise au sol de chaque élément. |
+| `maison3d query monde.json rooms` | Les pièces de chaque étage : l'espace fermé par les murs, cloisons comprises. Nom, un point intérieur, surface, nombre d'objets et de portes. |
+| `maison3d query monde.json room <nom ou x,z> [--level N]` | Une pièce : rectangle entre les murs, chaque mur avec son côté (nord, sud, est, ouest) et la coordonnée de sa **face intérieure**, ses ouvertures avec leur centre, ses objets. |
+| `maison3d query monde.json near x,z [--level N] [--radius R]` | La pièce qui contient le point, puis murs, ouvertures et objets à moins de R m (2 par défaut), du plus proche au plus loin. |
 | `maison3d check monde.json` | Avertissements de cohérence. `apply` les affiche aussi après chaque lot. |
 | `maison3d shot monde.json vue.png [options]` | Vue 3/4 (`vue.png`) et plan à l'échelle (`vue_dessus.png`, nord en haut). |
 
@@ -55,16 +58,18 @@ ne s'ouvre, en 2 à 3 secondes) et écrit sur la sortie standard le chemin de ch
 3. Lire la sortie :
    - les indices créés : les noter, plutôt que de les recompter ;
    - les avertissements : les corriger avant de continuer.
-4. `shot` pour contrôler à l'œil. Utiliser `--level` pour chaque étage, et `--from` pour voir
+4. Avant de meubler une pièce, `query monde.json room <nom>` : les faces intérieures des murs
+   et la place des portes y sont données, inutile de les recalculer.
+5. `shot` pour contrôler à l'œil. Utiliser `--level` pour chaque étage, et `--from` pour voir
    les autres façades.
-5. Recommencer avec le lot suivant, sur le même `monde.json`.
+6. Recommencer avec le lot suivant, sur le même `monde.json`.
 
 Exemples complets et testés dans `docs/exemples/` :
 
 | Fichier | Contenu |
 |---|---|
 | `maison-simple.json` | Une pièce meublée et son toit. |
-| `maison-deux-pieces.json` | Cloison et porte intérieure. |
+| `maison-deux-pieces.json` | Cloison, porte intérieure et pièces nommées. |
 | `maison-etage.json` | Étage, trémie et escalier. |
 | `rue.json` | Chaussée, trottoirs, passage piéton, lampadaires, voitures garées, et deux maisons face à face dont une à étage (`add_storey` limité à une zone). |
 | `jardin.json` | Relief, piscine, allée, route, haie en rangée, lampadaires et végétaux. |
@@ -190,6 +195,10 @@ murs (`place_against` pour le canapé), puis `place_roof`.
   les extrémités touchent les murs extérieurs.
 - Ne pas accoler deux `room` : chacune aurait son propre mur sur la cloison commune.
 - Mettre une porte dans chaque cloison qui sépare deux pièces qui communiquent.
+- Nommer chaque pièce avec `name_room` (un point à l'intérieur suffit), ou avec le champ `name`
+  de `room` pour une pièce sans cloison. `query monde.json room cuisine` la retrouve ensuite
+  (sans tenir compte de la casse ni des accents). `unname_room` retire un nom ; pour renommer,
+  `unname_room` puis `name_room`.
 
 **Étage** (`maison-etage.json`) :
 1. Poser les fenêtres du rez-de-chaussée **avant** `add_storey` : fenêtres, baies et
@@ -234,7 +243,8 @@ murs (`place_against` pour le canapé), puis `place_roof`.
 - toits posés au pied des murs ;
 - murs en double ou enterrés ;
 - piscines sous un sol ;
-- routes qui traversent un mur.
+- routes qui traversent un mur ;
+- noms de pièce posés dans un mur, ou deux noms dans la même pièce (une cloison manque ?).
 
 Un monde prêt à rendre n'a **aucun avertissement**.
 

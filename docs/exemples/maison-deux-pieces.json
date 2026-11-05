@@ -1,6 +1,8 @@
 [
   {"op": "room", "min": [0, 0], "max": [10, 6], "level": 0},
   {"op": "add_wall", "a": [6, 0], "b": [6, 6], "level": 0, "height": 3, "thick": 0.1, "color": [1, 1, 1], "openings": [], "texture": 21},
+  {"op": "name_room", "name": "séjour", "level": 0, "at": [3, 3]},
+  {"op": "name_room", "name": "chambre", "level": 0, "at": [8, 3]},
   {"op": "place_opening", "wall": 4, "kind": "Door", "t": 4.5},
   {"op": "place_opening", "wall": 2, "kind": "Door", "t": 7},
   {"op": "place_opening", "wall": 0, "kind": "Window", "t": 3},

@@ -244,3 +244,18 @@ fn check_brief_and_help_for_agents() {
     assert_eq!(o.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&o.stderr).contains("--new"));
 }
+
+#[test]
+fn query_finds_named_rooms_and_their_walls() {
+    let dir = tmp_dir("query");
+    let world = dir.join("monde.json").to_str().expect("chemin UTF-8").to_owned();
+    assert!(run(&["apply", &world, "docs/exemples/maison-deux-pieces.json", "--new", "--quiet"]).status.success());
+    let rooms = stdout(&run(&["query", &world, "rooms"]));
+    assert!(rooms.contains("« séjour »") && rooms.contains("« chambre »"), "{rooms}");
+    let o = run(&["query", &world, "room", "chambre"]);
+    assert!(o.status.success());
+    assert!(stdout(&o).contains("ouest  Wall 4 : face intérieure x = 6.05"), "{}", stdout(&o));
+    assert!(stdout(&run(&["query", &world, "near", "8,1"])).starts_with("dans : « chambre »"));
+    let missing = run(&["query", &world, "room", "grenier"]);
+    assert!(!missing.status.success() && String::from_utf8_lossy(&missing.stderr).contains("pièce inconnue"));
+}

@@ -133,6 +133,10 @@ pub(super) fn road(r: &Road) -> Result<(), EditError> {
     look(r.color, r.texture)
 }
 
+pub(super) fn room_name(n: &str) -> Result<(), EditError> {
+    if n.trim().is_empty() || n.chars().count() > 40 { Err(EditError::BadName(n.to_owned())) } else { Ok(()) }
+}
+
 /// Décalage d'un `move` ou d'un `duplicate`.
 pub(super) fn offset(by: Vec2) -> Result<(), EditError> {
     range("by[0]", by.x, -2.0 * HALF, 2.0 * HALF)?;

@@ -18,5 +18,7 @@
   {"op": "set", "target": {"Prop": 1}, "fields": {"height": 2.4, "texture": 9}},
   {"op": "room", "min": [-6, 0], "max": [-2, 4], "level": 0, "height": 2.5, "thick": 0.3, "wall_texture": 17, "floor_texture": 31},
   {"op": "place_prop", "kind": "Shelf", "pos": [-4, 0.35], "level": 0},
+  {"op": "name_room", "name": "atelier", "level": 0, "at": [-4, 2]},
+  {"op": "unname_room", "name": "atelier"},
   {"op": "flatten_terrain"}
 ]

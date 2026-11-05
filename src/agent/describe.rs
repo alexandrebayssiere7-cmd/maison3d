@@ -100,6 +100,9 @@ fn level_section(s: &mut String, h: &House, l: i32) {
     for (i, sl) in h.slabs.iter().enumerate().filter(|(_, s)| s.level == l) {
         let _ = writeln!(s, "  Slab {i} : {} → {}, texture {}", pt(sl.min), pt(sl.max), sl.texture);
     }
+    for n in h.names.iter().filter(|n| n.level == l) {
+        let _ = writeln!(s, "  Pièce « {} » : autour de {}", n.name, pt(n.at));
+    }
     for (i, r) in h.roofs.iter().enumerate().filter(|(_, r)| r.level == l) {
         let height = if r.kind == RoofKind::Flat { String::new() } else { format!(", haut {} m", r.height) };
         let _ = writeln!(s, "  Roof {i} : {:?} ({}) {} → {}{height}", r.kind, r.kind.name(), pt(r.min), pt(r.max));

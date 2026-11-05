@@ -5,6 +5,8 @@
 //!                                       applique une liste de commandes (tout ou rien)
 //! maison3d describe <monde.json>        résumé texte du monde
 //! maison3d check <monde.json>           avertissements de cohérence
+//! maison3d query <monde.json> rooms | room <nom|x,z> | near x,z [--level N] [--radius R]
+//!                                       pièces, contenu d'une pièce, éléments autour d'un point
 //! maison3d schema [--brief]             schéma JSON des commandes (ou résumé d'une ligne par commande)
 //! maison3d help <op>                    détail d'une commande et de ses champs
 //! maison3d textures                     indices des matières
@@ -24,6 +26,7 @@ use crate::command::{Command, EditError};
 use crate::model::{ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, Room, Slot, WorldError, search};
 
 mod describe;
+mod query;
 mod shot;
 
 pub use describe::describe;
@@ -51,13 +54,23 @@ enum CliError {
     NoWorld(String),
     UnknownOp(String),
     World(WorldError),
-    Commands { path: String, err: WorldError },
-    Refused { index: usize, cmd: String, err: EditError },
+    Commands {
+        path: String,
+        err: WorldError,
+    },
+    Refused {
+        index: usize,
+        cmd: String,
+        err: EditError,
+    },
+    /// Nom cherché et noms connus.
+    UnknownRoom(String, String),
+    NoRoom(String),
 }
 
 const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
 [--out <autre.json>] [--json] | describe <monde.json> | \
-check <monde.json> | schema [--brief] | help <op> | textures | catalog | guide | \
+check <monde.json> | query <monde.json> rooms|room <nom|x,z>|near x,z [--level N] [--radius R] | schema [--brief] | help <op> | textures | catalog | guide | \
 search [mots] [--room R] [--placement P] [--limit N] | shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1] [--size LxH] [--only 3/4|plan]";
 
 impl std::fmt::Display for CliError {
@@ -70,6 +83,14 @@ impl std::fmt::Display for CliError {
             Self::World(e) => write!(f, "{e}"),
             Self::Commands { path, err } => write!(f, "{path} : {err}"),
             Self::Refused { index, cmd, err } => write!(f, "#{index} refusée, monde inchangé : {err}\n  {cmd}"),
+            Self::UnknownRoom(r, known) if known.is_empty() => {
+                write!(
+                    f,
+                    "pièce inconnue : {r} (aucune pièce nommée : name_room, ou désigner la pièce par un point x,z)"
+                )
+            }
+            Self::UnknownRoom(r, known) => write!(f, "pièce inconnue : {r} (pièces nommées : {known})"),
+            Self::NoRoom(why) => write!(f, "aucune pièce {why}"),
         }
     }
 }
@@ -137,6 +158,14 @@ fn run(args: &[&str]) -> Result<(), CliError> {
             print!("{}", search_text(&words.join(" "), &flags)?);
             Ok(())
         }
+        ["query", world, "room", name @ ..] if !name.is_empty() => {
+            print!("{}", query::room(&House::load(world)?, &name.join(" "), &flags)?);
+            Ok(())
+        }
+        ["query", world, "near", at] => {
+            print!("{}", query::near(&House::load(world)?, at, &flags)?);
+            Ok(())
+        }
         rest => {
             only(&[])?;
             run_simple(rest)
@@ -148,6 +177,7 @@ fn run(args: &[&str]) -> Result<(), CliError> {
 fn run_simple(args: &[&str]) -> Result<(), CliError> {
     match args {
         ["describe", world] => print!("{}", describe(&House::load(world)?)),
+        ["query", world, "rooms"] => print!("{}", query::rooms(&House::load(world)?)),
         ["check", world] => print!("{}", warnings_text(&House::load(world)?.warnings(), usize::MAX)),
         ["help", op] => print!("{}", help(op).ok_or_else(|| CliError::UnknownOp((*op).to_owned()))?),
         ["textures"] => {
@@ -651,6 +681,7 @@ mod tests {
             thick: None,
             wall_texture: None,
             floor_texture: None,
+            name: None,
         };
         let e = h.apply(room).unwrap();
         assert_eq!(changes(&before, &Counts::of(&h), e), " → créés Wall 0 à 3, créé Slab 0");

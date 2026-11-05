@@ -16,6 +16,7 @@ impl House {
         self.stairs_warnings(&mut w);
         self.wall_warnings(&mut w);
         self.outdoor_warnings(&mut w);
+        self.name_warnings(&mut w);
         w
     }
 
