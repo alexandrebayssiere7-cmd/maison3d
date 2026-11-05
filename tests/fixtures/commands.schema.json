@@ -171,6 +171,49 @@
           ]
         },
         {
+          "description": "Objet posé dos à un mur, avant tourné à l'opposé du mur, sur l'étage du mur : `pos` et\n`rot` sont calculés (arrière contre la face du mur). Refusé si l'objet dépasse du mur en\nlongueur (le message donne la plage de `t` valide). Exemple : lit tête contre le mur nord.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "place_against"
+            },
+            "kind": {
+              "$ref": "#/$defs/PropKind"
+            },
+            "wall": {
+              "description": "Indice du mur (`Wall n` dans `describe`).",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "t": {
+              "description": "Position du centre de l'objet le long du mur, en mètres depuis l'extrémité `a`.",
+              "type": "number",
+              "format": "float"
+            },
+            "side": {
+              "description": "Côté du mur où poser l'objet. Absent : le côté où un sol (`Slab`) du même étage borde\nle mur ; refusé si les deux côtés en ont un (cloison) ou aucun.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Side"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "kind",
+            "wall",
+            "t"
+          ]
+        },
+        {
           "description": "Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`\nmètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.",
           "type": "object",
           "properties": {
@@ -2265,6 +2308,21 @@
           "description": "Camion porteur de 8,5 m à caisse fourgon (2,9 m de large rétroviseurs compris, 3,8 m de\nhaut), l'avant vers +z ; décor. Sur une route, devant un quai de livraison ou un magasin.",
           "type": "string",
           "const": "Truck"
+        }
+      ]
+    },
+    "Side": {
+      "description": "Côté d'un mur, en allant de `a` vers `b` sur la vue de dessus (nord en haut).",
+      "oneOf": [
+        {
+          "description": "À gauche de `a` → `b` : l'extérieur pour les murs d'une `room`.",
+          "type": "string",
+          "const": "Left"
+        },
+        {
+          "description": "À droite de `a` → `b` : l'intérieur pour les murs d'une `room`.",
+          "type": "string",
+          "const": "Right"
         }
       ]
     },

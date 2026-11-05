@@ -121,9 +121,16 @@ Exemples complets et testés dans `docs/exemples/` :
 - `catalog` donne `size = [largeur, profondeur, hauteur]` à `rot` 0. La largeur suit x et la
   profondeur suit z ; à `rot` 90 ou 270, elles s'échangent au sol. `describe` donne l'emprise
   réelle de chaque objet posé.
-- Pour coller un objet dos à un mur, tourner son avant vers la pièce et placer son centre à
-  `face du mur + profondeur / 2`. Exemple : canapé (profondeur 0,9) contre un mur nord de 20 cm
-  en z = 0 → `rot` 0, `pos.z` = 0,1 + 0,45 = 0,55.
+- Pour coller un objet dos à un mur, utiliser `place_against` : `{"op": "place_against",
+  "kind": "Sofa", "wall": 0, "t": 4}` pose le canapé au milieu du mur nord d'une `room` de
+  x 0 à 8, arrière contre la face du mur, avant vers la pièce ; `pos` et `rot` sont calculés.
+  - `t` est la distance depuis `a` jusqu'au centre de l'objet, comme pour une ouverture ; le
+    message de refus donne la plage valide.
+  - Le côté est celui où un sol du même étage borde le mur. Sur une cloison (un sol des deux
+    côtés) ou un mur sans sol, donner `side` : `Left` ou `Right` en allant de `a` vers `b`
+    (`Right` = l'intérieur d'une `room`).
+  - À la main : avant tourné vers la pièce, centre à `face du mur + profondeur / 2`. Canapé
+    (profondeur 0,9) contre un mur nord de 20 cm en z = 0 → `rot` 0, `pos.z` = 0,1 + 0,45 = 0,55.
 - Lit : la tête est à l'arrière, contre le mur. Chaise : tournée vers la table.
 - `catalog` range les objets par `category` (Salon, Cuisine, Mobilier urbain, Sport…). Pour un
   décor, parcourir la catégorie voulue plutôt que deviner un nom.
@@ -174,7 +181,7 @@ Pour un abri sur piliers : des `Pillar` de 3 m (un étage) et un toit `Flat` à 
 ## Recettes
 
 **Pièce simple** (`maison-simple.json`) : `room`, une porte, des fenêtres, des meubles collés aux
-murs, puis `place_roof`.
+murs (`place_against` pour le canapé), puis `place_roof`.
 
 **Plusieurs pièces** (`maison-deux-pieces.json`) :
 - Une `room` pour l'enveloppe, puis des cloisons en `add_wall` (épaisseur 0,1, hauteur 3) dont

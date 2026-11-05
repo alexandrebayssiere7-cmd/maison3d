@@ -8,8 +8,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    ElemRef, House, LEVEL_H, Opening, OpeningKind, Pool, Prop, PropKind, Rgb, Road, Roof, RoofKind, Slab, WHITE_TEX,
-    Wall, room_walls,
+    ElemRef, House, LEVEL_H, Opening, OpeningKind, Pool, Prop, PropKind, Rgb, Road, Roof, RoofKind, Side, Slab,
+    WHITE_TEX, Wall, room_walls,
 };
 use crate::textures::find;
 
@@ -90,6 +90,20 @@ pub enum Command {
         /// Échelle uniforme, 0,2 à 5 (1 par défaut) : multiplie toutes les dimensions de l'objet.
         #[serde(default)]
         scale: Option<f32>,
+    },
+    /// Objet posé dos à un mur, avant tourné à l'opposé du mur, sur l'étage du mur : `pos` et
+    /// `rot` sont calculés (arrière contre la face du mur). Refusé si l'objet dépasse du mur en
+    /// longueur (le message donne la plage de `t` valide). Exemple : lit tête contre le mur nord.
+    PlaceAgainst {
+        kind: PropKind,
+        /// Indice du mur (`Wall n` dans `describe`).
+        wall: usize,
+        /// Position du centre de l'objet le long du mur, en mètres depuis l'extrémité `a`.
+        t: f32,
+        /// Côté du mur où poser l'objet. Absent : le côté où un sol (`Slab`) du même étage borde
+        /// le mur ; refusé si les deux côtés en ont un (cloison) ou aucun.
+        #[serde(default)]
+        side: Option<Side>,
     },
     /// Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`
     /// mètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.
@@ -286,6 +300,7 @@ impl House {
             Command::PlaceProp { kind, pos, level, rot, scale } => {
                 self.add_prop(Prop { scale: scale.unwrap_or(1.0), ..Prop::new(kind, pos, level, rot) })
             }
+            Command::PlaceAgainst { kind, wall, t, side } => self.place_against(kind, wall, t, side),
             Command::PlaceRow { kind, from, to, step, level, rot } => {
                 self.place_row(kind, (from, to), step, level, rot)
             }
@@ -444,6 +459,26 @@ impl House {
         validate::roof(&r)?;
         self.roofs.push(r);
         Ok(Some(ElemRef::Roof(self.roofs.len() - 1)))
+    }
+
+    fn place_against(
+        &mut self,
+        kind: PropKind,
+        wall: usize,
+        t: f32,
+        side: Option<Side>,
+    ) -> Result<Option<ElemRef>, EditError> {
+        let n = self.walls.len();
+        let w = self.walls.get(wall).ok_or(EditError::WallNotFound(wall, n))?;
+        let side = side.or_else(|| self.floor_side(w, t)).ok_or(EditError::SideUnknown(wall))?;
+        let p = Prop::against(kind, w, t, side);
+        let (lo, hi) = p.local_box();
+        // même marge qu'une ouverture : l'objet ne mord pas sur les murs perpendiculaires
+        let (t_min, t_max) = w.t_range(2.0 * hi.x.max(-lo.x));
+        if !(t_min..=t_max).contains(&t) {
+            return Err(EditError::PropOutsideWall { t, t_min, t_max, wall_len: w.len() });
+        }
+        self.add_prop(p)
     }
 
     fn add_prop(&mut self, mut p: Prop) -> Result<Option<ElemRef>, EditError> {

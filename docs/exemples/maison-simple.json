@@ -5,7 +5,7 @@
   {"op": "place_opening", "wall": 0, "kind": "Window", "t": 2},
   {"op": "place_opening", "wall": 0, "kind": "Window", "t": 6},
   {"op": "place_opening", "wall": 1, "kind": "Bay", "t": 3},
-  {"op": "place_prop", "kind": "Sofa", "pos": [4, 0.55], "level": 0, "rot": 0},
+  {"op": "place_against", "kind": "Sofa", "wall": 0, "t": 4},
   {"op": "place_prop", "kind": "Kitchen", "pos": [0.45, 3], "level": 0, "rot": 90},
   {"op": "place_prop", "kind": "Table", "pos": [3.5, 3.5], "level": 0},
   {"op": "place_prop", "kind": "Chair", "pos": [3.1, 2.8], "level": 0, "rot": 0},

@@ -32,6 +32,15 @@ pub enum EditError {
         t: f32,
         other: usize,
     },
+    /// `place_against` : l'objet dépasse du mur en longueur.
+    PropOutsideWall {
+        t: f32,
+        t_min: f32,
+        t_max: f32,
+        wall_len: f32,
+    },
+    /// `place_against` sans `side` : un sol des deux côtés du mur, ou d'aucun.
+    SideUnknown(usize),
     OpeningTooTall {
         top: f32,
         wall_height: f32,
@@ -97,6 +106,17 @@ impl std::fmt::Display for EditError {
             Self::OpeningOverlaps { kind, t, other } => {
                 write!(f, "{} à t={t} chevauche l'ouverture {other} de ce mur", kind.name())
             }
+            Self::PropOutsideWall { t, t_min, t_max, wall_len } if t_min > t_max => {
+                write!(f, "Objet à t={t} : le mur de {wall_len:.2} m est trop court pour sa largeur")
+            }
+            Self::PropOutsideWall { t, t_min, t_max, wall_len } => write!(
+                f,
+                "Objet à t={t} dépasse du mur de {wall_len:.2} m : t doit être entre {t_min:.2} et {t_max:.2}"
+            ),
+            Self::SideUnknown(w) => write!(
+                f,
+                "Mur {w} : côté de la pièce indéterminé (un sol des deux côtés, ou d'aucun) : préciser side Left ou Right"
+            ),
             Self::OpeningTooTall { top, wall_height } => {
                 write!(
                     f,
@@ -155,6 +175,9 @@ mod tests {
             (EditError::OpeningOutsideWall { kind: door, t: 0.1, t_min: 2.0, t_max: 1.0, wall_len: 0.5 }, "trop court"),
             (EditError::OpeningOutsideWall { kind: door, t: 0.1, t_min: 0.5, t_max: 3.5, wall_len: 4.0 }, "entre 0.50"),
             (EditError::OpeningOverlaps { kind: door, t: 1.0, other: 0 }, "chevauche"),
+            (EditError::PropOutsideWall { t: 0.1, t_min: 2.0, t_max: 1.0, wall_len: 0.5 }, "trop court"),
+            (EditError::PropOutsideWall { t: 0.1, t_min: 0.5, t_max: 3.5, wall_len: 4.0 }, "entre 0.50"),
+            (EditError::SideUnknown(3), "side Left ou Right"),
             (EditError::OpeningTooTall { top: 3.5, wall_height: 3.0 }, "trop haute"),
             (EditError::OpeningNotDuplicable, "dupliquent"),
             (EditError::NotRotatable, "pivotent"),

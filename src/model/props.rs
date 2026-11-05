@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::shapes::{prop_shapes, prop_slots};
-use super::{ElemRef, Finish, LEVEL_H, Part, PropKind, Rgb, Shape, Slot, WHITE, finish_at, finish_at_mut};
+use super::{ElemRef, Finish, House, LEVEL_H, Part, PropKind, Rgb, Shape, Slot, WHITE, Wall, finish_at, finish_at_mut};
 
 impl PropKind {
     /// Parties colorables (`prop_slots`) ; la partie 0 reçoit `color` et `texture` de l'objet.
@@ -115,6 +115,52 @@ impl PropKind {
         let (lo, hi) = Prop::new(self, Vec2::ZERO, 0, 0.0).local_box();
         let s = hi - lo;
         Vec3::new(s.x, s.z, s.y)
+    }
+}
+
+/// Côté d'un mur, en allant de `a` vers `b` sur la vue de dessus (nord en haut).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, JsonSchema)]
+pub enum Side {
+    /// À gauche de `a` → `b` : l'extérieur pour les murs d'une `room`.
+    Left,
+    /// À droite de `a` → `b` : l'intérieur pour les murs d'une `room`.
+    Right,
+}
+
+impl Side {
+    /// Normale unitaire `[x, z]` d'un mur de direction `dir`, tournée vers ce côté.
+    pub fn normal(self, dir: Vec2) -> Vec2 {
+        match self {
+            Self::Left => Vec2::new(dir.y, -dir.x),
+            Self::Right => Vec2::new(-dir.y, dir.x),
+        }
+    }
+}
+
+impl Prop {
+    /// Objet dos au mur `w`, côté `side`, centré à `t` m de `a`, avant tourné à l'opposé du mur.
+    pub fn against(kind: PropKind, w: &Wall, t: f32, side: Side) -> Self {
+        let n = side.normal(w.dir());
+        let mut p = Prop::new(kind, Vec2::ZERO, w.level, n.x.atan2(n.y).to_degrees());
+        // l'arrière de l'objet (-z local) touche la face du mur
+        let back = -p.local_box().0.z;
+        p.pos = w.a + w.dir() * t + n * (w.thick / 2.0 + back);
+        p
+    }
+}
+
+impl House {
+    /// Côté du mur `w` où un sol de son étage borde le point `t` ; `None` si les deux ou aucun.
+    pub fn floor_side(&self, w: &Wall, t: f32) -> Option<Side> {
+        let floor = |side: Side| {
+            let p = w.a + w.dir() * t + side.normal(w.dir()) * (w.thick / 2.0 + 0.1);
+            self.slabs.iter().any(|s| s.level == w.level && s.min.cmple(p).all() && p.cmple(s.max).all())
+        };
+        match (floor(Side::Left), floor(Side::Right)) {
+            (true, false) => Some(Side::Left),
+            (false, true) => Some(Side::Right),
+            _ => None,
+        }
     }
 }
 

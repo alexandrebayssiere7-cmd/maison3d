@@ -198,6 +198,8 @@ fn every_error_has_an_actionable_message() {
         ),
         (EditError::OpeningOverlaps { kind: k, t: 2.0, other: 1 }, "l'ouverture 1"),
         (EditError::OpeningTooTall { top: 4.0, wall_height: 3.0 }, "dépasse le mur de 3 m"),
+        (EditError::PropOutsideWall { t: 0.2, t_min: 0.6, t_max: 3.4, wall_len: 4.0 }, "entre 0.60 et 3.40"),
+        (EditError::SideUnknown(2), "Mur 2"),
         (EditError::OpeningNotDuplicable, "ouvertures"),
         (EditError::NotRotatable, "Prop"),
         (EditError::OutOfWorld(Vec2::new(200.0, 0.0)), "-80 et 80"),
@@ -362,6 +364,8 @@ fn every_command_roundtrips_through_json() {
         },
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Window, t: 1.5 },
         Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0, scale: Some(1.5) },
+        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: Some(Side::Left) },
+        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: None },
         Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::ONE, level: 1, kind: RoofKind::Shed, texture: None },
         Command::AddWall(h.walls[0].clone()),
         Command::AddSlab(h.slabs[0].clone()),
@@ -453,6 +457,60 @@ fn unknown_fields_and_typos_are_refused() {
     assert!(serde_json::from_str::<Command>(r#"{"op":"room","min":[0,0],"max":[4,4],"level":0,"foo":1}"#).is_err());
     let wall = r#"{"op":"add_wall","a":[0,0],"b":[4,0],"level":0,"height":3,"thick":0.2,"color":[1,1,1],"openings":[],"colour":[1,0,0]}"#;
     assert!(serde_json::from_str::<Command>(wall).is_err());
+}
+
+fn against(kind: PropKind, wall: usize, t: f32, side: Option<Side>) -> Command {
+    Command::PlaceAgainst { kind, wall, t, side }
+}
+
+/// Bornes `[x, z]` de l'emprise au sol d'un objet posé.
+fn footprint(p: &Prop) -> (Vec2, Vec2) {
+    p.corners().iter().fold((Vec2::MAX, Vec2::MIN), |(lo, hi), c| (lo.min(*c), hi.max(*c)))
+}
+
+#[test]
+fn place_against_puts_the_back_on_the_wall_face() {
+    let mut h = House::default();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[5,4],"level":0}"#)).unwrap();
+    // mur nord (0, d'ouest en est) : le sol est au sud, l'avant regarde +z
+    assert_eq!(h.apply(against(PropKind::Bed, 0, 2.5, None)), Ok(Some(ElemRef::Prop(0))));
+    let (lo, hi) = footprint(&h.props[0]);
+    assert!(h.props[0].rot.abs() < 1e-3, "rot {}", h.props[0].rot);
+    assert!((lo.y - 0.1).abs() < 1e-3 && (f32::midpoint(lo.x, hi.x) - 2.5).abs() < 1e-3, "{lo} {hi}");
+    // mur est (1, du nord au sud) : l'avant regarde l'ouest
+    h.apply(against(PropKind::Wardrobe, 1, 3.0, None)).unwrap();
+    let (lo, hi) = footprint(&h.props[1]);
+    assert!((h.props[1].rot - 270.0).abs() < 1e-3 && (hi.x - 4.9).abs() < 1e-3, "{lo} {hi}");
+    assert!((f32::midpoint(lo.y, hi.y) - 3.0).abs() < 1e-3);
+    assert_eq!(h.warnings(), Vec::<String>::new());
+    // côté explicite : dehors, contre le mur sud (2, d'est en ouest), l'avant regarde le sud
+    h.apply(against(PropKind::Bench, 2, 2.5, Some(Side::Left))).unwrap();
+    let (lo, hi) = footprint(&h.props[2]);
+    assert!(h.props[2].rot.abs() < 1e-3 && (lo.y - 4.1).abs() < 1e-3, "{lo} {hi}");
+    assert!((f32::midpoint(lo.x, hi.x) - 2.5).abs() < 1e-3, "t mesuré depuis a = [5, 4]");
+}
+
+#[test]
+fn place_against_refuses_missing_walls_unknown_sides_and_overflow() {
+    let mut h = House::default();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[5,4],"level":0}"#)).unwrap();
+    let before = h.clone();
+    assert_eq!(h.apply(against(PropKind::Bed, 9, 1.0, None)), Err(EditError::WallNotFound(9, 4)));
+    let err = h.apply(against(PropKind::Bed, 0, 0.5, None)).unwrap_err();
+    assert!(matches!(err, EditError::PropOutsideWall { t_min, t_max, .. } if t_min < t_max), "{err}");
+    assert!(err.to_string().contains("t doit être entre 0.95 et 4.05"), "{err}");
+    assert_eq!(h, before);
+    // un sol de l'autre côté aussi (cloison) : le côté doit être donné
+    h.apply(Command::AddSlab(slab(0, Vec2::new(0.0, -3.0), Vec2::new(5.0, 0.0)))).unwrap();
+    assert_eq!(h.apply(against(PropKind::Bed, 0, 2.5, None)), Err(EditError::SideUnknown(0)));
+    assert!(h.apply(against(PropKind::Bed, 0, 2.5, Some(Side::Left))).is_ok());
+    // aucun sol à l'étage du mur
+    h.apply(Command::AddWall(wall(1, 4.0))).unwrap();
+    assert_eq!(h.apply(against(PropKind::Desk, 4, 2.0, None)), Err(EditError::SideUnknown(4)));
+    // mur plus court que l'objet
+    h.apply(json(r#"{"op":"room","min":[10,0],"max":[11,1],"level":0}"#)).unwrap();
+    let err = h.apply(against(PropKind::Bed, 5, 0.5, None)).unwrap_err();
+    assert!(matches!(err, EditError::PropOutsideWall { t_min, t_max, .. } if t_min > t_max), "{err}");
 }
 
 #[test]
@@ -586,6 +644,13 @@ mod props {
                 .prop_map(|(wall, kind, t)| Command::PlaceOpening { wall, kind, t }),
             (prop::sample::select(&PropKind::ALL[..]), v2(), level.clone(), -400.0f32..400.0)
                 .prop_map(|(kind, pos, level, rot)| Command::PlaceProp { kind, pos, level, rot, scale: None }),
+            (
+                prop::sample::select(&PropKind::ALL[..]),
+                0..6usize,
+                -1.0f32..6.0,
+                prop::option::of(prop::sample::select(&[Side::Left, Side::Right][..]))
+            )
+                .prop_map(|(kind, wall, t, side)| Command::PlaceAgainst { kind, wall, t, side }),
             (corner(), corner(), level.clone(), prop::sample::select(&RoofKind::ALL[..]))
                 .prop_map(|(min, max, level, kind)| Command::PlaceRoof { min, max, level, kind, texture: None }),
             (v2(), v2(), level.clone()).prop_map(|(a, b, level)| {
