@@ -145,7 +145,7 @@ pub(super) fn find(h: &House, key: &str, level: i32) -> Result<RoomInfo, CliErro
 }
 
 /// « x,z » → point.
-fn point(s: &str) -> Option<Vec2> {
+pub(super) fn point(s: &str) -> Option<Vec2> {
     match s.split(',').map(|v| v.trim().parse::<f32>()).collect::<Result<Vec<_>, _>>().as_deref() {
         Ok([x, z]) => Some(Vec2::new(*x, *z)),
         _ => None,

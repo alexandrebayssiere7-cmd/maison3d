@@ -5,6 +5,8 @@
 //!                                       applique une liste de commandes (tout ou rien)
 //! maison3d describe <monde.json>        résumé texte du monde
 //! maison3d check <monde.json>           avertissements de cohérence
+//! maison3d suggest <monde.json> <Sorte> --room <nom|x,z> [--level N] [--facing n|Sorte] [--count N]
+//!                                       places proposées pour un objet, en commandes place_prop
 //! maison3d query <monde.json> rooms | room <nom|x,z> | near x,z [--level N] [--radius R]
 //!                                       pièces, contenu d'une pièce, éléments autour d'un point
 //! maison3d schema [--brief]             schéma JSON des commandes (ou résumé d'une ligne par commande)
@@ -28,6 +30,7 @@ use crate::model::{ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, R
 mod describe;
 mod query;
 mod shot;
+mod suggest;
 
 pub use describe::describe;
 
@@ -70,7 +73,8 @@ enum CliError {
 
 const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
 [--out <autre.json>] [--json] | describe <monde.json> | \
-check <monde.json> | query <monde.json> rooms|room <nom|x,z>|near x,z [--level N] [--radius R] | schema [--brief] | help <op> | textures | catalog | guide | \
+check <monde.json> | query <monde.json> rooms|room <nom|x,z>|near x,z [--level N] [--radius R] | \
+suggest <monde.json> <Sorte> --room <nom|x,z> [--level N] [--facing n|Sorte] [--count N] | schema [--brief] | help <op> | textures | catalog | guide | \
 search [mots] [--room R] [--placement P] [--limit N] | shot <monde.json> <image.png> [--level N] [--from so|se|no|ne] [--zone x0,z0,x1,z1] [--size LxH] [--only 3/4|plan]";
 
 impl std::fmt::Display for CliError {
@@ -160,6 +164,10 @@ fn run(args: &[&str]) -> Result<(), CliError> {
         }
         ["query", world, "room", name @ ..] if !name.is_empty() => {
             print!("{}", query::room(&House::load(world)?, &name.join(" "), &flags)?);
+            Ok(())
+        }
+        ["suggest", world, kind] => {
+            print!("{}", suggest::suggest(&House::load(world)?, kind, &flags)?);
             Ok(())
         }
         ["query", world, "near", at] => {

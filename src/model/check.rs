@@ -21,27 +21,16 @@ impl House {
     }
 
     fn prop_warnings(&self, out: &mut Vec<String>) {
-        // emprise au sol et hauteurs occupées (un meuble haut passe au-dessus d'un meuble bas)
-        let indoor: Vec<(usize, &Prop, [Vec2; 4], (f32, f32))> = self
-            .props
-            .iter()
-            .enumerate()
-            // tapis et tracés au sol passent sous les meubles
-            .filter(|(_, p)| !p.kind.outdoor() && !p.kind.flat())
-            .map(|(i, p)| {
-                let (lo, hi) = p.local_box();
-                (i, p, p.corners(), (lo.y, hi.y))
-            })
-            .collect();
-        for (k, &(i, p, a, (y0, y1))) in indoor.iter().enumerate() {
-            for &(j, q, b, (z0, z1)) in &indoor[k + 1..] {
-                let stacked = y1 <= z0 + SLACK || z1 <= y0 + SLACK;
-                if p.level == q.level && !stacked && overlap(&a, &b) {
+        let indoor: Vec<(usize, &Prop, Solid)> =
+            self.props.iter().enumerate().filter_map(|(i, p)| Solid::of(p).map(|s| (i, p, s))).collect();
+        for (k, (i, p, a)) in indoor.iter().enumerate() {
+            for (j, q, b) in &indoor[k + 1..] {
+                if a.clash(b) {
                     out.push(format!("Prop {i} ({:?}) et Prop {j} ({:?}) se chevauchent", p.kind, q.kind));
                 }
             }
             for (wi, wall) in self.walls.iter().enumerate().filter(|(_, w)| w.level == p.level) {
-                if overlap(&a, &wall_box(wall)) {
+                if overlap(&a.corners, &wall_box(wall)) {
                     out.push(format!("Prop {i} ({:?}) traverse le mur {wi}", p.kind));
                 }
             }
@@ -137,6 +126,28 @@ impl House {
     }
 }
 
+/// Objet d'intérieur vu comme un volume : emprise au sol et hauteurs occupées. Tapis, tracés
+/// et objets d'extérieur n'en sont pas : ils passent sous les meubles ou suivent le relief.
+pub(super) struct Solid {
+    level: i32,
+    corners: [Vec2; 4],
+    ys: (f32, f32),
+}
+
+impl Solid {
+    pub(super) fn of(p: &Prop) -> Option<Self> {
+        let (lo, hi) = p.local_box();
+        (!p.kind.outdoor() && !p.kind.flat()).then(|| Self { level: p.level, corners: p.corners(), ys: (lo.y, hi.y) })
+    }
+
+    /// Même étage, emprises qui se chevauchent, et l'un ne passe pas au-dessus de l'autre (le
+    /// meuble haut de cuisine au-dessus du meuble bas).
+    pub(super) fn clash(&self, o: &Self) -> bool {
+        let stacked = self.ys.1 <= o.ys.0 + SLACK || o.ys.1 <= self.ys.0 + SLACK;
+        self.level == o.level && !stacked && overlap(&self.corners, &o.corners)
+    }
+}
+
 /// Emprise au sol d'un mur : rectangle de son épaisseur autour du segment.
 fn wall_box(w: &Wall) -> [Vec2; 4] {
     let n = w.dir().perp() * (w.thick / 2.0);
@@ -145,7 +156,7 @@ fn wall_box(w: &Wall) -> [Vec2; 4] {
 
 /// Deux rectangles orientés (coins dans l'ordre) se chevauchent-ils de plus de `SLACK` ?
 /// Théorème de l'axe séparateur : on projette sur les normales des côtés des deux rectangles.
-fn overlap(a: &[Vec2; 4], b: &[Vec2; 4]) -> bool {
+pub(super) fn overlap(a: &[Vec2; 4], b: &[Vec2; 4]) -> bool {
     let axes = [a[1] - a[0], a[3] - a[0], b[1] - b[0], b[3] - b[0]];
     axes.iter().filter(|ax| ax.length_squared() > 1e-8).all(|ax| {
         let ax = ax.normalize();

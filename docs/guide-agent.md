@@ -17,6 +17,7 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 | `maison3d query monde.json rooms` | Les pièces de chaque étage : l'espace fermé par les murs, cloisons comprises. Nom, un point intérieur, surface, nombre d'objets et de portes. |
 | `maison3d query monde.json room <nom ou x,z> [--level N]` | Une pièce : rectangle entre les murs, chaque mur avec son côté (nord, sud, est, ouest) et la coordonnée de sa **face intérieure**, ses ouvertures avec leur centre, ses objets. |
 | `maison3d query monde.json near x,z [--level N] [--radius R]` | La pièce qui contient le point, puis murs, ouvertures et objets à moins de R m (2 par défaut), du plus proche au plus loin. |
+| `maison3d suggest monde.json <Sorte> --room <nom ou x,z> [--level N] [--facing n ou Sorte] [--count N]` | Places proposées pour un objet dans une pièce, de la meilleure à la moins bonne : chaque ligne est une commande `place_prop` prête à coller, suivie de ses raisons (contre quel mur, tourné vers quoi, à côté de quel objet qui va avec, dégagement libre ou non, fenêtre masquée). Ne propose que des places dans la pièce, sans chevauchement (même règle que `check` : un objet mural peut passer au-dessus d'un meuble bas), hors du passage des portes et de l'espace à laisser devant les autres meubles ; un objet mural (miroir, radiateur) jamais sur une porte ni une fenêtre. **Ce sont des propositions** : les suivre, les ajuster ou poser ailleurs. |
 | `maison3d check monde.json` | Avertissements de cohérence. `apply` les affiche aussi après chaque lot. |
 | `maison3d shot monde.json vue.png [options]` | Vue 3/4 (`vue.png`) et plan à l'échelle (`vue_dessus.png`, nord en haut). |
 
@@ -59,7 +60,12 @@ ne s'ouvre, en 2 à 3 secondes) et écrit sur la sortie standard le chemin de ch
    - les indices créés : les noter, plutôt que de les recompter ;
    - les avertissements : les corriger avant de continuer.
 4. Avant de meubler une pièce, `query monde.json room <nom>` : les faces intérieures des murs
-   et la place des portes y sont données, inutile de les recalculer.
+   et la place des portes y sont données, inutile de les recalculer. Pour un objet dont la place
+   n'est pas évidente, `suggest` propose des positions ; poser d'abord les grands meubles
+   (lit, canapé, armoire), puis ceux qui vont avec. `--facing` sert aux objets qui **regardent**
+   un autre : la table basse ou le fauteuil vers le canapé, la chaise vers le bureau. Pour ceux
+   qui vont **à côté** (chevet, lampe) ou **au-dessus** (miroir sur le lavabo), ne pas le donner :
+   `suggest` les rapproche déjà des objets avec lesquels ils vont.
 5. `shot` pour contrôler à l'œil. Utiliser `--level` pour chaque étage, et `--from` pour voir
    les autres façades.
 6. Recommencer avec le lot suivant, sur le même `monde.json`.

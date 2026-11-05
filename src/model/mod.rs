@@ -17,6 +17,7 @@ mod props;
 mod query;
 mod roofs;
 mod shapes;
+mod suggest;
 
 pub use annotations::{Placement, Room, search};
 pub use catalog::{Category, PropKind};

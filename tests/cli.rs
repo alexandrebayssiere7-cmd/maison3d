@@ -259,3 +259,19 @@ fn query_finds_named_rooms_and_their_walls() {
     let missing = run(&["query", &world, "room", "grenier"]);
     assert!(!missing.status.success() && String::from_utf8_lossy(&missing.stderr).contains("pièce inconnue"));
 }
+
+#[test]
+fn suggest_prints_place_prop_commands_that_apply() {
+    let dir = tmp_dir("suggest");
+    let world = dir.join("monde.json").to_str().expect("chemin UTF-8").to_owned();
+    assert!(run(&["apply", &world, "docs/exemples/maison-deux-pieces.json", "--new", "--quiet"]).status.success());
+    let o = run(&["suggest", &world, "Nightstand", "--room", "chambre", "--count", "3"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let out = stdout(&o);
+    assert_eq!(out.lines().count(), 3, "{out}");
+    let first = out.lines().next().and_then(|l| l.split_once("  # ")).expect("commande  # raisons").0;
+    let cmds = write(&dir, "un.json", &format!("[{first}]"));
+    let applied = run(&["apply", &world, &cmds, "--quiet"]);
+    assert!(stdout(&applied).contains("Aucun problème"), "{}", stdout(&applied));
+    assert!(!run(&["suggest", &world, "Sofa"]).status.success(), "--room manquant");
+}

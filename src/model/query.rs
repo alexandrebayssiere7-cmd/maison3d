@@ -369,7 +369,7 @@ fn face(w: &Wall, side: RoomSide) -> Option<f32> {
 }
 
 /// L'objet prend-il de la place au sol ?
-fn on_ground(k: super::PropKind) -> bool {
+pub(super) fn on_ground(k: super::PropKind) -> bool {
     use super::annotations::Placement::{Ceiling, OnTop, OnWall};
     !k.flat() && !k.annotation().is_some_and(|a| matches!(a.placement, OnWall | OnTop | Ceiling))
 }
