@@ -425,7 +425,8 @@ mod tests {
     fn undo_redo_and_history_limit() {
         let mut ed = Editor::default();
         assert!(!ed.can_undo() && !ed.can_redo());
-        ed.apply([Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0 }]).unwrap();
+        ed.apply([Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None }])
+            .unwrap();
         ed.undo();
         assert!(ed.house.props.is_empty() && ed.can_redo());
         assert_eq!(ed.message, "Annulé");
@@ -441,7 +442,7 @@ mod tests {
     #[test]
     fn editor_apply_is_all_or_nothing() {
         let mut ed = Editor::default();
-        let lamp = Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0 };
+        let lamp = Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None };
         let err = ed.apply([lamp.clone(), Command::Remove { target: ElemRef::Wall(3) }]).unwrap_err();
         assert!(ed.house.props.is_empty() && !ed.can_undo());
         assert!(matches!(err, EditError::NotFound(ElemRef::Wall(3), _)), "{err}");

@@ -514,7 +514,14 @@ mod tests {
     #[test]
     fn bounds_cover_every_element() {
         let mut h = House::default();
-        h.apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::new(-3.0, 2.0), level: 0, rot: 0.0 }).unwrap();
+        h.apply(Command::PlaceProp {
+            kind: PropKind::Lamp,
+            pos: Vec2::new(-3.0, 2.0),
+            level: 0,
+            rot: 0.0,
+            scale: None,
+        })
+        .unwrap();
         h.apply(Command::AddRoad(Road {
             a: Vec2::new(5.0, -1.0),
             b: Vec2::new(5.0, 7.0),

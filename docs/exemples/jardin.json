@@ -12,7 +12,7 @@
   {"op": "place_prop", "kind": "Car", "pos": [16, 14], "level": 0, "rot": 90},
   {"op": "place_prop", "kind": "Fence", "pos": [19, 2], "level": 0, "rot": 90},
   {"op": "place_prop", "kind": "Fence", "pos": [19, 4], "level": 0, "rot": 90},
-  {"op": "place_prop", "kind": "Tree", "pos": [-5, -6], "level": 0},
+  {"op": "place_prop", "kind": "Tree", "pos": [-5, -6], "level": 0, "scale": 1.5},
   {"op": "place_prop", "kind": "AppleTree", "pos": [-4, 9], "level": 0},
   {"op": "place_prop", "kind": "Pine", "pos": [22, -4], "level": 0},
   {"op": "place_prop", "kind": "Palm", "pos": [20, 8], "level": 0},

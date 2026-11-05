@@ -124,6 +124,8 @@ Exemples complets et testés dans `docs/exemples/` :
 - `dim` dit ce que règle le champ `height` d'un objet : la hauteur d'un escalier ou d'un pilier,
   la longueur d'une ligne, le rayon d'un cercle. `null` : le champ ne sert pas. Il vaut 3 m par
   défaut (un étage), 0,5 m pour `StoneSteps` et `Ramp`.
+- `scale` (0,2 à 5, 1 par défaut) agrandit ou réduit tout l'objet, `height` comprise : arbre
+  majestueux, tournesol géant, maquette. Les dimensions du `catalog` sont à multiplier d'autant.
 - La doc de chaque sorte (`schema`, enum `PropKind`) donne ses dimensions, son avant et comment
   la placer : modules à aligner tous les 2 m (`Fence`, `Railing`, `Cubicle`…), objets muraux
   posés en hauteur (`WallCabinet`, `Mirror`, `RangeHood`), objets suspendus au plafond
