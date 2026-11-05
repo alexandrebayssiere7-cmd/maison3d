@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# lecture seule par défaut : seul le job publish reçoit le droit d'écrire
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: maison3d-linux-x86_64
+          - os: macos-latest
+            asset: maison3d-macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Dépendances système Bevy
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
+      # version et composants lus dans rust-toolchain.toml, comme la CI
+      - name: Toolchain Rust
+        run: rustup toolchain install
+
+      - name: Build
+        run: cargo build --release --locked
+
+      # archive tar : garde le bit exécutable que la Release perdrait sur un binaire nu
+      - name: Archive
+        run: tar -czf ${{ matrix.asset }}.tar.gz -C target/release maison3d
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.tar.gz
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      # publiée seulement si tous les builds ont réussi : pas de Release à moitié remplie
+      - name: Publie la Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --verify-tag --generate-notes
