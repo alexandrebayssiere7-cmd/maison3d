@@ -54,7 +54,9 @@ crapper src/*.rs                     # score CRAP (github.com/unclebob/crapper),
 
 # Outillage
 
-- CI GitHub Actions (`.github/workflows/ci.yml`) : `fmt --check`, `clippy -D warnings`, `test`, `llvm-cov`, et échec si une fonction dépasse un score CRAP de 30.
+- CI GitHub Actions (`.github/workflows/ci.yml`, sur `main` et les PR, cargo en `--locked`, actions épinglées sur SHA) : job `fmt` rapide ; job `check` avec `clippy -D warnings`, `test`, `llvm-cov`, et échec si une fonction dépasse un score CRAP de 30 ; `cargo deny check advisories` (exceptions motivées dans `.github/deny.toml`) ; build macOS. Dependabot hebdomadaire (cargo, actions).
+- Toolchain figée dans `rust-toolchain.toml` (CI, release et local) ; la monter = un commit dédié.
+- Release (`.github/workflows/release.yml`) : pousser un tag `v*` publie les binaires Linux et macOS dans une GitHub Release.
 - Hook pre-commit dans `.githooks/` (`cargo fmt --check` + `clippy`) ; l'activer avec `git config core.hooksPath .githooks`.
 - `.gitignore` tenu à jour : sorties générées (`graphify-out/`, `*.tmp`) ignorées.
 
