@@ -1,0 +1,7 @@
+# cargo-deny, job audit de la CI : réglages par défaut sauf les exceptions motivées ci-dessous
+[advisories]
+ignore = [
+    # ruzstd 0.8 vient de bevy_image 0.16 (textures KTX2) ; corrigé en 0.9.1, il faut passer à une Bevy plus récente.
+    # maison3d ne charge aucune texture via l'AssetServer (les mondes sont du JSON) : décodeur jamais atteint.
+    { id = "RUSTSEC-2026-0344", reason = "ruzstd via bevy_image, aucun zstd décodé ; à retirer à la montée de Bevy" },
+]
