@@ -605,6 +605,7 @@ fn schema_is_frozen() {
 
 mod props {
     use super::*;
+    use crate::model::Finish;
     use proptest::prelude::*;
 
     fn v2() -> impl Strategy<Value = Vec2> {
@@ -614,6 +615,34 @@ mod props {
     /// Coins tantôt quelconques, tantôt entiers (piscines).
     fn corner() -> impl Strategy<Value = Vec2> {
         prop_oneof![v2(), v2().prop_map(Vec2::round)]
+    }
+
+    /// Le plus souvent dans `lo..=hi` ; parfois juste en dessous, au-dessus, NaN ou infini.
+    fn wild(lo: f32, hi: f32) -> impl Strategy<Value = f32> {
+        prop_oneof![
+            17 => lo..=hi,
+            1 => (lo - 10.0)..(lo - 0.01),
+            1 => (hi + 0.01)..(hi + 10.0),
+            1 => prop::sample::select(vec![f32::NAN, f32::INFINITY, f32::NEG_INFINITY]),
+        ]
+    }
+
+    /// Point tantôt dans le terrain, tantôt hors du monde ou NaN.
+    fn anywhere() -> impl Strategy<Value = Vec2> {
+        prop_oneof![
+            18 => corner(),
+            1 => Just(Vec2::splat(1e6)),
+            1 => (wild(-20.0, 20.0), wild(-20.0, 20.0)).prop_map(|(x, y)| Vec2::new(x, y)),
+        ]
+    }
+
+    /// Teinte et matière, parfois hors bornes.
+    fn look() -> impl Strategy<Value = (Rgb, usize)> {
+        (prop::array::uniform3(wild(0.0, 1.0)), 0..crate::textures::count() + 2)
+    }
+
+    fn finishes() -> impl Strategy<Value = Vec<Finish>> {
+        prop::collection::vec(look().prop_map(|(color, texture)| Finish { color, texture }), 0..3)
     }
 
     fn target() -> impl Strategy<Value = ElemRef> {
@@ -664,6 +693,50 @@ mod props {
             (any::<u32>(), 0.0f32..10.0, 5.0f32..50.0, any::<bool>())
                 .prop_map(|(seed, amp, scale, mountains)| Command::GenerateTerrain { seed, amp, scale, mountains }),
             Just(Command::FlattenTerrain),
+            (anywhere(), anywhere(), level.clone(), look()).prop_map(|(min, max, level, (color, texture))| {
+                Command::AddSlab(Slab { min, max, level, color, texture })
+            }),
+            (
+                anywhere(),
+                anywhere(),
+                level.clone(),
+                prop::sample::select(&RoofKind::ALL[..]),
+                wild(0.0, 30.0),
+                wild(0.0, 5.0),
+                look()
+            )
+                .prop_map(|(min, max, level, kind, height, overhang, (color, texture))| {
+                    Command::AddRoof(Roof { min, max, level, kind, height, overhang, color, texture })
+                }),
+            (
+                prop::sample::select(&PropKind::ALL[..]),
+                anywhere(),
+                level.clone(),
+                wild(-36_000.0, 36_000.0),
+                wild(0.1, 30.0),
+                look(),
+                finishes(),
+                wild(0.2, 5.0)
+            )
+                .prop_map(|(kind, pos, level, rot, height, (color, texture), finishes, scale)| {
+                    Command::AddProp(Prop { kind, pos, level, rot, color, texture, height, finishes, scale })
+                }),
+            (
+                0..3usize,
+                prop::sample::select(&OpeningKind::ALL[..]),
+                wild(0.0, 6.0),
+                wild(0.2, 3.0),
+                wild(0.2, 2.5),
+                wild(0.0, 1.5),
+                look(),
+                finishes()
+            )
+                .prop_map(|(wall, kind, t, width, height, sill, (color, texture), finishes)| {
+                    Command::AddOpening {
+                        wall,
+                        opening: Opening { kind, t, width, height, sill, color, texture, finishes },
+                    }
+                }),
             target().prop_map(|target| Command::Remove { target }),
             (target(), v2()).prop_map(|(target, by)| Command::Move { target, by }),
             (target(), v2()).prop_map(|(target, by)| Command::Duplicate { target, by }),
@@ -685,11 +758,14 @@ mod props {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        #![proptest_config(ProptestConfig::with_cases(512))]
 
         #[test]
-        fn random_commands_never_panic_and_errors_change_nothing(cmds in prop::collection::vec(command(), 0..30)) {
-            let mut h = House::default();
+        fn random_commands_never_panic_and_errors_change_nothing(
+            furnish in any::<bool>(),
+            cmds in prop::collection::vec(command(), 0..30),
+        ) {
+            let mut h = if furnish { furnished() } else { House::default() };
             for c in cmds {
                 let before = h.clone();
                 if h.apply(c.clone()).is_err() {
