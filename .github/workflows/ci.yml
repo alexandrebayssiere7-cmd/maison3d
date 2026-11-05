@@ -19,6 +19,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # échec rapide : le format se vérifie sans compiler, donc sans apt ni cache
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Toolchain Rust
+        run: rustup toolchain install
+
+      - name: Format
+        run: cargo fmt --check
+
   check:
     runs-on: ubuntu-latest
     steps:
@@ -47,17 +59,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Format
-        run: cargo fmt --check
-
+      # --locked : Cargo.lock doit être à jour, la CI ne le réécrit pas en silence
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       # cargo llvm-cov lance les tests : pas de cargo test séparé, qui recompilerait tout
       - name: Tests et couverture
         run: |
           mkdir -p target/coverage/rust
-          cargo llvm-cov --lcov --output-path target/coverage/rust/lcov.info
+          cargo llvm-cov --locked --lcov --output-path target/coverage/rust/lcov.info
           cargo llvm-cov report --summary-only
 
       - name: Score CRAP (échec au-delà de 30)
