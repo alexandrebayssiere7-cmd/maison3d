@@ -129,20 +129,24 @@ impl Shot {
     }
 }
 
-/// Rend le monde hors écran, enregistre les images demandées et quitte.
-pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
+/// Chemins des deux vues demandées : perspective sous `png`, dessus sous `<nom>_dessus.<ext>`.
+fn shot_paths(png: &str, [persp, plan]: [bool; 2]) -> [Option<String>; 2] {
     let top = match png.rsplit_once('.') {
         Some((stem, ext)) => format!("{stem}_dessus.{ext}"),
         None => format!("{png}_dessus"),
     };
+    [persp.then(|| png.to_owned()), plan.then_some(top)]
+}
+
+/// Rend le monde hors écran, enregistre les images demandées et quitte.
+pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
     let framing = frame(&h, o);
     let mut ed = Editor::default();
     ed.house = h;
     if let Some(l) = o.level {
         (ed.level, ed.hide_upper) = (l, true);
     }
-    let [a, b] = o.views;
-    let paths = [a.then(|| png.to_owned()), b.then_some(top)];
+    let paths = shot_paths(png, o.views);
     let shot =
         Shot { paths, framing, plan_level: o.level.unwrap_or(0), saved: 0, target: Handle::default(), size: o.size };
     App::new()
@@ -342,5 +346,13 @@ mod tests {
         world.resource_mut::<Shot>().saved = 1;
         world.run_system(id).unwrap();
         assert!(!world.resource::<Events<AppExit>>().is_empty());
+    }
+
+    #[test]
+    fn plan_view_is_saved_next_to_the_perspective() {
+        let both = shot_paths("out/maison.png", [true, true]);
+        assert_eq!(both, [Some("out/maison.png".into()), Some("out/maison_dessus.png".into())]);
+        assert_eq!(shot_paths("maison", [false, true]), [None, Some("maison_dessus".into())]);
+        assert_eq!(shot_paths("maison.png", [true, false]), [Some("maison.png".into()), None]);
     }
 }
