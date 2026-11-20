@@ -1,5 +1,6 @@
 //! Menus (démarrage, options, choix du monde) et HUD en jeu.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -13,8 +14,25 @@ use crate::model::{House, demo_house};
 use crate::render::MainCamera;
 use crate::ui::{ACCENT, hud_frame, level_name};
 
-/// Dossier des mondes personnalisés.
-const DIR: &str = "mondes";
+/// Ancien dossier des mondes, relatif au répertoire courant : encore listé, plus jamais créé.
+const LEGACY_DIR: &str = "mondes";
+
+/// Dossier des mondes dans les données utilisateur de `os` (valeur de `std::env::consts::OS`),
+/// d'après les variables d'environnement lues par `var` ; `mondes` si aucune n'est définie.
+fn worlds_dir_for(os: &str, var: impl Fn(&str) -> Option<OsString>) -> PathBuf {
+    let var = |k| var(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    let base = match os {
+        "macos" => var("HOME").map(|h| h.join("Library").join("Application Support")),
+        "windows" => var("APPDATA"),
+        _ => var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local").join("share"))),
+    };
+    base.map_or_else(|| PathBuf::from(LEGACY_DIR), |b| b.join("maison3d").join(LEGACY_DIR))
+}
+
+/// Dossier où sont créés les mondes personnalisés.
+fn worlds_dir() -> PathBuf {
+    worlds_dir_for(std::env::consts::OS, |k| std::env::var_os(k))
+}
 
 #[derive(States, Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Screen {
@@ -40,23 +58,28 @@ impl Default for Settings {
     }
 }
 
-/// Premier « mondes/monde N.json » libre, pour ne jamais écraser un monde existant.
-fn free_name() -> String {
+/// Premier « monde N.json » libre de `dir`, pour ne jamais écraser un monde existant.
+fn free_name(dir: &Path) -> String {
     (1..=u32::MAX)
-        .map(|i| format!("{DIR}/monde {i}.json"))
-        .find(|f| !Path::new(f).exists())
+        .map(|i| dir.join(format!("monde {i}.json")))
+        .find(|f| !f.exists())
         .expect("suite infinie : un nom finit par être libre")
+        .to_string_lossy()
+        .into_owned()
 }
 
-fn custom_worlds() -> Vec<PathBuf> {
-    let mut v: Vec<_> = std::fs::read_dir(DIR)
-        .into_iter()
+/// Mondes de `dirs` (dossier actuel puis ancien), triés, sans doublon.
+fn custom_worlds(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut v: Vec<_> = dirs
+        .iter()
+        .flat_map(std::fs::read_dir)
         .flatten()
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|x| x == "json"))
         .collect();
     v.sort();
+    v.dedup();
     v
 }
 
@@ -368,7 +391,7 @@ fn world_cards(ui: &mut egui::Ui, form: &mut WorldForm, width: f32) -> Option<(H
     heading(ui, "Test");
     grid(ui, &mut |ui| {
         if card(ui, "🏠", "Monde de test", "Maison d'exemple", 0.58, false) {
-            chosen = Some((demo_house(), free_name(), "Monde de test".to_string()));
+            chosen = Some((demo_house(), free_name(&worlds_dir()), "Monde de test".to_string()));
         }
     });
     heading(ui, "Mondes standard");
@@ -380,7 +403,7 @@ fn world_cards(ui: &mut egui::Ui, form: &mut WorldForm, width: f32) -> Option<(H
         if card(ui, "+", "Nouveau monde", "Partir de zéro", 0.0, true) {
             form.new_name = Some(String::new());
         }
-        for p in custom_worlds() {
+        for p in custom_worlds(&[worlds_dir(), LEGACY_DIR.into()]) {
             let name = p.file_stem().unwrap_or_default().to_string_lossy().into_owned();
             if card(ui, "🏡", &name, "Personnalisé", hue(&name), false) {
                 let file = p.to_string_lossy().into_owned();
@@ -416,9 +439,9 @@ fn new_world_form(ui: &mut egui::Ui, form: &mut WorldForm) -> Option<(House, Str
         );
         pointer(&create);
         if create.clicked() || enter {
-            match new_world(name) {
+            match new_world(&worlds_dir(), name) {
                 Ok(c) => chosen = Some(c),
-                Err(e) => form.error = e,
+                Err(e) => form.error = e.to_string(),
             }
         }
         cancel = ui.add(egui::Button::new(RichText::new("Annuler").size(17.0)).min_size(vec2(90.0, 36.0))).clicked();
@@ -429,16 +452,34 @@ fn new_world_form(ui: &mut egui::Ui, form: &mut WorldForm) -> Option<(House, Str
     chosen
 }
 
-/// Monde vide nommé `name` dans le dossier des mondes, ou pourquoi c'est impossible.
-fn new_world(name: &str) -> Result<(House, String, String), String> {
+/// Pourquoi un nouveau monde ne peut pas être créé.
+#[derive(Debug)]
+enum NewWorldError {
+    /// Nom vide ou contenant un séparateur de chemin.
+    InvalidName,
+    /// Un monde porte déjà ce nom.
+    Exists(String),
+}
+
+impl std::fmt::Display for NewWorldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::InvalidName => write!(f, "Nom invalide"),
+            Self::Exists(name) => write!(f, "« {name} » existe déjà"),
+        }
+    }
+}
+
+/// Monde vide nommé `name` dans `dir`, ou pourquoi c'est impossible.
+fn new_world(dir: &Path, name: &str) -> Result<(House, String, String), NewWorldError> {
     let name = name.trim();
-    let file = format!("{DIR}/{name}.json");
+    let file = dir.join(format!("{name}.json"));
     if name.is_empty() || name.contains(['/', '\\']) {
-        Err("Nom invalide".into())
-    } else if Path::new(&file).exists() {
-        Err(format!("« {name} » existe déjà"))
+        Err(NewWorldError::InvalidName)
+    } else if file.exists() {
+        Err(NewWorldError::Exists(name.into()))
     } else {
-        Ok((House::default(), file, format!("Nouveau monde « {name} »")))
+        Ok((House::default(), file.to_string_lossy().into_owned(), format!("Nouveau monde « {name} »")))
     }
 }
 
@@ -569,14 +610,62 @@ mod tests {
 
     #[test]
     fn new_world_names_are_checked() {
-        assert_eq!(new_world("  ").unwrap_err(), "Nom invalide");
-        assert_eq!(new_world("a/b").unwrap_err(), "Nom invalide");
-        let (house, file, msg) = new_world(" Chalet ").unwrap();
+        let dir = std::env::temp_dir().join("maison3d_menu_new_world");
+        // le dossier peut ne pas exister : seul compte qu'il soit vide ensuite
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(matches!(new_world(&dir, "  "), Err(NewWorldError::InvalidName)));
+        assert!(matches!(new_world(&dir, "a/b"), Err(NewWorldError::InvalidName)));
+        assert!(matches!(new_world(&dir, "a\\b"), Err(NewWorldError::InvalidName)));
+        let (house, file, msg) = new_world(&dir, " Chalet ").unwrap();
+        let chalet = dir.join("Chalet.json");
         assert_eq!(
             (house, file.as_str(), msg.as_str()),
-            (House::default(), "mondes/Chalet.json", "Nouveau monde « Chalet »")
+            (House::default(), chalet.to_str().unwrap(), "Nouveau monde « Chalet »")
         );
-        assert!(free_name().starts_with("mondes/monde "));
+        assert_eq!(free_name(&dir), dir.join("monde 1.json").to_str().unwrap());
+        House::default().save(&chalet).unwrap();
+        House::default().save(dir.join("monde 1.json")).unwrap();
+        assert!(matches!(new_world(&dir, "Chalet"), Err(NewWorldError::Exists(n)) if n == "Chalet"));
+        assert_eq!(free_name(&dir), dir.join("monde 2.json").to_str().unwrap());
+    }
+
+    #[test]
+    fn worlds_are_listed_from_new_and_legacy_dirs() {
+        let root = std::env::temp_dir().join("maison3d_menu_custom_worlds");
+        // le dossier peut ne pas exister : seul compte qu'il soit vide ensuite
+        let _ = std::fs::remove_dir_all(&root);
+        let (new, old) = (root.join("nouveau"), root.join("ancien"));
+        for f in [new.join("b.json"), old.join("a.json")] {
+            House::default().save(f).unwrap();
+        }
+        std::fs::write(new.join("notes.txt"), "").unwrap();
+        let listed = custom_worlds(&[new.clone(), old.clone(), new.clone(), root.join("absent")]);
+        assert_eq!(listed, [old.join("a.json"), new.join("b.json")]);
+    }
+
+    #[test]
+    fn worlds_dir_follows_each_os_convention() {
+        let env = |pairs: &'static [(&str, &str)]| {
+            move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(v))
+        };
+        let home = env(&[("HOME", "/h"), ("APPDATA", "/a"), ("XDG_DATA_HOME", "/x")]);
+        let suffix = Path::new("maison3d").join("mondes");
+        assert_eq!(worlds_dir_for("macos", home), Path::new("/h/Library/Application Support").join(&suffix));
+        assert_eq!(worlds_dir_for("windows", home), Path::new("/a").join(&suffix));
+        assert_eq!(worlds_dir_for("linux", home), Path::new("/x").join(&suffix));
+        let no_xdg = env(&[("HOME", "/h"), ("XDG_DATA_HOME", "")]);
+        assert_eq!(worlds_dir_for("linux", no_xdg), Path::new("/h/.local/share").join(&suffix));
+        let nothing = env(&[]);
+        for os in ["macos", "windows", "linux", "freebsd"] {
+            assert_eq!(worlds_dir_for(os, nothing), Path::new("mondes"), "{os}");
+        }
+        assert!(worlds_dir().ends_with(&suffix) || worlds_dir() == Path::new("mondes"));
+    }
+
+    #[test]
+    fn new_world_errors_have_labels() {
+        assert_eq!(NewWorldError::InvalidName.to_string(), "Nom invalide");
+        assert_eq!(NewWorldError::Exists("Chalet".into()).to_string(), "« Chalet » existe déjà");
     }
 
     #[test]

@@ -485,6 +485,35 @@ mod tests {
     }
 
     #[test]
+    fn pointer_eyedropper_then_paint_copies_a_finish() {
+        let mut ed = Editor::default();
+        let slab =
+            |x: f32, color| crate::model::Slab { min: v(x, 0.0), max: v(x + 2.0, 2.0), level: 0, color, texture: 0 };
+        ed.house.slabs = vec![slab(0.0, [0.1, 0.2, 0.3]), slab(5.0, [1.0; 3])];
+        refresh(&mut ed);
+        ed.set_tool(Tool::Eyedropper);
+        ed.pointer(&click_at(9.0, 9.0));
+        assert_eq!(ed.tool, Tool::Eyedropper, "dans le vide : rien à prélever");
+        ed.pointer(&click_at(1.0, 1.0));
+        assert_eq!((ed.tool, ed.paint_color), (Tool::Paint, [0.1, 0.2, 0.3]));
+        ed.pointer(&PointerInput { over_ui: true, ..click_at(6.0, 1.0) });
+        assert_eq!(ed.house.slabs[1].color, [1.0; 3], "un clic sur le panneau ne peint pas");
+        ed.pointer(&click_at(6.0, 1.0));
+        assert_eq!(ed.house.slabs[1].color, [0.1, 0.2, 0.3]);
+    }
+
+    #[test]
+    fn pointer_places_the_room_on_release_and_drops_the_preview() {
+        let mut ed = Editor::default();
+        ed.set_tool(Tool::Room);
+        ed.pointer(&PointerInput { just_released: false, ..click_at(0.0, 0.0) });
+        ed.pointer(&PointerInput { ray: click_at(4.0, 3.0).ray, just_released: true, ..default() });
+        assert_eq!(ed.house.walls.len(), 4);
+        let o = ed.pointer(&PointerInput { ray: click_at(5.0, 5.0).ray, ..default() });
+        assert!(o.boxes.is_empty(), "plus d'aperçu une fois la pièce posée");
+    }
+
+    #[test]
     fn hints_have_distinct_colors() {
         let hints =
             [Hint::Selected, Hint::Hovered, Hint::Erase, Hint::Preview, Hint::TooSmall, Hint::Fits, Hint::Blocked];

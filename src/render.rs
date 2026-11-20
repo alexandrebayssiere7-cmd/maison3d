@@ -21,9 +21,9 @@ pub struct MainCamera;
 #[derive(Component)]
 pub struct Sun;
 
-/// Entités générées depuis la maison, détruites à chaque reconstruction.
+/// Entités générées depuis la maison, avec leur élément d'origine, détruites à chaque reconstruction.
 #[derive(Component)]
-pub struct Built;
+pub struct Built(ElemRef);
 
 /// Maillage du relief, gardé tant que le terrain et les piscines ne changent pas.
 #[derive(Component)]
@@ -37,9 +37,14 @@ pub struct Library {
     cone: Handle<Mesh>,
     glass: Handle<StandardMaterial>,
     mats: HashMap<([u8; 3], usize), Handle<StandardMaterial>>,
+    /// Boîtes déjà maillées, par bits exacts des dimensions et du décalage des UV (rendu inchangé).
+    boxes: HashMap<([u32; 3], [u32; 3]), Handle<Mesh>>,
     /// Textures du catalogue : (nom, image, taille du motif en m). Index = id de texture - 1.
     pub textures: Vec<(&'static str, Handle<Image>, f32)>,
 }
+
+/// Taille maximale du cache de boîtes.
+const MAX_BOXES: usize = 4096;
 
 impl Library {
     /// Bibliothèque sans maillages ni textures chargés, pour les tests sans moteur de rendu.
@@ -52,8 +57,22 @@ impl Library {
             cone: Handle::default(),
             glass: Handle::default(),
             mats: HashMap::new(),
+            boxes: HashMap::new(),
             textures: vec![("Herbe", Handle::default(), 2.0)],
         }
+    }
+
+    /// Maillage d'une boîte placée par `tf`, partagé entre les boîtes identiques.
+    /// Les UV dépendent de la position dans le repère de la boîte (les morceaux d'un même mur
+    /// partagent ce repère, la texture se raccorde autour des fenêtres) ; sans texture ils ne servent pas.
+    fn box_handle(&mut self, meshes: &mut Assets<Mesh>, tf: Transform, textured: bool) -> Handle<Mesh> {
+        let uv = if textured { tf.rotation.inverse() * tf.translation } else { Vec3::ZERO };
+        let key = (tf.scale.to_array().map(f32::to_bits), uv.to_array().map(f32::to_bits));
+        // borné : les entités gardent leurs propres poignées, vider le cache ne fait que perdre le partage
+        if self.boxes.len() >= MAX_BOXES && !self.boxes.contains_key(&key) {
+            self.boxes.clear();
+        }
+        self.boxes.entry(key).or_insert_with(|| meshes.add(box_mesh(tf.scale, uv))).clone()
     }
 
     fn material(&mut self, assets: &mut Assets<StandardMaterial>, c: Rgb, texture: usize) -> Handle<StandardMaterial> {
@@ -125,6 +144,7 @@ pub fn setup_scene(
             ..default()
         }),
         mats: HashMap::new(),
+        boxes: HashMap::new(),
         textures,
     });
 }
@@ -132,31 +152,36 @@ pub fn setup_scene(
 /// Relief et piscines du dernier maillage de sol.
 type GroundCache = Option<(Terrain, Vec<Pool>)>;
 
-/// Recrée toutes les entités de la maison quand elle a changé.
+/// Recrée les entités de la maison quand elle a changé, ou seulement celles des éléments animés.
 pub fn rebuild(
     mut commands: Commands,
     mut ed: ResMut<Editor>,
     mut lib: ResMut<Library>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    old: Query<Entity, With<Built>>,
+    old: Query<(Entity, &Built)>,
     old_ground: Query<Entity, With<Ground>>,
     mut ground: Local<GroundCache>,
 ) {
-    if !ed.dirty {
+    let moved = std::mem::take(&mut ed.moved);
+    let full = std::mem::take(&mut ed.dirty);
+    if !full && moved.is_empty() {
         return;
     }
-    ed.dirty = false;
-    for e in &old {
-        commands.entity(e).despawn();
+    let redo = |e: &ElemRef| full || moved.contains(e);
+    for (e, Built(owner)) in &old {
+        if redo(owner) {
+            commands.entity(e).despawn();
+        }
     }
     // le maillage du relief est lourd : on ne le refait que si le relief ou les piscines ont changé
-    if ground_changed(&ground, &ed.house) {
+    if full && ground_changed(&ground, &ed.house) {
         respawn_ground(&mut commands, &old_ground, &mut lib, &mut meshes, &mut materials, &ed.house);
         *ground = Some((ed.house.terrain.clone(), ed.house.pools.clone()));
     }
+    // toutes les pièces sont recalculées (sélection par rayon) mais seules celles à refaire sont recréées
     let parts = shown_parts(&ed);
-    spawn_parts(&mut commands, &mut lib, &mut meshes, &mut materials, &parts);
+    spawn_parts(&mut commands, &mut lib, &mut meshes, &mut materials, parts.iter().filter(|p| redo(&p.owner)));
     ed.parts = parts;
 }
 
@@ -190,23 +215,23 @@ fn shown_parts(ed: &Editor) -> Vec<Part> {
     parts
 }
 
-fn spawn_parts(
+fn spawn_parts<'a>(
     commands: &mut Commands,
     lib: &mut Library,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    parts: &[Part],
+    parts: impl Iterator<Item = &'a Part>,
 ) {
     for p in parts {
         if p.shape == Shape::Light {
             let c = Color::srgb(p.color[0], p.color[1], p.color[2]);
             commands.spawn((
-                Built,
+                Built(p.owner),
                 PointLight { color: c, intensity: 300_000.0, range: 15.0, ..default() },
                 p.tf.with_scale(Vec3::ONE),
             ));
         } else {
-            commands.spawn((Built, part_bundle(lib, meshes, materials, p)));
+            commands.spawn((Built(p.owner), part_bundle(lib, meshes, materials, p)));
         }
     }
 }
@@ -222,7 +247,7 @@ pub fn part_bundle(
     let mesh = match p.shape {
         Shape::Cube => {
             tf.scale = Vec3::ONE;
-            meshes.add(box_mesh(p.tf))
+            lib.box_handle(meshes, p.tf, p.texture != 0)
         }
         Shape::Wheel => {
             // cylindre couché : son axe (Y) passe sur X
@@ -291,11 +316,9 @@ fn roof_mesh(kind: RoofKind, size: Vec3) -> Mesh {
     flat_mesh(&crate::model::roof_tris(kind, size), Vec3::new(0.0, size.y * 0.3, 0.0), Vec3::ZERO)
 }
 
-/// Boîte aux dimensions réelles de `tf.scale` (à afficher avec une échelle 1).
-/// Les UV dépendent de la position dans le repère de la boîte : les morceaux d'un même mur
-/// partagent ce repère, donc la texture se raccorde autour des fenêtres.
-fn box_mesh(tf: Transform) -> Mesh {
-    let h = tf.scale / 2.0;
+/// Boîte aux dimensions réelles `size` (à afficher avec une échelle 1), UV décalés de `uv_offset`.
+fn box_mesh(size: Vec3, uv_offset: Vec3) -> Mesh {
+    let h = size / 2.0;
     let c = |x: f32, y: f32, z: f32| Vec3::new(x, y, z) * h;
     let quads = [
         [c(1., -1., -1.), c(1., 1., -1.), c(1., 1., 1.), c(1., -1., 1.)],
@@ -306,7 +329,7 @@ fn box_mesh(tf: Transform) -> Mesh {
         [c(-1., -1., -1.), c(1., -1., -1.), c(1., 1., -1.), c(-1., 1., -1.)],
     ];
     let tris: Vec<[Vec3; 3]> = quads.iter().flat_map(|[a, b, c, d]| [[*a, *b, *c], [*a, *c, *d]]).collect();
-    flat_mesh(&tris, Vec3::ZERO, tf.rotation.inverse() * tf.translation)
+    flat_mesh(&tris, Vec3::ZERO, uv_offset)
 }
 
 /// Maillage à facettes ; chaque triangle est orienté à l'opposé de `inside`.
@@ -382,6 +405,22 @@ mod tests {
     }
 
     #[test]
+    fn identical_boxes_share_a_mesh_and_the_cache_stays_bounded() {
+        let (mut lib, mut meshes) = (Library::empty(), Assets::<Mesh>::default());
+        let at = |x: f32| Transform::from_xyz(x, 0.0, 0.0).with_scale(Vec3::new(1.0, 2.0, 0.5));
+        let a = lib.box_handle(&mut meshes, at(0.0), false);
+        assert_eq!(a, lib.box_handle(&mut meshes, at(3.0), false), "sans texture, la position est sans effet");
+        assert_ne!(a, lib.box_handle(&mut meshes, at(3.0).with_scale(Vec3::ONE), false));
+        let t = lib.box_handle(&mut meshes, at(0.0), true);
+        assert_ne!(t, lib.box_handle(&mut meshes, at(3.0), true), "texturée : les UV suivent la position");
+        assert_eq!(t, lib.box_handle(&mut meshes, at(0.0), true));
+        for i in 0..MAX_BOXES {
+            lib.box_handle(&mut meshes, at(i as f32), true);
+        }
+        assert!(lib.boxes.len() <= MAX_BOXES);
+    }
+
+    #[test]
     fn ground_mesh_has_holes_for_pools_and_is_cached() {
         let h = demo_house();
         let count = |h: &House| terrain_mesh(h).indices().map_or(0, bevy::render::mesh::Indices::len);
@@ -409,8 +448,8 @@ mod tests {
         assert!(!crate::model::prop_parts(&stairs, ElemRef::Prop(0), 0.0, 0.0).is_empty());
     }
 
-    #[test]
-    fn rebuild_spawns_the_house_once_per_change() {
+    /// Monde de test avec la maison de démo et le système `rebuild` enregistré.
+    fn demo_world() -> (World, bevy::ecs::system::SystemId) {
         let mut world = World::new();
         world.insert_resource(Library::empty());
         world.init_resource::<Assets<Mesh>>();
@@ -419,6 +458,42 @@ mod tests {
         ed.house = demo_house();
         world.insert_resource(ed);
         let id = world.register_system(rebuild);
+        (world, id)
+    }
+
+    fn owners(world: &mut World) -> HashMap<Entity, ElemRef> {
+        world.query::<(Entity, &Built)>().iter(world).map(|(e, b)| (e, b.0)).collect()
+    }
+
+    #[test]
+    fn animating_a_door_respawns_only_its_parts() {
+        let (mut world, id) = demo_world();
+        world.run_system(id).unwrap();
+        let ed = world.resource::<Editor>();
+        let (wi, w) = ed.house.walls.iter().enumerate().find(|(_, w)| !w.openings.is_empty()).unwrap();
+        let oi = w.openings.iter().position(|o| o.kind == crate::model::OpeningKind::Door).unwrap();
+        let door = ElemRef::Opening(wi, oi);
+        let door_tfs = |ed: &Editor| ed.parts.iter().filter(|p| p.owner == door).map(|p| p.tf).collect::<Vec<_>>();
+        let (closed, before) = (door_tfs(ed), owners(&mut world));
+        let mut ed = world.resource_mut::<Editor>();
+        ed.toggle_door(door);
+        ed.animate_doors(0.2);
+        world.run_system(id).unwrap();
+        let after = owners(&mut world);
+        let others = |m: &HashMap<Entity, ElemRef>| m.iter().filter(|(_, o)| **o != door).map(|(e, _)| *e).collect();
+        let kept: std::collections::HashSet<Entity> = others(&before);
+        assert_eq!(kept, others(&after), "le reste de la maison n'est pas recréé");
+        let count = |m: &HashMap<Entity, ElemRef>| m.values().filter(|o| **o == door).count();
+        assert_eq!(count(&before), count(&after));
+        assert!(after.iter().any(|(e, o)| *o == door && !before.contains_key(e)), "la porte est recréée");
+        let ed = world.resource::<Editor>();
+        assert_ne!(door_tfs(ed), closed, "la sélection voit la porte ouverte");
+        assert!(ed.moved.is_empty());
+    }
+
+    #[test]
+    fn rebuild_spawns_the_house_once_per_change() {
+        let (mut world, id) = demo_world();
         world.run_system(id).unwrap();
         let built = world.query_filtered::<(), With<Built>>().iter(&world).count();
         assert!(built > 50, "{built}");

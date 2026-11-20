@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "walls": [
+    { "a": [0.0, 0.0], "b": [4.0, 0.0], "level": 0, "height": 3.0, "thick": 0.2, "color": [1.0, 1.0, 1.0], "openings": [], "texture": 0 },
+    { "a": [4.0, 0.0], "b": [4.0, 0.0], "level": 0, "height": 3.0, "thick": 0.2, "color": [1.0, 1.0, 1.0], "openings": [], "texture": 0 }
+  ],
+  "slabs": [],
+  "roofs": [],
+  "props": []
+}

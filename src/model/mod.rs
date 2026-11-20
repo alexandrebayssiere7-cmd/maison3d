@@ -336,8 +336,16 @@ impl Default for House {
 pub enum WorldError {
     Io(std::io::Error),
     Json(serde_json::Error),
-    BadTerrain { n: usize, full: usize },
+    BadTerrain {
+        n: usize,
+        full: usize,
+    },
     TooNew(u32),
+    /// Élément hors des bornes acceptées par les commandes.
+    Invalid {
+        elem: ElemRef,
+        err: crate::command::EditError,
+    },
 }
 
 impl std::fmt::Display for WorldError {
@@ -347,6 +355,7 @@ impl std::fmt::Display for WorldError {
             Self::Json(e) => write!(f, "{e}"),
             Self::BadTerrain { n, full } => write!(f, "relief invalide : {n} altitudes au lieu de {full}"),
             Self::TooNew(v) => write!(f, "format {v} plus récent que ce programme (format {VERSION})"),
+            Self::Invalid { elem, err } => write!(f, "élément {elem:?} invalide : {err}"),
         }
     }
 }
@@ -447,7 +456,8 @@ fn local_box(x0: f32, x1: f32, y0: f32, y1: f32, depth: f32) -> Option<Transform
 }
 
 impl House {
-    /// Lit un monde enregistré ; refuse un relief dont la grille n'a pas la bonne taille.
+    /// Lit un monde enregistré ; refuse un relief dont la grille n'a pas la bonne taille
+    /// et tout élément que les commandes refuseraient.
     pub fn load(path: impl AsRef<std::path::Path>) -> Result<House, WorldError> {
         let mut h: House = serde_json::from_str(&std::fs::read_to_string(path)?)?;
         if h.version > VERSION {
@@ -459,6 +469,7 @@ impl House {
         if n != 0 && n != full {
             return Err(WorldError::BadTerrain { n, full });
         }
+        h.validate().map_err(|(elem, err)| WorldError::Invalid { elem, err })?;
         Ok(h)
     }
 
@@ -595,6 +606,7 @@ pub fn room_walls(min: Vec2, max: Vec2, level: i32, height: f32, thick: f32, col
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::EditError;
     fn wall(len: f32) -> Wall {
         Wall {
             a: Vec2::ZERO,
@@ -698,6 +710,39 @@ mod tests {
         assert_eq!(h.version, VERSION);
         assert_eq!((h.walls.len(), h.slabs.len(), h.props.len()), (4, 1, 1));
         assert!((h.props[0].scale - 1.0).abs() < f32::EPSILON, "objet sans échelle : 1");
+    }
+    #[test]
+    fn load_rejects_elements_the_commands_would_refuse() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/monde_invalide.json");
+        let err = House::load(path).unwrap_err();
+        assert!(matches!(err, WorldError::Invalid { elem: ElemRef::Wall(1), err: EditError::WallTooShort }));
+        assert!(err.to_string().contains("Wall(1)"), "{err}");
+    }
+    #[test]
+    fn validate_reports_each_kind_of_bad_element() {
+        let h = demo_house();
+        assert!(h.validate().is_ok(), "{:?}", h.validate());
+        let bad = |f: &dyn Fn(&mut House)| {
+            let mut h = demo_house();
+            f(&mut h);
+            h.validate().unwrap_err()
+        };
+        assert!(matches!(
+            bad(&|h| h.walls[0].level = 2_000_000_000),
+            (ElemRef::Wall(0), EditError::LevelOutOfRange(_))
+        ));
+        assert!(matches!(
+            bad(&|h| h.walls[2].thick = -1.0),
+            (ElemRef::Wall(2), EditError::OutOfRange { field: "thick", .. })
+        ));
+        assert!(matches!(bad(&|h| h.slabs[0].texture = 999_999), (ElemRef::Slab(0), EditError::UnknownTexture { .. })));
+        assert!(matches!(bad(&|h| h.roofs[0].height = f32::NAN), (ElemRef::Roof(0), EditError::OutOfRange { .. })));
+        assert!(matches!(bad(&|h| h.props[0].pos.x = 1e30), (ElemRef::Prop(0), EditError::OutOfWorld(_))));
+        assert!(matches!(bad(&|h| h.pools[0].max.x = 1e30), (ElemRef::Pool(0), EditError::OutOfWorld(_))));
+        assert!(matches!(
+            bad(&|h| h.roads[0].width = 0.0),
+            (ElemRef::Road(0), EditError::OutOfRange { field: "width", .. })
+        ));
     }
     #[test]
     fn refuses_files_from_a_newer_format() {

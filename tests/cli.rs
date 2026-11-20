@@ -113,6 +113,14 @@ fn describe_missing_world_exits_1() {
     assert_eq!(run(&["describe", missing.to_str().expect("chemin UTF-8")]).status.code(), Some(1));
 }
 
+#[test]
+fn describe_invalid_world_exits_1() {
+    let world = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/monde_invalide.json");
+    let o = run(&["describe", world]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("Wall(1) invalide"), "{}", String::from_utf8_lossy(&o.stderr));
+}
+
 /// Les exemples de `docs/exemples/` s'appliquent sans erreur et, ensemble, emploient chaque commande du schéma.
 #[test]
 fn agent_examples_apply_and_cover_every_command() {
@@ -129,6 +137,8 @@ fn agent_examples_apply_and_cover_every_command() {
         let world = dir.join(format!("{name}.json"));
         let o = run(&["apply", world.to_str().expect("chemin UTF-8"), path.to_str().expect("chemin UTF-8"), "--new"]);
         assert!(o.status.success(), "{name} : {}", String::from_utf8_lossy(&o.stderr));
+        let reload = run(&["describe", world.to_str().expect("chemin UTF-8")]);
+        assert!(reload.status.success(), "{name} relu : {}", String::from_utf8_lossy(&reload.stderr));
         if name != "retouches" {
             assert!(
                 stdout(&o).contains("Aucun problème détecté"),
