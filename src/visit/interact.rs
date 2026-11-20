@@ -185,6 +185,26 @@ mod tests {
         assert!(furniture_spot(&Prop { kind: PropKind::Table, ..chair }, false, Vec3::ZERO).is_none());
     }
     #[test]
+    fn every_seat_has_its_spot() {
+        let at = |kind, lie, viewer| {
+            furniture_spot(&Prop::new(kind, Vec2::ZERO, 0, 0.0), lie, viewer).map(|(s, at, _)| (s, at))
+        };
+        // canapé : la place la plus proche de celui qui arrive
+        assert!((at(PropKind::Sofa, false, Vec3::new(-3.0, 0.0, 1.0)).unwrap().1.x + 0.55).abs() < 1e-4);
+        assert!(at(PropKind::Sofa, false, Vec3::new(0.1, 0.0, 1.0)).unwrap().1.x.abs() < 1e-4);
+        // lit : on s'assoit du côté d'où l'on vient
+        assert!(at(PropKind::Bed, false, Vec3::new(-2.0, 0.0, 0.0)).unwrap().1.x < 0.0);
+        assert!(at(PropKind::Bed, false, Vec3::new(2.0, 0.0, 0.0)).unwrap().1.x > 0.0);
+        for (kind, lie, stance) in [
+            (PropKind::Toilet, false, Stance::Sit),
+            (PropKind::Sofa, true, Stance::Lie),
+            (PropKind::Bathtub, false, Stance::Sit),
+            (PropKind::Bathtub, true, Stance::Lie),
+        ] {
+            assert_eq!(at(kind, lie, Vec3::Z).map(|s| s.0), Some(stance), "{kind:?} lie={lie}");
+        }
+    }
+    #[test]
     fn standing_actions_depend_on_the_target() {
         let none = Seat { sit: None, lie: None, prefers_lying: false };
         assert_eq!(
