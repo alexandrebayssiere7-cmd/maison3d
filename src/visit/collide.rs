@@ -57,13 +57,24 @@ pub(super) fn push_out(pos: &mut Vec3, tf: &Transform, radius: f32, height: f32)
 
 /// Hauteur du sol sous les pieds : dessus de la plus haute boîte franchissable, ou le terrain `ground`.
 pub(super) fn floor_at(pos: Vec3, solids: &[Transform], ground: f32) -> f32 {
-    let mut best = if pos.y >= ground - 0.05 { ground } else { -50.0 };
+    let base = if pos.y >= ground - STEP { ground } else { -50.0 };
+    highest_top(Vec2::new(pos.x, pos.z), pos.y, base, solids)
+}
+
+/// Hauteur franchissable sous `p` pour une roue : le terrain, ou le dessus d'une boîte (dalle,
+/// route, marche) pas plus haute qu'une marche au-dessus de `y`.
+pub(super) fn support_height(p: Vec2, y: f32, ground: f32, solids: &[Transform]) -> f32 {
+    highest_top(p, y, ground.max(-50.0), solids)
+}
+
+/// Plus haut dessus de boîte sous `p`, au-dessus de `best` et pas plus haut qu'une marche au-dessus de `y`.
+fn highest_top(p: Vec2, y: f32, mut best: f32, solids: &[Transform]) -> f32 {
     for tf in solids {
         let top = y_range(tf).1;
-        if top > pos.y + STEP || top <= best {
+        if top > y + STEP || top <= best {
             continue;
         }
-        let l = tf.rotation.inverse() * (pos - tf.translation);
+        let l = tf.rotation.inverse() * (Vec3::new(p.x, tf.translation.y, p.y) - tf.translation);
         let h = tf.scale / 2.0;
         if l.x.abs() <= h.x && l.z.abs() <= h.z {
             best = top;
