@@ -97,24 +97,15 @@ impl std::fmt::Display for EditError {
             Self::PoolOffGrid => write!(f, "Piscine : coins au mètre près exigés"),
             Self::RoadTooShort => write!(f, "Route trop courte (min 5 cm)"),
             Self::WallNotFound(w, n) => write!(f, "Mur introuvable : {w} (il y a {n} murs)"),
-            Self::OpeningOutsideWall { kind, t, t_min, t_max, wall_len } if t_min > t_max => {
-                write!(f, "{} à t={t} : le mur de {wall_len:.2} m est trop court pour cette largeur", kind.name())
+            Self::OpeningOutsideWall { kind, t, t_min, t_max, wall_len } => {
+                outside_wall(f, kind.name(), "cette largeur", *t, *t_min, *t_max, *wall_len)
             }
-            Self::OpeningOutsideWall { kind, t, t_min, t_max, wall_len } => write!(
-                f,
-                "{} à t={t} dépasse du mur de {wall_len:.2} m : t doit être entre {t_min:.2} et {t_max:.2}",
-                kind.name()
-            ),
             Self::OpeningOverlaps { kind, t, other } => {
                 write!(f, "{} à t={t} chevauche l'ouverture {other} de ce mur", kind.name())
             }
-            Self::PropOutsideWall { t, t_min, t_max, wall_len } if t_min > t_max => {
-                write!(f, "Objet à t={t} : le mur de {wall_len:.2} m est trop court pour sa largeur")
+            Self::PropOutsideWall { t, t_min, t_max, wall_len } => {
+                outside_wall(f, "Objet", "sa largeur", *t, *t_min, *t_max, *wall_len)
             }
-            Self::PropOutsideWall { t, t_min, t_max, wall_len } => write!(
-                f,
-                "Objet à t={t} dépasse du mur de {wall_len:.2} m : t doit être entre {t_min:.2} et {t_max:.2}"
-            ),
             Self::SideUnknown(w) => write!(
                 f,
                 "Mur {w} : côté de la pièce indéterminé (un sol des deux côtés, ou d'aucun) : préciser side Left ou Right"
@@ -157,6 +148,22 @@ impl std::fmt::Display for EditError {
             Self::BadName(n) => write!(f, "Nom de pièce « {n} » refusé : 1 à 40 caractères, pas seulement des espaces"),
         }
     }
+}
+
+/// Ouverture ou objet qui sort de son mur ; plage vide (`t_min > t_max`) : le mur est trop court.
+fn outside_wall(
+    f: &mut std::fmt::Formatter,
+    what: &str,
+    width: &str,
+    t: f32,
+    t_min: f32,
+    t_max: f32,
+    wall_len: f32,
+) -> std::fmt::Result {
+    if t_min > t_max {
+        return write!(f, "{what} à t={t} : le mur de {wall_len:.2} m est trop court pour {width}");
+    }
+    write!(f, "{what} à t={t} dépasse du mur de {wall_len:.2} m : t doit être entre {t_min:.2} et {t_max:.2}")
 }
 
 impl std::error::Error for EditError {}
