@@ -270,7 +270,9 @@ impl Editor {
 
     fn after_restore(&mut self, msg: &str) {
         self.selected = None;
+        // les gestes en cours n'ont plus de point d'annulation : il faut recliquer
         self.prop_edit_active = false;
+        self.sculpting = false;
         self.doors.clear();
         self.cancel();
         self.dirty = true;

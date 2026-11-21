@@ -460,6 +460,31 @@ mod tests {
     }
 
     #[test]
+    fn undo_ends_the_sculpt_gesture() {
+        let mut ed = Editor { brush_strength: 10.0, ..Editor::default() };
+        ed.sculpt_input(Some(Vec2::ZERO), true, true, 0.1);
+        ed.undo();
+        ed.sculpt_input(Some(Vec2::ZERO), false, true, 0.1);
+        assert_eq!(ed.house.terrain.height(Vec2::ZERO), 0.0, "Ctrl+Z clôt le geste, même bouton tenu");
+        ed.sculpt_input(Some(Vec2::ZERO), true, true, 0.1);
+        assert!(ed.house.terrain.height(Vec2::ZERO) > 0.0);
+        assert!(!ed.can_redo(), "un nouveau geste vide le rétablissement");
+        ed.undo();
+        assert_eq!(ed.house.terrain.height(Vec2::ZERO), 0.0, "annuler défait le nouveau geste");
+    }
+
+    #[test]
+    fn redo_ends_the_sculpt_gesture() {
+        let mut ed = Editor { brush_strength: 10.0, ..Editor::default() };
+        ed.sculpt_input(Some(Vec2::ZERO), true, true, 0.1);
+        ed.undo();
+        ed.redo();
+        let h = ed.house.terrain.height(Vec2::ZERO);
+        ed.sculpt_input(Some(Vec2::ZERO), false, true, 0.1);
+        assert_eq!(ed.house.terrain.height(Vec2::ZERO), h, "Ctrl+Y clôt le geste, même bouton tenu");
+    }
+
+    #[test]
     fn paint_eyedropper_and_erase() {
         let mut ed = with_table();
         ed.set_tool(Tool::Eyedropper);
