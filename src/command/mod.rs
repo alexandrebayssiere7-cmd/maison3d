@@ -347,7 +347,7 @@ impl House {
                 Ok(None)
             }
             Command::Remove { target } => {
-                self.remove(target);
+                self.remove_settled(target);
                 Ok(None)
             }
             Command::Move { target, by } => self.move_elem(target, by),
@@ -505,11 +505,22 @@ impl House {
                 let s = &self.slabs[i];
                 self.terrain.keep_flat(s.min, s.max);
             }
-            ElemRef::Road(_) | ElemRef::Pool(_) => {}
-            _ => return e,
+            ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_) => return e,
+            // routes, piscines, et murs ou sols d'étage dont l'emprise au sol a pu changer
+            _ => {}
         }
         self.regrade();
         e
+    }
+
+    /// Retire l'élément ; routes et piscines restantes lisaient peut-être le relief qu'il
+    /// portait : elles sont terrassées à nouveau.
+    fn remove_settled(&mut self, target: ElemRef) {
+        self.remove(target);
+        let ground = !matches!(target, ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_));
+        if ground && !self.terrain.h.is_empty() {
+            self.regrade();
+        }
     }
 
     /// Ce qui pose l'élément sur le relief : ses deux points, et son étage ou sa largeur.

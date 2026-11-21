@@ -151,7 +151,7 @@ impl House {
                     // reste aligné sur la grille du relief pour que le trou tombe juste
                     p.min += d.round();
                     p.max += d.round();
-                    self.settle_pools();
+                    self.regrade();
                 }
             }
             ElemRef::Road(i) => {
