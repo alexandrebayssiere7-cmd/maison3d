@@ -550,10 +550,10 @@ impl House {
         }
     }
 
-    /// Le fond de chaque piscine reste plat, à l'altitude du terrain à son coin.
+    /// Le fond de chaque piscine reste plat, à l'altitude du terrain en son centre.
     fn settle_pools(&mut self) {
         for p in &self.pools {
-            self.terrain.flatten_rect(p.min, p.max, self.terrain.height(p.min));
+            self.terrain.flatten_rect(p.min, p.max, self.terrain.height((p.min + p.max) / 2.0));
         }
     }
 

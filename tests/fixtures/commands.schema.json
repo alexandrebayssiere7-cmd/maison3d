@@ -951,7 +951,7 @@
           ]
         },
         {
-          "description": "Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de\n`by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une\npiscine se déplace par mètres entiers (`by` arrondi).",
+          "description": "Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de\n`by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une\npiscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :\nterrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du\nrez-de-chaussée.",
           "type": "object",
           "properties": {
             "op": {
@@ -980,7 +980,7 @@
           ]
         },
         {
-          "description": "Copie un élément (pas une ouverture) décalé de `by` ; renvoie la référence de la copie.",
+          "description": "Copie un élément (pas une ouverture) décalé de `by` ; renvoie la référence de la copie.\nLe relief suit la copie comme pour `move`.",
           "type": "object",
           "properties": {
             "op": {
@@ -1094,7 +1094,7 @@
           ]
         },
         {
-          "description": "Modifie des champs d'un élément existant, sans changer son indice : par exemple\n`{\"op\": \"set\", \"target\": {\"Prop\": 3}, \"fields\": {\"height\": 4.5}}`. Les noms et les bornes\nsont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de\nl'ouverture ; le résultat est validé comme un ajout. Routes et piscines sont terrassées à\nnouveau.",
+          "description": "Modifie des champs d'un élément existant, sans changer son indice : par exemple\n`{\"op\": \"set\", \"target\": {\"Prop\": 3}, \"fields\": {\"height\": 4.5}}`. Les noms et les bornes\nsont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de\nl'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur\nchange, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché.",
           "type": "object",
           "properties": {
             "op": {
