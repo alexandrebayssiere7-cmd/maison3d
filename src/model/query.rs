@@ -281,7 +281,8 @@ impl House {
                 .map(|&i| &self.props[i])
                 .filter(|p| on_ground(p.kind))
                 .map(|p| footprint(&p.corners()))
-                .sum(),
+                .sum::<f32>()
+                + 0.0, // la somme vide vaut -0.0
             walls,
             props,
         }
@@ -462,6 +463,8 @@ mod tests {
         let h = flat();
         let out = h.room_at(0, Vec2::new(-0.5, -0.5)).unwrap();
         assert!(out.open && out.props.is_empty());
+        // la somme vide de f32 vaut -0.0, qui s'affiche « -0.0 m² »
+        assert_eq!(format!("{:.1}", out.occupied), "0.0");
         assert_eq!(h.room_at(0, Vec2::new(0.0, 2.0)), None, "dans le mur ouest");
         assert_eq!(h.room_at(1, Vec2::ONE), None, "étage sans mur");
         assert_eq!(h.room_at(0, Vec2::splat(50.0)), None, "hors de la grille");
