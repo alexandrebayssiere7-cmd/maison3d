@@ -26,8 +26,10 @@ use bevy::math::Vec3;
 
 use crate::command::{Command, EditError};
 use crate::model::{ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, Room, Slot, WorldError, search};
+use options::{choice, split};
 
 mod describe;
+mod options;
 mod query;
 mod shot;
 mod suggest;
@@ -114,55 +116,6 @@ impl From<WorldError> for CliError {
     fn from(e: WorldError) -> Self {
         Self::World(e)
     }
-}
-
-/// Options sans valeur.
-const SWITCHES: [&str; 5] = ["--new", "--quiet", "--brief", "--dry-run", "--json"];
-
-/// Options that take a value; any option in neither list is unknown.
-const VALUED: [&str; 12] = [
-    "--out",
-    "--room",
-    "--placement",
-    "--limit",
-    "--level",
-    "--radius",
-    "--facing",
-    "--count",
-    "--from",
-    "--zone",
-    "--size",
-    "--only",
-];
-
-/// Options avec leur valeur (`None` pour un interrupteur).
-type Flags<'a> = Vec<(&'a str, Option<&'a str>)>;
-
-/// Sépare les arguments positionnels des options `--nom [valeur]`. Refuse une option répétée
-/// et une option à valeur suivie d'une autre option (`--out --json`).
-/// Rejects an unknown option by its name, wherever it stands.
-fn split<'a>(args: &[&'a str]) -> Result<(Vec<&'a str>, Flags<'a>), CliError> {
-    let (mut pos, mut flags): (_, Flags) = (vec![], vec![]);
-    let mut it = args.iter().copied().peekable();
-    while let Some(a) = it.next() {
-        if !a.starts_with("--") {
-            pos.push(a);
-            continue;
-        }
-        let value = if SWITCHES.contains(&a) {
-            None
-        } else if VALUED.contains(&a) {
-            let v = it.next_if(|v| !v.starts_with("--"));
-            Some(v.ok_or_else(|| CliError::BadOption(format!("{a} sans valeur")))?)
-        } else {
-            return Err(CliError::BadOption(a.to_owned()));
-        };
-        if flags.iter().any(|(n, _)| *n == a) {
-            return Err(CliError::BadOption(format!("{a} répétée")));
-        }
-        flags.push((a, value));
-    }
-    Ok((pos, flags))
 }
 
 fn run(args: &[&str]) -> Result<(), CliError> {
@@ -447,21 +400,6 @@ fn help(op: &str) -> Option<String> {
 
 fn part_names(slots: &[Slot]) -> Vec<&'static str> {
     slots.iter().map(|s| s.name).collect()
-}
-
-/// Valeur d'une option parmi `all`, sans tenir compte de la casse (`--room kitchen`).
-fn choice<T: Copy + std::fmt::Debug>(
-    flags: &[(&str, Option<&str>)],
-    name: &str,
-    all: &[T],
-) -> Result<Option<T>, CliError> {
-    let Some((_, v)) = flags.iter().find(|(n, _)| *n == name) else { return Ok(None) };
-    let bad = || {
-        let names: Vec<String> = all.iter().map(|x| format!("{x:?}")).collect();
-        CliError::BadOption(format!("{name} {} (valeurs : {})", v.unwrap_or(""), names.join(", ")))
-    };
-    let v = v.ok_or_else(bad)?;
-    all.iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(v)).map(|x| Some(*x)).ok_or_else(bad)
 }
 
 /// Une ligne par objet trouvé : ce qu'il faut pour le choisir et le poser.
@@ -775,32 +713,6 @@ mod tests {
     }
 
     #[test]
-    fn option_value_cannot_be_another_option() {
-        let dir = tmp("out_option");
-        let (world, cmds) = (dir.join("monde.json"), dir.join("cmds.json"));
-        std::fs::write(&cmds, "[]").unwrap();
-        let err = run(&["apply", s(&world), s(&cmds), "--new", "--out", "--json"]).unwrap_err();
-        assert!(matches!(err, CliError::BadOption(_)), "{err}");
-        assert!(!std::path::Path::new("--json").exists() && !world.exists());
-        assert!(matches!(
-            run(&["query", "m.json", "near", "0,0", "--level", "--radius", "1"]),
-            Err(CliError::BadOption(_))
-        ));
-        // une valeur négative n'est pas une option
-        let negative = run(&["query", "/nulle/part.json", "near", "0,0", "--level", "-1"]);
-        assert!(matches!(negative, Err(CliError::World(WorldError::Io(_)))), "{negative:?}");
-        let _ = std::fs::remove_dir_all(dir); // nettoyage best effort
-    }
-
-    #[test]
-    fn unknown_option_is_named_wherever_it_stands() {
-        for args in [&["apply", "m.json", "c.json", "--dryrun", "--json"][..], &["schema", "--dryrun"]] {
-            let err = run(args).unwrap_err();
-            assert!(matches!(&err, CliError::BadOption(o) if o == "--dryrun"), "{args:?} : {err}");
-        }
-    }
-
-    #[test]
     fn usage_offers_radius_to_near_only() {
         let room = USAGE.split("room <nom|x,z>").nth(1).and_then(|r| r.split("near").next()).unwrap_or_default();
         assert!(room.contains("--level") && !room.contains("--radius"), "{room}");
@@ -813,22 +725,6 @@ mod tests {
         assert!(run(&["query", s(&world), "room", "salon", "--level", "0"]).is_ok());
         let err = run(&["query", s(&world), "room", "salon", "--radius", "5"]).unwrap_err();
         assert!(matches!(err, CliError::BadOption(_)), "{err}");
-        let _ = std::fs::remove_dir_all(dir); // nettoyage best effort
-    }
-
-    #[test]
-    fn repeated_option_is_refused_everywhere() {
-        let (dir, world) = two_levels("repeated_option");
-        let w = s(&world);
-        for bad in [
-            &["suggest", w, "Lamp", "--room", "salon", "--count", "1", "--count", "3"][..],
-            &["query", w, "near", "2,1.5", "--level", "1", "--level", "0"],
-            &["query", w, "room", "salon", "--level", "0", "--level", "0"],
-            &["search", "lit", "--limit", "1", "--limit", "2"],
-            &["schema", "--brief", "--brief"],
-        ] {
-            assert!(matches!(run(bad), Err(CliError::BadOption(_))), "{bad:?}");
-        }
         let _ = std::fs::remove_dir_all(dir); // nettoyage best effort
     }
 
