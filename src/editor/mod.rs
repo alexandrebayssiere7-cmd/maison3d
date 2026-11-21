@@ -1,6 +1,7 @@
 //! État de l'éditeur, historique d'annulation et interactions souris dans le monde 3D.
 
 mod input;
+mod panel;
 mod tools;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -225,6 +226,8 @@ impl Editor {
         self.dirty = true;
         // les indices des éléments peuvent changer : on referme tout
         self.doors.clear();
+        // un autre point d'annulation clôt le geste du panneau, qui rejoue depuis le dernier
+        self.prop_edit_active = false;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -257,6 +260,7 @@ impl Editor {
 
     fn after_restore(&mut self, msg: &str) {
         self.selected = None;
+        self.prop_edit_active = false;
         self.doors.clear();
         self.cancel();
         self.dirty = true;
@@ -331,18 +335,6 @@ impl Editor {
         let old = std::mem::replace(&mut self.house, h);
         self.push_undo(old);
         Ok(last)
-    }
-
-    /// Après une modification directe de la maison par le panneau : un seul point d'annulation par geste.
-    pub fn record_prop_edit(&mut self, before: House) {
-        if self.house == before {
-            return;
-        }
-        if !self.prop_edit_active {
-            self.push_undo(before);
-            self.prop_edit_active = true;
-        }
-        self.dirty = true;
     }
 
     pub fn delete_selected(&mut self) {
@@ -539,21 +531,5 @@ mod tests {
         ed.file = dir.to_str().unwrap().into();
         assert!(!ed.save(), "un dossier n'est pas un fichier");
         let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn panel_edits_make_one_undo_point_per_gesture() {
-        let mut ed = with_table();
-        let before = ed.house.clone();
-        ed.record_prop_edit(before.clone());
-        assert!(!ed.can_undo(), "rien n a changé");
-        ed.house.props[0].rot = 10.0;
-        ed.record_prop_edit(before.clone());
-        ed.house.props[0].rot = 20.0;
-        ed.record_prop_edit(before);
-        assert!(ed.prop_edit_active && ed.dirty);
-        ed.undo();
-        assert_eq!(ed.house.props[0].rot, 0.0);
-        assert!(!ed.can_undo(), "un seul point d annulation");
     }
 }
