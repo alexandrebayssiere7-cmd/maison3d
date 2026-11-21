@@ -44,6 +44,8 @@ const DARK: Rgb = [0.15, 0.15, 0.17];
 const METAL: Rgb = [0.7, 0.72, 0.75];
 /// Blanc pur : une texture s'affiche avec ses vraies couleurs.
 pub const WHITE_TEX: Rgb = [1.0, 1.0, 1.0];
+/// Passages au plus de `regrade` : trois suffisent (voir `House::regrade`).
+const REGRADE_PASSES: usize = 3;
 /// Teinte des troncs (reçoivent automatiquement la texture d'écorce).
 const BARK: Rgb = [0.95, 0.92, 0.9];
 const BIRCH_BARK: Rgb = [0.96, 0.95, 0.94];
@@ -535,7 +537,7 @@ impl House {
             .filter_map(|r| {
                 let d = r.b - r.a;
                 let t = ((p - r.a).dot(d) / d.length_squared()).clamp(0.0, 1.0);
-                let (ya, yb) = (self.terrain.height(r.a), self.terrain.height(r.b));
+                let (ya, yb) = self.terrain.road_ends(r.a, r.b);
                 (p.distance(r.a + d * t) <= r.width / 2.0).then_some(ya + (yb - ya) * t + 0.06)
             })
             .reduce(f32::max)
@@ -550,26 +552,9 @@ impl House {
         }
     }
 
-    /// Le fond de chaque piscine reste plat, à l'altitude du terrain à son coin.
-    fn settle_pools(&mut self) {
-        for p in &self.pools {
-            self.terrain.flatten_rect(p.min, p.max, self.terrain.height(p.min));
-        }
-    }
-
-    pub fn add_pool(&mut self, p: Pool) {
-        self.terrain.flatten_rect(p.min, p.max, self.terrain.height((p.min + p.max) / 2.0));
-        self.pools.push(p);
-    }
-
-    pub fn add_road(&mut self, r: Road) {
-        self.terrain.grade(r.a, r.b, r.width);
-        self.roads.push(r);
-    }
-
     pub fn sculpt(&mut self, mode: crate::terrain::Brush, c: Vec2, r: f32, amount: f32, target: f32, seed: u32) {
         self.terrain.brush(mode, c, r, amount, target, seed);
-        self.settle_pools();
+        self.regrade();
     }
 
     /// Relief aléatoire autour de la maison, qui reste à plat ; routes et piscines sont reterrassées.
@@ -581,12 +566,53 @@ impl House {
         self.regrade();
     }
 
-    /// Reterrasse routes et piscines après un changement du relief.
+    /// Reterrasse routes et piscines après un changement du relief : chaque route suit la pente
+    /// entre l'altitude de ses bouts, chaque piscine a un fond plat à l'altitude de son centre.
+    /// Toutes les altitudes sont lues avant d'écrire, chacune sur un seul sommet (voir
+    /// `Terrain::at_anchor`), puis les routes passent, leurs bouts sont réécrits, et les piscines
+    /// passent en dernier. Une route qui finit dans une piscine ou sur une autre route relit
+    /// alors une valeur fixée au passage d'avant : on recommence tant que les altitudes lues
+    /// bougent (trois passages au plus), et un regrade de plus ne change plus rien.
     pub fn regrade(&mut self) {
-        for r in &self.roads {
-            self.terrain.grade(r.a, r.b, r.width);
+        let built = self.ground_floor_rects();
+        let mut last = Vec::new();
+        for _ in 0..REGRADE_PASSES {
+            let reads = self.grade_reads();
+            if reads == last {
+                return;
+            }
+            self.grade_all(&reads, &built);
+            last = reads;
         }
-        self.settle_pools();
+    }
+
+    /// Altitudes lues avant d'écrire : les deux bouts de chaque route, puis le centre de
+    /// chaque piscine.
+    fn grade_reads(&self) -> Vec<f32> {
+        let ends = self.roads.iter().flat_map(|r| [r.a, r.b]);
+        let centres = self.pools.iter().map(|p| (p.min + p.max) / 2.0);
+        ends.chain(centres).map(|p| self.terrain.at_anchor(p)).collect()
+    }
+
+    /// Terrasse les routes, réécrit leurs bouts (une route relit son bout, pas l'accotement
+    /// d'une autre), puis creuse les piscines, aux altitudes `reads` de `grade_reads`.
+    fn grade_all(&mut self, reads: &[f32], built: &[(Vec2, Vec2)]) {
+        let (ends, floors) = reads.split_at(2 * self.roads.len());
+        for (r, y) in self.roads.iter().zip(ends.chunks(2)) {
+            self.terrain.grade((r.a, y[0]), (r.b, y[1]), r.width, built);
+        }
+        for (r, y) in self.roads.iter().zip(ends.chunks(2)) {
+            self.terrain.pin_road_ends((r.a, y[0]), (r.b, y[1]), built);
+        }
+        for (p, &y) in self.pools.iter().zip(floors) {
+            self.terrain.flatten_rect(p.min, p.max, y);
+        }
+    }
+
+    /// Emprise au sol des murs et des sols du rez-de-chaussée, que le terrassement ne touche pas.
+    fn ground_floor_rects(&self) -> Vec<(Vec2, Vec2)> {
+        let walls = self.walls.iter().filter(|w| w.level == 0).map(|w| (w.a.min(w.b), w.a.max(w.b)));
+        walls.chain(self.slabs.iter().filter(|s| s.level == 0).map(|s| (s.min, s.max))).collect()
     }
 
     /// Pièces avec tout fermé (aperçus, éditeur).

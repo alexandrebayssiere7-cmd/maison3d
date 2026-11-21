@@ -206,9 +206,10 @@ pub enum Command {
         max: Option<Vec2>,
     },
     /// Remplace le relief par un relief aléatoire. Le rectangle qui englobe tous les murs et sols
-    /// reste plat, ainsi que 3 m autour, puis le relief monte sur 15 m ; routes et piscines sont
-    /// terrassées à nouveau. Le relief retombe à 0 sur les bords du terrain. Un bâtiment ajouté
-    /// ensuite aplanit lui aussi le relief autour de lui.
+    /// reste plat, ainsi que 3 m autour, puis le relief ne remonte pas plus vite qu'un talus à
+    /// 45° (1 m par mètre) ; routes et piscines sont terrassées à nouveau. Le relief retombe à 0
+    /// sur les bords du terrain. Un bâtiment ajouté ou déplacé ensuite aplanit le relief autour
+    /// de lui selon la même règle.
     GenerateTerrain {
         /// Graine : la même graine redonne le même relief.
         seed: u32,
@@ -226,7 +227,9 @@ pub enum Command {
     Remove { target: ElemRef },
     /// Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de
     /// `by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une
-    /// piscine se déplace par mètres entiers (`by` arrondi).
+    /// piscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :
+    /// terrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du
+    /// rez-de-chaussée.
     Move {
         target: ElemRef,
         /// Décalage `[dx, dz]` en mètres.
@@ -234,6 +237,7 @@ pub enum Command {
         by: Vec2,
     },
     /// Copie un élément (pas une ouverture) décalé de `by` ; renvoie la référence de la copie.
+    /// Le relief suit la copie comme pour `move`.
     Duplicate {
         target: ElemRef,
         /// Décalage de la copie `[dx, dz]` en mètres.
@@ -271,8 +275,8 @@ pub enum Command {
     /// Modifie des champs d'un élément existant, sans changer son indice : par exemple
     /// `{"op": "set", "target": {"Prop": 3}, "fields": {"height": 4.5}}`. Les noms et les bornes
     /// sont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de
-    /// l'ouverture ; le résultat est validé comme un ajout. Routes et piscines sont terrassées à
-    /// nouveau.
+    /// l'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur
+    /// change, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché.
     Set {
         target: ElemRef,
         /// Champs à remplacer et leur nouvelle valeur.
@@ -344,7 +348,7 @@ impl House {
                 Ok(None)
             }
             Command::Remove { target } => {
-                self.remove(target);
+                self.remove_settled(target);
                 Ok(None)
             }
             Command::Move { target, by } => self.move_elem(target, by),
@@ -392,7 +396,9 @@ impl House {
     fn duplicate_checked(&mut self, target: ElemRef, by: Vec2) -> Result<Option<ElemRef>, EditError> {
         validate::offset(by)?;
         let copy = self.duplicate(target, by).ok_or(EditError::OpeningNotDuplicable)?;
-        self.check_elem(copy).map(|()| Some(copy))
+        self.check_elem(copy)?;
+        self.settle(copy);
+        Ok(Some(copy))
     }
 
     fn found(&self, target: ElemRef) -> Result<(), EditError> {
@@ -475,28 +481,68 @@ impl House {
 
     fn add_wall(&mut self, w: Wall) -> Result<Option<ElemRef>, EditError> {
         validate::wall(&w)?;
-        if w.level == 0 {
-            self.keep_flat(w.a.min(w.b), w.a.max(w.b));
-        }
         self.walls.push(w);
-        Ok(Some(ElemRef::Wall(self.walls.len() - 1)))
+        Ok(Some(self.settle(ElemRef::Wall(self.walls.len() - 1))))
     }
 
     fn add_slab(&mut self, s: Slab) -> Result<Option<ElemRef>, EditError> {
         validate::slab(&s)?;
-        if s.level == 0 {
-            self.keep_flat(s.min, s.max);
-        }
         self.slabs.push(s);
-        Ok(Some(ElemRef::Slab(self.slabs.len() - 1)))
+        Ok(Some(self.settle(ElemRef::Slab(self.slabs.len() - 1))))
     }
 
-    /// Un bâtiment posé sur un relief existant ne doit pas s'y enterrer.
-    fn keep_flat(&mut self, lo: Vec2, hi: Vec2) {
-        if !self.terrain.h.is_empty() {
-            self.terrain.keep_flat(lo, hi);
+    /// Le relief suit l'élément posé, déplacé ou modifié : routes et piscines sont terrassées, et
+    /// un mur ou un sol du rez-de-chaussée aplanit le relief autour pour ne pas s'y enterrer.
+    fn settle(&mut self, e: ElemRef) -> ElemRef {
+        if self.terrain.h.is_empty() {
+            return e;
+        }
+        match e {
+            ElemRef::Wall(i) if self.walls[i].level == 0 => {
+                let w = &self.walls[i];
+                self.terrain.keep_flat(w.a.min(w.b), w.a.max(w.b));
+            }
+            ElemRef::Slab(i) if self.slabs[i].level == 0 => {
+                let s = &self.slabs[i];
+                self.terrain.keep_flat(s.min, s.max);
+            }
+            ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_) => return e,
+            // routes, piscines, et murs ou sols d'étage dont l'emprise au sol a pu changer
+            _ => {}
+        }
+        self.regrade();
+        e
+    }
+
+    /// Retire l'élément ; routes et piscines restantes lisaient peut-être le relief qu'il
+    /// portait : elles sont terrassées à nouveau.
+    fn remove_settled(&mut self, target: ElemRef) {
+        self.remove(target);
+        let ground = !matches!(target, ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_));
+        if ground && !self.terrain.h.is_empty() {
             self.regrade();
         }
+    }
+
+    /// Ce qui pose l'élément sur le relief : ses deux points, et son étage ou sa largeur.
+    fn footprint(&self, e: ElemRef) -> Option<(Vec2, Vec2, f32)> {
+        match e {
+            // sans ordre : un mur aux extrémités échangées occupe la même place
+            ElemRef::Wall(i) => {
+                let w = &self.walls[i];
+                Some((w.a.min(w.b), w.a.max(w.b), w.level as f32))
+            }
+            ElemRef::Slab(i) => Some((self.slabs[i].min, self.slabs[i].max, self.slabs[i].level as f32)),
+            ElemRef::Pool(i) => Some((self.pools[i].min, self.pools[i].max, 0.0)),
+            ElemRef::Road(i) => Some((self.roads[i].a, self.roads[i].b, self.roads[i].width)),
+            ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_) => None,
+        }
+    }
+
+    /// `settle` seulement si l'élément a bougé : aplanir à nouveau sur place creuserait un peu
+    /// plus le relief autour à chaque modification (couleur, matière…).
+    fn settle_if_moved(&mut self, e: ElemRef, before: Option<(Vec2, Vec2, f32)>) -> ElemRef {
+        if self.footprint(e) == before { e } else { self.settle(e) }
     }
 
     fn add_roof(&mut self, r: Roof) -> Result<Option<ElemRef>, EditError> {
@@ -558,14 +604,14 @@ impl House {
 
     fn add_checked_pool(&mut self, p: Pool) -> Result<Option<ElemRef>, EditError> {
         validate::pool(&p)?;
-        self.add_pool(p);
-        Ok(Some(ElemRef::Pool(self.pools.len() - 1)))
+        self.pools.push(p);
+        Ok(Some(self.settle(ElemRef::Pool(self.pools.len() - 1))))
     }
 
     fn add_checked_road(&mut self, r: Road) -> Result<Option<ElemRef>, EditError> {
         validate::road(&r)?;
-        self.add_road(r);
-        Ok(Some(ElemRef::Road(self.roads.len() - 1)))
+        self.roads.push(r);
+        Ok(Some(self.settle(ElemRef::Road(self.roads.len() - 1))))
     }
 
     fn add_opening(&mut self, wall: usize, opening: Opening) -> Result<Option<ElemRef>, EditError> {
@@ -609,8 +655,10 @@ impl House {
             let o = &w.openings[oi];
             validate::place(w, o.kind, o.t + by.dot(w.dir()), o.width, Some(oi))?;
         }
+        let before = self.footprint(target);
         self.translate(target, by);
-        self.check_elem(target).map(|()| Some(target))
+        self.check_elem(target)?;
+        Ok(Some(self.settle_if_moved(target, before)))
     }
 
     fn rotate(&mut self, target: ElemRef, deg: f32) -> Result<Option<ElemRef>, EditError> {
@@ -626,6 +674,7 @@ impl House {
         target: ElemRef,
         fields: serde_json::Map<String, serde_json::Value>,
     ) -> Result<Option<ElemRef>, EditError> {
+        let before = self.footprint(target);
         match target {
             ElemRef::Wall(i) => self.walls[i] = merged(&self.walls[i], fields)?,
             ElemRef::Opening(w, o) => self.walls[w].openings[o] = merged(&self.walls[w].openings[o], fields)?,
@@ -636,10 +685,7 @@ impl House {
             ElemRef::Road(i) => self.roads[i] = merged(&self.roads[i], fields)?,
         }
         self.check_elem(target)?;
-        if matches!(target, ElemRef::Pool(_) | ElemRef::Road(_)) {
-            self.regrade();
-        }
-        Ok(Some(target))
+        Ok(Some(self.settle_if_moved(target, before)))
     }
 }
 
@@ -658,3 +704,6 @@ fn merged<T: Serialize + serde::de::DeserializeOwned>(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod settle_tests;

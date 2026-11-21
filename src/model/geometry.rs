@@ -116,7 +116,7 @@ pub(super) fn road_part(r: &Road, terrain: &Terrain, owner: ElemRef) -> Option<P
     if len < 1e-3 {
         return None;
     }
-    let (ya, yb) = (terrain.height(r.a), terrain.height(r.b));
+    let (ya, yb) = terrain.road_ends(r.a, r.b);
     let c = (r.a + r.b) / 2.0;
     let rot = Quat::from_rotation_y(-d.y.atan2(d.x)) * Quat::from_rotation_z((yb - ya).atan2(len));
     // déborde d'une demi-largeur à chaque bout : les virages se referment
