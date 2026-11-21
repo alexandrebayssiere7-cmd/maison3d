@@ -633,4 +633,43 @@ mod tests {
         assert!(ed.message.starts_with("Erreur d'enregistrement"));
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[test]
+    fn opening_during_a_drag_loads_the_file_and_drops_the_preview() {
+        let dir = std::env::temp_dir().join(format!("maison3d_open_drag_{}", std::process::id()));
+        // a leftover from an earlier run may or may not exist
+        let _ = std::fs::remove_dir_all(&dir);
+        let (a, b) = (dir.join("a.json"), dir.join("b.json"));
+        let mut ed = with_table();
+        ed.file = a.to_str().unwrap().into();
+        assert!(ed.save(), "{}", ed.message);
+        let disk = ed.house.clone();
+        // unsaved edit, then a drag whose preview must never reach the file nor the history
+        ed.house.props.push(ed.new_prop(PropKind::Lamp, v(5.0, 0.0)));
+        let edited = ed.house.clone();
+        ed.move_drag = Some((Vec2::ZERO, edited.clone(), Vec2::X));
+        ed.house.translate(ElemRef::Prop(0), Vec2::X);
+
+        // Ctrl+O on the same file
+        ed.load();
+        assert!(ed.move_drag.is_none());
+        assert_eq!(ed.house, disk, "the file is loaded");
+        assert_eq!(ed.message, format!("Ouvert : {}", ed.file));
+        ed.undo();
+        assert_eq!(ed.house, edited, "Ctrl+Z gives back the work before the drag");
+        assert!(!ed.can_undo());
+
+        // Ctrl+O on another file
+        House::default().save(&b).unwrap();
+        ed.move_drag = Some((Vec2::ZERO, edited.clone(), Vec2::X));
+        ed.house.translate(ElemRef::Prop(0), Vec2::X);
+        ed.file = b.to_str().unwrap().into();
+        ed.load();
+        assert!(ed.move_drag.is_none());
+        assert_eq!(ed.house, House::default(), "the other file is loaded");
+        assert!(!ed.can_undo() && !ed.can_redo());
+        assert_eq!(House::load(&a).unwrap(), edited, "the old world is saved without the preview");
+        // best-effort cleanup of a temp dir, the test result is already known
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
