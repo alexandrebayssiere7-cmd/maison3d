@@ -116,14 +116,8 @@ impl Editor {
     }
 
     /// Outil sélection : clic = sélectionner, glisser = déplacer (une seule commande au relâché).
-    pub(super) fn select_input(
-        &mut self,
-        p: Option<Vec2>,
-        hit: Option<ElemRef>,
-        click: bool,
-        held: bool,
-        released: bool,
-    ) {
+    /// Bouton non enfoncé = relâché : l'événement se perd hors de la fenêtre ou avec Alt.
+    pub(super) fn select_input(&mut self, p: Option<Vec2>, hit: Option<ElemRef>, click: bool, held: bool) {
         if click {
             self.selected = hit;
             if let (Some(_), Some(p)) = (self.selected, p) {
@@ -145,7 +139,7 @@ impl Editor {
                 self.measure = Some(format!("Δ {:.2} ; {:.2} m", p.x - start.x, p.y - start.y));
             }
         }
-        if released
+        if !held
             && let (Some((_, orig, by)), Some(target)) = (self.move_drag.take(), self.selected)
             && orig != self.house
         {
@@ -306,13 +300,13 @@ mod tests {
     fn drag_moves_with_a_single_undo_point() {
         let mut ed = with_table();
         let table = Some(ElemRef::Prop(0));
-        ed.select_input(Some(v(0.0, 0.0)), table, true, true, false);
-        ed.select_input(Some(v(1.0, 0.0)), None, false, true, false);
-        ed.select_input(Some(v(2.0, 1.0)), None, false, true, false);
+        ed.select_input(Some(v(0.0, 0.0)), table, true, true);
+        ed.select_input(Some(v(1.0, 0.0)), None, false, true);
+        ed.select_input(Some(v(2.0, 1.0)), None, false, true);
         assert_eq!(ed.house.props[0].pos, v(2.0, 1.0), "aperçu en direct");
         assert!(!ed.can_undo(), "rien n'est encore dans l'historique");
         assert_eq!(ed.measure.as_deref(), Some("Δ 2.00 ; 1.00 m"));
-        ed.select_input(Some(v(2.0, 1.0)), None, false, false, true);
+        ed.select_input(Some(v(2.0, 1.0)), None, false, false);
         assert_eq!(ed.house.props[0].pos, v(2.0, 1.0));
         assert_eq!(ed.message, "Élément déplacé");
         ed.undo();
@@ -321,18 +315,31 @@ mod tests {
     }
 
     #[test]
+    fn drag_released_without_a_point_still_moves() {
+        let mut ed = with_table();
+        ed.select_input(Some(v(0.0, 0.0)), Some(ElemRef::Prop(0)), true, true);
+        ed.select_input(Some(v(2.0, 1.0)), None, false, true);
+        // bouton relâché hors de la fenêtre : pas de point, et l'événement de relâché est perdu
+        ed.select_input(None, None, false, false);
+        assert!(ed.can_undo(), "le déplacement est une commande annulable");
+        assert_eq!(ed.house.props[0].pos, v(2.0, 1.0));
+        ed.undo();
+        assert_eq!(ed.house.props[0].pos, Vec2::ZERO);
+    }
+
+    #[test]
     fn holding_still_during_a_drag_rebuilds_nothing() {
         let mut ed = with_table();
-        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true, false);
+        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true);
         ed.dirty = false;
-        ed.select_input(Some(Vec2::ZERO), None, false, true, false);
+        ed.select_input(Some(Vec2::ZERO), None, false, true);
         assert!(!ed.dirty, "pas encore bougé");
-        ed.select_input(Some(v(1.0, 0.0)), None, false, true, false);
+        ed.select_input(Some(v(1.0, 0.0)), None, false, true);
         assert!(ed.dirty && ed.house.props[0].pos == v(1.0, 0.0));
         ed.dirty = false;
         // marqueur : un aperçu recalculé repartirait de la maison d'origine et l'effacerait
         ed.house.props[0].color = [0.0; 3];
-        ed.select_input(Some(v(1.0, 0.0)), None, false, true, false);
+        ed.select_input(Some(v(1.0, 0.0)), None, false, true);
         assert!(!ed.dirty, "même décalage : l'aperçu n'est pas recalculé");
         assert_eq!(ed.house.props[0].color, [0.0; 3]);
     }
@@ -340,12 +347,12 @@ mod tests {
     #[test]
     fn click_without_moving_only_selects() {
         let mut ed = with_table();
-        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true, false);
-        ed.select_input(Some(Vec2::ZERO), None, false, false, true);
+        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true);
+        ed.select_input(Some(Vec2::ZERO), None, false, false);
         assert_eq!(ed.selected, Some(ElemRef::Prop(0)));
         assert!(!ed.can_undo());
         // clic dans le vide : désélectionne
-        ed.select_input(Some(v(5.0, 5.0)), None, true, true, false);
+        ed.select_input(Some(v(5.0, 5.0)), None, true, true);
         assert_eq!(ed.selected, None);
     }
 
