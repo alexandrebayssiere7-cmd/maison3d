@@ -33,11 +33,13 @@ pub(super) fn suggest(h: &House, kind: &str, flags: &[(&str, Option<&str>)]) -> 
     let facing = match get("--facing") {
         None => None,
         Some(v) => Some(
-            (v.parse::<usize>().ok().filter(|&i| i < h.props.len()))
+            (v.parse::<usize>().ok().filter(|&i| h.props.get(i).is_some_and(|p| p.level == room.level)))
                 .or_else(|| {
                     room.props.iter().copied().find(|&i| format!("{:?}", h.props[i].kind).eq_ignore_ascii_case(v))
                 })
-                .ok_or_else(|| bad("--facing", &format!("{v} : ni indice d'objet ni sorte posée dans la pièce")))?,
+                .ok_or_else(|| {
+                    bad("--facing", &format!("{v} : ni indice d'objet de l'étage ni sorte posée dans la pièce"))
+                })?,
         ),
     };
     let found = h.suggest(kind, &room, facing, count);
