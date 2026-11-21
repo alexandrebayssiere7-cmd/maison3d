@@ -11,7 +11,7 @@ use bevy::prelude::*;
 pub use input::editor_input;
 
 use crate::command::{Command, EditError};
-use crate::model::{ElemRef, House, LEVEL_H, OpeningKind, Part, PropKind, Rgb, RoofKind, WHITE_TEX};
+use crate::model::{ElemRef, House, LEVEL_H, OpeningKind, Part, PropKind, Rgb, RoofKind, WHITE_TEX, same_file};
 use crate::terrain::Brush;
 use crate::textures::find;
 
@@ -373,9 +373,14 @@ impl Editor {
         }
     }
 
-    /// Renvoie `false` si l'écriture a échoué (le message dit pourquoi).
+    /// Renvoie `false` si l'écriture a échoué (le message dit pourquoi). N'écrase pas son propre
+    /// fichier s'il a été changé par ailleurs (un agent) depuis son ouverture.
     pub fn save(&mut self) -> bool {
-        let res = self.house.save(&self.file);
+        let res = if same_file(&self.file, &self.saved_file) {
+            self.house.save_if_unchanged(&self.file, &self.saved)
+        } else {
+            self.house.save(&self.file)
+        };
         let ok = res.is_ok();
         self.message = match res {
             Ok(()) => {
@@ -383,7 +388,10 @@ impl Editor {
                 self.saved_file = self.file.clone();
                 format!("Enregistré dans {}", self.file)
             }
-            Err(e) => format!("Erreur d'enregistrement : {e}"),
+            Err(e) => format!(
+                "Erreur d'enregistrement : {e}. Seul un enregistrement sous un autre nom (taper le nom, puis 💾) \
+                 garde les modifications."
+            ),
         };
         ok
     }
@@ -448,15 +456,6 @@ impl Editor {
         self.file = file;
         self.house = h;
         self.after_restore(&msg);
-    }
-}
-
-/// Les deux chemins désignent-ils le même fichier, même écrits autrement ? Si l'un n'existe pas,
-/// seul le texte peut être comparé.
-fn same_file(a: &str, b: &str) -> bool {
-    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
-        (Ok(ca), Ok(cb)) => ca == cb,
-        _ => a == b,
     }
 }
 
@@ -583,23 +582,6 @@ mod tests {
                     Tool::Visitor,
                 ]);
         assert!(tools.map(Tool::hint).all(|h| !h.is_empty()));
-    }
-
-    #[test]
-    fn same_file_compares_paths_not_spellings() {
-        let dir = std::env::temp_dir().join(format!("maison3d_same_file_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let (a, b) = (dir.join("a.json"), dir.join("b.json"));
-        std::fs::write(&a, "").unwrap();
-        std::fs::write(&b, "").unwrap();
-        let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
-        assert!(same_file(&s(&a), &s(&dir.join(".").join("a.json"))), "même fichier écrit autrement");
-        assert!(!same_file(&s(&a), &s(&b)));
-        assert!(!same_file(&s(&a), "absent.json"), "un seul des deux existe");
-        assert!(same_file("absent.json", "absent.json"), "absents : même texte");
-        assert!(!same_file("absent.json", "./absent.json"), "absents : textes différents");
-        // nettoyage seulement : un reste ne fausse aucun test
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

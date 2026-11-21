@@ -25,7 +25,9 @@ use std::fmt::Write;
 use bevy::math::Vec3;
 
 use crate::command::{Command, EditError};
-use crate::model::{ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, Room, Slot, WorldError, search};
+use crate::model::{
+    ElemRef, House, OpeningKind, Placement, PropKind, RoofKind, Room, Slot, WorldError, same_file, search,
+};
 use options::{choice, split};
 
 mod describe;
@@ -210,6 +212,7 @@ struct ApplyOpts<'a> {
 /// Applique toutes les commandes ou aucune. Un monde absent n'est créé qu'avec `--new`.
 fn apply(world: &str, cmds: &str, o: &ApplyOpts) -> Result<(), CliError> {
     let mut h = load_or_new(world, o.new)?;
+    let read = h.clone();
     for (i, c) in read_commands(cmds)?.into_iter().enumerate() {
         let what = serde_json::to_string(&c).unwrap_or_else(|_| format!("{c:?}"));
         let before = Counts::of(&h);
@@ -225,8 +228,11 @@ fn apply(world: &str, cmds: &str, o: &ApplyOpts) -> Result<(), CliError> {
         }
     }
     let saved = if o.dry_run { None } else { Some(o.out.unwrap_or(world)) };
-    if let Some(path) = saved {
-        h.save(path)?;
+    match saved {
+        // un autre `apply` a pu écrire le monde lu pendant celui-ci : ne pas écraser son travail
+        Some(path) if same_file(path, world) => h.save_if_unchanged(path, &read)?,
+        Some(path) => h.save(path)?,
+        None => {}
     }
     print!("{}", summary(&h, saved, o));
     Ok(())

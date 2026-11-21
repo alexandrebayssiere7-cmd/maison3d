@@ -171,6 +171,63 @@ fn closing_after_save_then_undo_restores_the_file() {
 }
 
 #[test]
+fn closing_does_not_overwrite_a_world_changed_by_an_agent() {
+    let (mut ed, path) = opened("close_agent.json");
+    // un agent réécrit le monde pendant la partie
+    House::default().save(&path).unwrap();
+    let theirs = std::fs::read(&path).unwrap();
+    ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+    let mut warned = false;
+    assert!(!may_close(&mut ed, true, &mut warned), "refus : on reste pour voir l erreur");
+    assert!(ed.message.starts_with("Erreur d'enregistrement"), "{}", ed.message);
+    // the user must know that closing again drops the changes, and how to keep them
+    assert!(ed.message.contains("abandonne les modifications"), "{}", ed.message);
+    assert!(ed.message.contains("sous un autre nom"), "{}", ed.message);
+    assert!(!ed.message.contains("rouvrir"), "reopening would drop the changes too: {}", ed.message);
+    assert!(may_close(&mut ed, true, &mut warned), "seconde demande : on ferme");
+    assert_eq!(std::fs::read(&path).unwrap(), theirs, "le travail de l agent reste intact");
+}
+
+#[test]
+fn switching_world_changes_nothing_when_an_agent_changed_the_open_one() {
+    let (mut ed, chalet) = opened("chalet_agent.json");
+    let dir = TempFile::new("nouveaux_mondes_agent");
+    std::fs::create_dir_all(&dir).unwrap();
+    let wall = crate::model::room_walls(Vec2::splat(30.0), Vec2::splat(34.0), 0, 3.0, 0.2, [1.0; 3]).remove(0);
+    ed.apply([crate::command::Command::AddWall(wall)]).unwrap();
+    House::default().save(&chalet).unwrap();
+    let theirs = std::fs::read(&chalet).unwrap();
+    let (house, file, saved_file) = (ed.house.clone(), ed.file.clone(), ed.saved_file.clone());
+    start_world(&mut ed, demo_house(), &dir.0, "Nouveau monde");
+    assert!(ed.message.starts_with("Erreur d'enregistrement"), "{}", ed.message);
+    assert_eq!((ed.house == house, ed.file == file, ed.saved_file == saved_file), (true, true, true));
+    assert!(ed.can_undo(), "l historique est gardé");
+    assert_eq!(std::fs::read(&chalet).unwrap(), theirs, "le travail de l agent reste intact");
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "aucun nouveau monde n est créé");
+}
+
+#[test]
+fn a_free_name_taken_meanwhile_is_not_overwritten() {
+    let (mut ed, _chalet) = opened("chalet_free.json");
+    let dir = TempFile::new("nouveaux_mondes_free");
+    std::fs::create_dir_all(&dir).unwrap();
+    start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+    ed.house.props.push(demo_house().props[0].clone());
+    // un agent crée le même fichier avant le premier enregistrement
+    let first = dir.0.join("monde 1.json");
+    demo_house().save(&first).unwrap();
+    assert!(!ed.save(), "le fichier créé entre-temps n est pas écrasé");
+    assert!(ed.message.contains("sous un autre nom"), "the save button also says how to keep the work: {}", ed.message);
+    assert_eq!(House::load(&first).unwrap(), demo_house());
+    // issue : enregistrer sous un autre nom
+    let other = dir.0.join("autre.json");
+    ed.file = other.to_string_lossy().into_owned();
+    assert!(ed.save(), "{}", ed.message);
+    assert!(may_close(&mut ed, true, &mut false));
+    assert_eq!(House::load(&other).unwrap(), ed.house);
+}
+
+#[test]
 fn closing_an_untouched_world_does_not_rewrite_it() {
     let (mut ed, path) = opened("maison3d_close_untouched.json");
     std::fs::write(&path, "témoin").unwrap();
