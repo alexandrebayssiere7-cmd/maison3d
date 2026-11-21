@@ -28,7 +28,7 @@ impl House {
                 w.level += 1;
                 // pas de porte à l'étage, sauf les baies vitrées (balcon)
                 w.openings.retain(|o| {
-                    o.sill >= 0.05
+                    !o.is_door()
                         || matches!(o.kind, OpeningKind::FrenchDoor | OpeningKind::Bay | OpeningKind::SlidingDoor)
                 });
                 w
