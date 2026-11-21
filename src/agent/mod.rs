@@ -69,6 +69,8 @@ enum CliError {
     /// Nom cherché et noms connus.
     UnknownRoom(String, String),
     NoRoom(String),
+    /// `suggest` dans un espace ouvert : point désigné.
+    OpenRoom(String),
 }
 
 const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
@@ -95,6 +97,11 @@ impl std::fmt::Display for CliError {
             }
             Self::UnknownRoom(r, known) => write!(f, "pièce inconnue : {r} (pièces nommées : {known})"),
             Self::NoRoom(why) => write!(f, "aucune pièce {why}"),
+            Self::OpenRoom(at) => write!(
+                f,
+                "{at} n'est pas dans une pièce fermée (dehors, ou un mur manque) : suggest ne propose \
+                 qu'à l'intérieur ; fermer la pièce, ou poser l'objet avec place_prop"
+            ),
         }
     }
 }
@@ -713,6 +720,7 @@ mod tests {
             (CliError::UnknownOp("voler".into()), "schema --brief"),
             (world, "disque plein"),
             (cmds, "c.json : illisible"),
+            (CliError::OpenRoom("-1,-1".into()), "-1,-1 n'est pas dans une pièce fermée"),
         ] {
             assert!(err.to_string().contains(want), "{err:?} → {err}");
         }
