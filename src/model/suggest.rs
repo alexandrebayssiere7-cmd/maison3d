@@ -2,7 +2,7 @@
 //! mur, dégagé, au mur…). Ce sont des propositions classées, pas des règles : l'agent garde
 //! `place_prop` et ses coordonnées, et peut s'en écarter.
 
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 
 use super::annotations::Placement;
 use super::check::{Solid, overlap, wall_box};
@@ -29,15 +29,16 @@ impl super::House {
     /// positions à moins de 60 cm l'une de l'autre. `facing` : objet vers lequel tourner l'avant.
     pub fn suggest(&self, kind: PropKind, room: &RoomInfo, facing: Option<usize>, count: usize) -> Vec<Suggestion> {
         let placement = kind.annotation().map_or(Placement::Floor, |a| a.placement);
-        let solids: Vec<Solid> = room.props.iter().filter_map(|&i| Solid::of(&self.props[i])).collect();
+        let around = self.around(kind, room, facing);
         // `inner` est le rectangle englobant : une pièce en L y laisse des cloisons et la pièce
         // voisine, d'où le test du centre et des murs (même règle que `check`)
         let walls: Vec<[Vec2; 4]> = self.walls.iter().filter(|w| w.level == room.level).map(wall_box).collect();
         let in_room = self.in_room(room);
-        let mut all: Vec<Suggestion> = (self.candidates(kind, room, placement, facing).into_iter())
-            .filter(|(p, _, _)| in_room(p.pos) && walls.iter().all(|w| !overlap(&p.corners(), w)))
-            .filter(|(p, _, _)| self.fits(p, room, placement, &solids))
-            .map(|(p, why, bonus)| self.rate(&p, room, facing, (vec![why], bonus)))
+        let mut all: Vec<Suggestion> = (self.candidates(kind, room, placement, &around).into_iter())
+            .filter(|(p, _, _)| in_room(p.pos))
+            .map(|(p, why, bonus)| (p.corners_in(around.local), p, why, bonus))
+            .filter(|(c, p, _, _)| walls.iter().all(|w| !overlap(c, w)) && fits(p, c, room, placement, &around))
+            .map(|(c, p, why, bonus)| self.rate(&p, &c, room, &around, (vec![why], bonus)))
             .collect();
         all.sort_by(|a, b| b.score.total_cmp(&a.score));
         let mut out: Vec<Suggestion> = vec![];
@@ -55,13 +56,13 @@ impl super::House {
         kind: PropKind,
         room: &RoomInfo,
         placement: Placement,
-        facing: Option<usize>,
+        around: &Around,
     ) -> Vec<(Prop, String, f32)> {
         let at = |pos: Vec2, rot: f32| Prop::new(kind, pos, room.level, rot);
         match placement {
-            Placement::AgainstWall | Placement::OnWall | Placement::Row => along_walls(room, &at),
+            Placement::AgainstWall | Placement::OnWall | Placement::Row => along_walls(room, around.local, &at),
             Placement::Floor => {
-                let target = facing.and_then(|i| self.props.get(i)).map(|p| p.pos);
+                let target = around.facing.and_then(|i| self.props.get(i)).map(|p| p.pos);
                 on_floor(room, target, &at)
             }
             Placement::Ceiling => {
@@ -77,31 +78,16 @@ impl super::House {
         }
     }
 
-    /// La place est-elle possible ? Dans la pièce, sans heurter un meuble (même règle que
-    /// `check`), hors du passage des portes et de l'espace devant les autres meubles ; un objet
-    /// mural ne va ni sur une porte ni sur une fenêtre. Un objet posé sur un meuble le touche
-    /// forcément.
-    fn fits(&self, p: &Prop, room: &RoomInfo, placement: Placement, solids: &[Solid]) -> bool {
-        let c = p.corners();
-        let clash = Solid::of(p).is_some_and(|s| solids.iter().any(|o| s.clash(o)));
-        c.iter().all(|q| inside(room.inner, *q))
-            && match placement {
-                Placement::OnTop => true,
-                Placement::Ceiling => !clash,
-                Placement::OnWall => !clash && !on_opening(&c, room, |_| true),
-                _ => !clash && !self.in_the_way(&c, room, p.kind) && !blocks_door(&c, room),
-            }
-    }
-
-    /// Note d'une place possible. `bonus` : préférence du balayage (milieu d'un mur).
+    /// Note d'une place possible, d'emprise `c`. `bonus` : préférence du balayage (milieu d'un mur).
     fn rate(
         &self,
         p: &Prop,
+        c: &[Vec2; 4],
         room: &RoomInfo,
-        facing: Option<usize>,
+        around: &Around,
         (mut why, bonus): (Vec<String>, f32),
     ) -> Suggestion {
-        let c = p.corners();
+        let facing = around.facing;
         let ground = on_ground(p.kind);
         let mut score = bonus;
         let front = front(p);
@@ -120,8 +106,8 @@ impl super::House {
         }
         let clear = p.kind.annotation().map_or(0.0, |a| a.front);
         if ground && clear > 0.0 {
-            let zone = ahead(&c, front, clear);
-            if zone.iter().all(|q| inside(room.inner, *q)) && self.free(&zone, room, p.kind) {
+            let zone = ahead(c, front, clear);
+            if zone.iter().all(|q| inside(room.inner, *q)) && around.others.iter().all(|o| !overlap(&zone, o)) {
                 score += 1.0;
                 why.push(format!("{clear} m libres devant"));
             } else {
@@ -129,14 +115,14 @@ impl super::House {
                 why.push(format!("moins de {clear} m libres devant"));
             }
         }
-        if ground && p.kind.size().z > 0.9 && on_opening(&c, room, |o| !o.door) {
+        if ground && p.kind.size().z > 0.9 && on_opening(c, room, |o| !o.door) {
             score -= 1.5;
             why.push("masque une fenêtre".into());
         }
         // une lampe ou une plante va le long d'un mur, pas au milieu du passage
         if facing.is_none()
             && p.kind.annotation().is_some_and(|a| a.placement == Placement::Floor)
-            && footprint(&c) < 0.5
+            && footprint(c) < 0.5
         {
             let (lo, hi) = room.inner;
             let d = (p.pos - lo).min(hi - p.pos).min_element();
@@ -147,29 +133,6 @@ impl super::House {
         Suggestion { pos: (p.pos * 100.0).round() / 100.0 + 0.0, rot: p.rot + 0.0, score, why }
     }
 
-    /// Aucun meuble de la pièce ne chevauche `c`, sauf ceux qui vont avec `kind` (la chaise
-    /// devant le bureau).
-    fn free(&self, c: &[Vec2; 4], room: &RoomInfo, kind: PropKind) -> bool {
-        (room.props.iter().map(|&i| &self.props[i]))
-            .filter(|o| on_ground(o.kind) && !goes_with(kind, o.kind))
-            .all(|o| !overlap(c, &o.corners()))
-    }
-
-    /// `c` empiète sur l'espace à laisser devant un meuble de la pièce : en entier pour un
-    /// meuble sans rapport, sur 40 cm pour un meuble qui va avec et qui est dos au mur (la table
-    /// basse devant le canapé, la chaise devant le bureau).
-    fn in_the_way(&self, c: &[Vec2; 4], room: &RoomInfo, kind: PropKind) -> bool {
-        (room.props.iter().map(|&i| &self.props[i])).filter(|o| on_ground(o.kind)).any(|o| {
-            let Some(a) = o.kind.annotation() else { return false };
-            let depth = match (goes_with(kind, o.kind), a.placement) {
-                (false, _) => a.front,
-                (true, Placement::AgainstWall) => a.front.min(0.4),
-                (true, _) => 0.0,
-            };
-            depth > 0.0 && overlap(c, &ahead(&o.corners(), front(o), depth))
-        })
-    }
-
     /// Meuble de la pièce le plus proche qui va avec `p`, et sa distance.
     fn partner(&self, p: &Prop, room: &RoomInfo) -> Option<(usize, f32)> {
         (room.props.iter().copied())
@@ -177,6 +140,65 @@ impl super::House {
             .map(|i| (i, self.props[i].pos.distance(p.pos)))
             .min_by(|a, b| a.1.total_cmp(&b.1))
     }
+
+    /// Ce qui ne dépend pas de la place essayée pour poser `kind` dans `room`.
+    fn around(&self, kind: PropKind, room: &RoomInfo, facing: Option<usize>) -> Around {
+        let ground: Vec<(&Prop, [Vec2; 4])> = (room.props.iter().map(|&i| &self.props[i]))
+            .filter(|o| on_ground(o.kind))
+            .map(|o| (o, o.corners()))
+            .collect();
+        Around {
+            others: ground.iter().filter(|(o, _)| !goes_with(kind, o.kind)).map(|(_, c)| *c).collect(),
+            keep_clear: ground.iter().filter_map(|(o, c)| keep_clear(o, c, kind)).collect(),
+            solids: room.props.iter().filter_map(|&i| Solid::of(&self.props[i])).collect(),
+            local: Prop::new(kind, Vec2::ZERO, room.level, 0.0).local_box(),
+            facing,
+        }
+    }
+}
+
+/// Ce que `suggest` calcule une fois pour toutes les places essayées : refaire la géométrie de
+/// chaque meuble à chaque place prenait des minutes sur un grand jardin.
+struct Around {
+    /// Emprise des meubles au sol de la pièce, sauf ceux qui vont avec la sorte à poser (la
+    /// chaise peut empiéter devant le bureau).
+    others: Vec<[Vec2; 4]>,
+    /// Espaces à laisser devant les meubles au sol de la pièce (`keep_clear`).
+    keep_clear: Vec<[Vec2; 4]>,
+    /// Meubles qu'on ne peut pas heurter (même règle que `check`).
+    solids: Vec<Solid>,
+    /// `local_box` de la sorte à poser, la même à toutes les places.
+    local: (Vec3, Vec3),
+    /// Object to turn the front towards, as given to `suggest`.
+    facing: Option<usize>,
+}
+
+/// Espace à laisser devant `o`, d'emprise `c`, quand on pose `kind` : en entier pour un meuble
+/// sans rapport, sur 40 cm pour un meuble qui va avec et qui est dos au mur (la table basse
+/// devant le canapé, la chaise devant le bureau).
+fn keep_clear(o: &Prop, c: &[Vec2; 4], kind: PropKind) -> Option<[Vec2; 4]> {
+    let a = o.kind.annotation()?;
+    let depth = match (goes_with(kind, o.kind), a.placement) {
+        (false, _) => a.front,
+        (true, Placement::AgainstWall) => a.front.min(0.4),
+        (true, _) => 0.0,
+    };
+    (depth > 0.0).then(|| ahead(c, front(o), depth))
+}
+
+/// La place `p`, d'emprise `c`, est-elle possible ? Dans la pièce, sans heurter un meuble (même
+/// règle que `check`), hors du passage des portes et de l'espace devant les autres meubles ; un
+/// objet mural ne va ni sur une porte ni sur une fenêtre. Un objet posé sur un meuble le touche
+/// forcément.
+fn fits(p: &Prop, c: &[Vec2; 4], room: &RoomInfo, placement: Placement, around: &Around) -> bool {
+    let clash = Solid::with(p, around.local).is_some_and(|s| around.solids.iter().any(|o| s.clash(o)));
+    c.iter().all(|q| inside(room.inner, *q))
+        && match placement {
+            Placement::OnTop => true,
+            Placement::Ceiling => !clash,
+            Placement::OnWall => !clash && !on_opening(c, room, |_| true),
+            _ => !clash && !around.keep_clear.iter().any(|z| overlap(c, z)) && !blocks_door(c, room),
+        }
 }
 
 /// `a` va-t-il avec `b`, dans un sens ou dans l'autre ?
@@ -187,7 +209,8 @@ fn goes_with(a: PropKind, b: PropKind) -> bool {
 
 /// Dos contre chaque mur nord, sud, est et ouest, avant vers la pièce, tous les 10 cm.
 /// Petit bonus vers le milieu du mur, pour départager des places sinon égales.
-fn along_walls(room: &RoomInfo, at: &dyn Fn(Vec2, f32) -> Prop) -> Vec<(Prop, String, f32)> {
+/// `local` : `local_box` of the kind to place.
+fn along_walls(room: &RoomInfo, local: (Vec3, Vec3), at: &dyn Fn(Vec2, f32) -> Prop) -> Vec<(Prop, String, f32)> {
     let (lo, hi) = room.inner;
     let mut out = vec![];
     for w in &room.walls {
@@ -204,7 +227,7 @@ fn along_walls(room: &RoomInfo, at: &dyn Fn(Vec2, f32) -> Prop) -> Vec<(Prop, St
         let mut t = a;
         while t <= b {
             let p = at(if inward.x == 0.0 { Vec2::new(t, face) } else { Vec2::new(face, t) }, rot);
-            let back = p.corners().iter().map(|c| c.dot(inward)).fold(f32::MAX, f32::min);
+            let back = p.corners_in(local).iter().map(|c| c.dot(inward)).fold(f32::MAX, f32::min);
             let pos = p.pos + inward * (face * (inward.x + inward.y) + GAP - back);
             let centered = 0.3 * (1.0 - (2.0 * t - a - b).abs() / (b - a).max(0.1));
             out.push((at(pos, rot), format!("contre le mur {} (Wall {})", w.side.name(), w.wall), centered));
@@ -396,6 +419,42 @@ mod tests {
                 assert!(solids.iter().all(|o| !me.clash(o)), "{kind:?} heurte la baignoire : {s:?}");
             }
         }
+    }
+
+    #[test]
+    fn geometry_is_computed_once_per_call_not_per_spot() {
+        // jardin de 24 m sur 24 avec 30 arbres : refaire la géométrie de chaque arbre à chaque
+        // place essayée prenait des minutes sur un jardin de 158 m. Compté, pas chronométré,
+        // pour ne dépendre ni de la machine ni de la couverture
+        let mut h =
+            House { walls: room_walls(Vec2::splat(-12.0), Vec2::splat(12.0), 0, 2.0, 0.2, WHITE), ..House::default() };
+        for i in 0..30u8 {
+            let at = Vec2::new(f32::from(i % 6) * 4.0 - 10.0, f32::from(i / 6) * 4.0 - 8.0);
+            h.props.push(Prop::new(PropKind::Tree, at, 0, 0.0));
+        }
+        let room = h.room_at(0, Vec2::new(1.0, 1.0)).unwrap();
+        let count = || crate::model::props::LOCAL_BOXES.with(std::cell::Cell::get);
+        // a table on the floor grid, a sofa along the walls
+        for kind in [PropKind::Table, PropKind::Sofa] {
+            let before = count();
+            assert_eq!(h.suggest(kind, &room, None, 5).len(), 5, "{kind:?}");
+            // les arbres, la sorte à poser, et la taille de chaque sorte si elle n'est pas en cache
+            let n = count() - before;
+            assert!(n <= 2 * 30 + 1 + PropKind::ALL.len(), "{kind:?}: {n} géométries calculées");
+        }
+    }
+
+    #[test]
+    fn keep_clear_in_front_of_unrelated_furniture_or_40_cm_for_a_partner() {
+        let sofa = Prop::new(PropKind::Sofa, Vec2::ZERO, 0, 0.0);
+        let depth = |kind| keep_clear(&sofa, &sofa.corners(), kind).map(|z| z[0].distance(z[3]));
+        assert!((depth(PropKind::Wardrobe).unwrap() - 0.9).abs() < 1e-5, "tout son avant");
+        assert!((depth(PropKind::CoffeeTable).unwrap() - 0.4).abs() < 1e-5, "40 cm pour les jambes");
+        // la table basse ne retient pas le canapé qui va avec, ni l'arbre la table
+        let table = Prop::new(PropKind::CoffeeTable, Vec2::ZERO, 0, 0.0);
+        assert_eq!(keep_clear(&table, &table.corners(), PropKind::Sofa), None);
+        let tree = Prop::new(PropKind::Tree, Vec2::ZERO, 0, 0.0);
+        assert_eq!(keep_clear(&tree, &tree.corners(), PropKind::Table), None);
     }
 
     #[test]

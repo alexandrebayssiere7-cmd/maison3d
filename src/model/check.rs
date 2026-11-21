@@ -1,7 +1,7 @@
 //! Contrôles de cohérence d'un monde : ce que la validation d'une commande seule ne peut pas voir
 //! (objets qui se chevauchent, flottent, traversent un mur, escaliers sans trémie…).
 
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 
 use super::{House, Prop, PropKind, Slab, Wall};
 
@@ -135,8 +135,16 @@ pub(super) struct Solid {
 
 impl Solid {
     pub(super) fn of(p: &Prop) -> Option<Self> {
-        let (lo, hi) = p.local_box();
-        (!p.kind.outdoor() && !p.kind.flat()).then(|| Self { level: p.level, corners: p.corners(), ys: (lo.y, hi.y) })
+        Self::with(p, p.local_box())
+    }
+
+    /// Comme `of`, d'après la `local_box` de `p` déjà calculée.
+    pub(super) fn with(p: &Prop, (lo, hi): (Vec3, Vec3)) -> Option<Self> {
+        (!p.kind.outdoor() && !p.kind.flat()).then(|| Self {
+            level: p.level,
+            corners: p.corners_in((lo, hi)),
+            ys: (lo.y, hi.y),
+        })
     }
 
     /// Même étage, emprises qui se chevauchent, et l'un ne passe pas au-dessus de l'autre (le
