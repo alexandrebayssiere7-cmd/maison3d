@@ -595,6 +595,35 @@ fn add_storey_can_target_one_building() {
 }
 
 #[test]
+fn add_storey_refuses_half_an_area_and_huge_levels() {
+    let mut h = House::default();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[4,4],"level":0}"#)).unwrap();
+    h.apply(json(r#"{"op":"room","min":[20,0],"max":[24,4],"level":0}"#)).unwrap();
+    let before = h.clone();
+    for bad in [r#"{"op":"add_storey","level":0,"min":[0,0]}"#, r#"{"op":"add_storey","level":0,"max":[4,4]}"#] {
+        assert!(matches!(h.apply(json(bad)), Err(EditError::HalfArea)), "{bad}");
+    }
+    let huge = h.apply(json(r#"{"op":"add_storey","level":2147483647}"#));
+    assert!(matches!(huge, Err(EditError::LevelOutOfRange(i32::MAX))), "{huge:?}");
+    assert_eq!(h, before, "un refus laisse la maison intacte");
+}
+
+#[test]
+fn add_storey_keeps_every_level_in_range() {
+    let mut h = House::default();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[4,4],"level":0}"#)).unwrap();
+    h.apply(json(r#"{"op":"room","min":[0,0],"max":[4,4],"level":9}"#)).unwrap();
+    let before = h.clone();
+    // -2 : passe le contrôle de level + 1 mais ferait monter tout le bâtiment sans rien copier
+    let low = h.apply(json(r#"{"op":"add_storey","level":-2}"#));
+    assert!(matches!(low, Err(EditError::LevelOutOfRange(-2))), "{low:?}");
+    // le mur du niveau 9 monterait au niveau 10
+    let full = h.apply(json(r#"{"op":"add_storey","level":0,"min":[0,0],"max":[4,4]}"#));
+    assert!(matches!(full, Err(EditError::LevelOutOfRange(10))), "{full:?}");
+    assert_eq!(h, before, "un refus laisse la maison intacte");
+}
+
+#[test]
 fn rooms_are_named_by_room_or_name_room() {
     let mut h = House::default();
     h.apply(json(r#"{"op":"room","min":[0,0],"max":[8,4],"level":0,"name":"Séjour"}"#)).unwrap();

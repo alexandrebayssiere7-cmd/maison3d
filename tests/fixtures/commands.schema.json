@@ -841,12 +841,12 @@
               "const": "add_storey"
             },
             "level": {
-              "description": "Étage à copier ; `level + 1` doit rester ≤ 9.",
+              "description": "Étage à copier, de -1 à 8 ; refusé si un élément concerné est déjà à l'étage 9.",
               "type": "integer",
               "format": "int32"
             },
             "min": {
-              "description": "Coin nord-ouest de la zone concernée (absent : tout le monde).",
+              "description": "Coin nord-ouest de la zone concernée, à donner avec `max` (les deux absents : tout le monde).",
               "type": [
                 "array",
                 "null"
@@ -860,7 +860,7 @@
               "default": null
             },
             "max": {
-              "description": "Coin sud-est de la zone concernée.",
+              "description": "Coin sud-est de la zone concernée, à donner avec `min`.",
               "type": [
                 "array",
                 "null"

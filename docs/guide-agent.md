@@ -209,8 +209,8 @@ murs (`place_against` pour le canapé), puis `place_roof`.
 **Étage** (`maison-etage.json`) :
 1. Poser les fenêtres du rez-de-chaussée **avant** `add_storey` : fenêtres, baies et
    portes-fenêtres sont recopiées à l'étage, les portes (`Door`) non.
-2. Dans un monde à plusieurs bâtiments, donner `min` / `max` à `add_storey` pour ne monter que
-   celui-là.
+2. Dans un monde à plusieurs bâtiments, donner `min` et `max` à `add_storey` pour ne monter que
+   celui-là (un seul des deux est refusé).
 3. `add_storey` copie le sol en entier. Le retirer et le remplacer par des `add_slab` qui
    laissent une trémie au-dessus de l'escalier.
 4. Poser un `Stairs` (1 × 4,2 m pour 3 m) qui monte vers son avant. Son haut doit tomber sur
