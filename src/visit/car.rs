@@ -6,8 +6,10 @@ use bevy::prelude::*;
 
 use super::collide::{camera_clearance, push_out, support_height};
 use super::{VisitInput, Visitor, lerp_angle, yaw_facing};
+use crate::command::Command;
 use crate::editor::Editor;
 use crate::model::{ElemRef, House, Part, Prop, Shape, prop_parts};
+use crate::terrain::HALF;
 
 /// Voiture conduite : l'avant est vers +z local, `heading` en radians autour de la verticale.
 #[derive(Clone, Copy, Debug)]
@@ -303,14 +305,32 @@ fn car_speed(speed: f32, throttle: f32, handbrake: bool, dt: f32) -> f32 {
     if braking && new * speed <= 0.0 { 0.0 } else { new }
 }
 
-/// Laisse la voiture là où on l'a conduite et la rend à l'affichage normal.
+/// Laisse la voiture là où on l'a conduite (dans les limites du terrain, sinon le monde ne se
+/// recharge plus) et la rend à l'affichage normal ; le stationnement s'annule. Une position
+/// refusée par la validation (NaN) laisse la voiture à sa dernière place valide.
 pub(super) fn park(car: &Car, ed: &mut Editor) {
-    if let Some(p) = ed.house.props.get_mut(car.prop) {
-        p.pos = Vec2::new(car.pos.x, car.pos.z);
-        p.rot = car.heading.to_degrees().rem_euclid(360.0);
+    // f32::clamp garde NaN pour que `set` le refuse ; Vec2::clamp en ferait un coin du terrain
+    let pos = Vec2::new(car.pos.x.clamp(-HALF, HALF), car.pos.z.clamp(-HALF, HALF));
+    let rot = car.heading.to_degrees().rem_euclid(360.0);
+    if ed.house.props.get(car.prop).is_some_and(|p| moved(p, pos, rot)) {
+        let fields = serde_json::Map::from_iter([
+            ("pos".to_owned(), serde_json::json!(pos)),
+            ("rot".to_owned(), serde_json::json!(rot)),
+        ]);
+        // garer ne change aucun indice : le garage ouvert pour sortir la voiture reste ouvert
+        let doors = std::mem::take(&mut ed.doors);
+        // refus déjà affiché dans le message par Editor::apply ; la maison reste intacte
+        let _ = ed.apply([Command::Set { target: ElemRef::Prop(car.prop), fields }]);
+        ed.doors = doors;
     }
     ed.driving = None;
     ed.dirty = true;
+}
+
+/// La voiture a roulé ou tourné depuis qu'on y est monté, au-delà du tassement de la suspension.
+fn moved(p: &Prop, pos: Vec2, rot: f32) -> bool {
+    let turn = (rot - p.rot).rem_euclid(360.0);
+    p.pos.distance(pos) > 0.01 || (0.5..359.5).contains(&turn)
 }
 
 #[derive(Component)]
@@ -488,6 +508,71 @@ mod tests {
         assert_eq!(ed.house.props[i].pos, Vec2::new(20.0, 5.0));
         assert!((ed.house.props[i].rot - 90.0).abs() < 1e-3);
         assert!(ed.driving.is_none() && ed.dirty);
+    }
+
+    #[test]
+    fn car_parked_off_the_terrain_stays_inside_and_can_be_undone() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let i = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
+        // voiture disparue du plan : rien à garer, aucun point d'annulation
+        ed.driving = Some(usize::MAX);
+        park(&Car::new(usize::MAX, Vec3::ZERO, 0.0), &mut ed);
+        assert!(!ed.can_undo() && ed.driving.is_none());
+        let before = ed.house.props[i].pos;
+        park(&Car::new(i, Vec3::new(90.0, 0.0, -120.0), 0.0), &mut ed);
+        let path = std::env::temp_dir().join(format!("maison3d-park-{}.json", std::process::id()));
+        ed.house.save(&path).unwrap();
+        let loaded = House::load(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(loaded.unwrap(), ed.house, "le monde enregistré se recharge");
+        assert_eq!(ed.house.props[i].pos, Vec2::new(HALF, -HALF));
+        assert!(ed.can_undo(), "garer la voiture crée un point d'annulation");
+        ed.undo();
+        assert_eq!(ed.house.props[i].pos, before);
+    }
+
+    #[test]
+    fn parking_keeps_open_doors_and_skips_a_car_that_did_not_move() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let i = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
+        let p = ed.house.props[i].clone();
+        // monté puis descendu sans rouler : la suspension a juste tassé la caisse
+        let still = Car::new(i, Vec3::new(p.pos.x + 0.002, 0.0, p.pos.y), (p.rot + 360.1).to_radians());
+        park(&still, &mut ed);
+        assert!(!ed.can_undo(), "aucun point d'annulation sans déplacement");
+        assert_eq!(ed.house.props[i], p);
+        // le garage ouvert pour sortir la voiture reste ouvert une fois garée
+        let door = ElemRef::Opening(0, 0);
+        ed.toggle_door(door);
+        park(&Car::new(i, Vec3::new(p.pos.x + 5.0, 0.0, p.pos.y), 0.0), &mut ed);
+        assert!(ed.can_undo());
+        assert_eq!(ed.doors[&door], (0.0, true), "la porte reste ouverte");
+    }
+
+    #[test]
+    fn a_car_with_a_nan_position_or_heading_stays_at_its_last_valid_place() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let i = ed.house.props.iter().position(|p| p.kind == PropKind::Car).unwrap();
+        let p = ed.house.props[i].clone();
+        let lost = [
+            Car::new(i, Vec3::new(f32::NAN, 0.0, f32::NAN), 0.0),
+            Car::new(i, Vec3::new(p.pos.x + 5.0, 0.0, p.pos.y), f32::NAN),
+        ];
+        for car in lost {
+            ed.driving = Some(i);
+            park(&car, &mut ed);
+            assert!(ed.house.validate().is_ok(), "{:?}", ed.house.validate());
+            assert_eq!(ed.house.props[i], p, "la voiture reste à sa dernière place valide");
+            assert!(ed.driving.is_none() && !ed.can_undo());
+        }
+        let path = std::env::temp_dir().join(format!("maison3d-park-nan-{}.json", std::process::id()));
+        ed.house.save(&path).unwrap();
+        let loaded = House::load(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(loaded.unwrap(), ed.house, "le monde enregistré se recharge");
     }
 
     #[test]
