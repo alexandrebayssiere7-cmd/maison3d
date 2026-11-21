@@ -88,6 +88,7 @@ fn play(ed: &mut Editor, house: House, file: String, message: String) {
     *ed = Editor::default();
     ed.saved = house.clone();
     ed.house = house;
+    ed.saved_file.clone_from(&file);
     ed.file = file;
     ed.message = message;
 }
@@ -738,5 +739,63 @@ mod tests {
         std::fs::write(&path, "témoin").unwrap();
         assert!(may_close(&mut ed, true, &mut false));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "témoin");
+    }
+
+    #[test]
+    fn undoing_an_open_then_closing_leaves_the_opened_file_intact() {
+        let (mut ed, a) = opened("open_undo_a.json");
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        let edited = ed.house.clone();
+        let b = TempFile::new("open_undo_b.json");
+        House::default().save(&b).unwrap();
+        ed.file = b.0.to_string_lossy().into_owned();
+        ed.load();
+        assert_eq!(ed.house, House::default());
+        assert_eq!(ed.message, format!("Ouvert : {} ({} enregistré)", ed.file, a.0.display()), "un seul message");
+        ed.undo();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&b).unwrap(), House::default(), "b.json n est pas écrasé");
+        assert_eq!(House::load(&a).unwrap(), edited, "les changements de a.json sont gardés");
+    }
+
+    #[test]
+    fn reopening_the_same_file_is_undoable_and_writes_nothing() {
+        let (mut ed, path) = opened("reopen_same.json");
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        let edited = ed.house.clone();
+        ed.load();
+        let disk = House::load(&path).unwrap();
+        assert_eq!((&disk, &disk), (&ed.saved, &ed.house), "le disque, saved et l écran concordent");
+        assert_eq!(disk, demo_house(), "les changements abandonnés ne sont pas écrits");
+        ed.undo();
+        assert_eq!(ed.house, edited, "Ctrl+Z rend le travail abandonné");
+        // le même fichier écrit autrement reste le même fichier
+        let (dir, name) = (path.0.parent().unwrap(), path.0.file_name().unwrap());
+        ed.file = dir.join(".").join(name).to_string_lossy().into_owned();
+        ed.load();
+        assert_eq!(House::load(&path).unwrap(), demo_house(), "toujours rien d écrit");
+        ed.undo();
+        assert_eq!(ed.house, edited);
+    }
+
+    #[test]
+    fn reopening_an_untouched_world_keeps_the_redo_stack() {
+        let (mut ed, _path) = opened("reopen_redo.json");
+        ed.apply([crate::command::Command::Remove { target: crate::model::ElemRef::Prop(0) }]).unwrap();
+        ed.undo();
+        assert!(ed.can_redo());
+        ed.load();
+        assert!(ed.can_redo(), "rouvrir sans changement ne coupe pas Ctrl+Y");
+    }
+
+    #[test]
+    fn undoing_a_reopen_then_closing_saves_the_changes() {
+        let (mut ed, path) = opened("reopen_undo_close.json");
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        let edited = ed.house.clone();
+        ed.load();
+        ed.undo();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&path).unwrap(), edited, "Ctrl+Z après réouverture reprend le travail");
     }
 }
