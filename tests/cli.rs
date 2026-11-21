@@ -299,3 +299,55 @@ fn shot_fails_when_the_image_cannot_be_written() {
     let err = String::from_utf8_lossy(&xyz.stderr);
     assert!(!xyz.status.success() && err.contains("png"), "format refusé avant le rendu : {err}");
 }
+
+/// Deux `apply` sur le même monde : celui qui finit le second n'efface pas le travail du premier.
+#[cfg(unix)]
+#[test]
+fn apply_refuses_to_overwrite_a_world_changed_meanwhile() {
+    concurrent_apply_is_refused("concurrent", |_| vec![]);
+    // --out naming the world read, spelled another way, is still the world read
+    concurrent_apply_is_refused("concurrent-out", |w| {
+        let w = Path::new(w);
+        let same = w.parent().expect("dossier").join(".").join(w.file_name().expect("nom"));
+        vec!["--out".into(), same.to_str().expect("chemin UTF-8").into()]
+    });
+    // a script reading stdout already saw ok:true lines: the refusal must reach it there too
+    let o = concurrent_apply_is_refused("concurrent-json", |_| vec!["--json".into()]);
+    let out = stdout(&o);
+    let last: Value = serde_json::from_str(out.lines().last().expect("une ligne")).expect("ligne JSON");
+    assert_eq!(last["ok"], false, "{out}");
+    assert!(last["error"].as_str().is_some_and(|e| e.contains("modifié par ailleurs")), "{out}");
+}
+
+/// Le premier `apply` (avec les options `extra`, selon le monde) attend ses commandes pendant qu'un second écrit.
+#[cfg(unix)]
+fn concurrent_apply_is_refused(name: &str, extra: impl Fn(&str) -> Vec<String>) -> Output {
+    use std::io::Write as _;
+    use std::process::Stdio;
+    let dir = tmp_dir(name);
+    let world = world_with_room(&dir);
+    let fifo = dir.join("cmds.fifo");
+    assert!(Command::new("mkfifo").arg(&fifo).status().expect("lancer mkfifo").success());
+    let slow = Command::new(env!("CARGO_BIN_EXE_maison3d"))
+        .args(["apply", &world, fifo.to_str().expect("chemin UTF-8")])
+        .args(extra(&world))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("lancer maison3d");
+    // ouvrir la file en écriture attend que le premier apply l'ouvre en lecture : il a déjà lu le monde
+    let mut cmds = std::fs::OpenOptions::new().write(true).open(&fifo).expect("ouvrir la file");
+    let other = write(&dir, "other.json", r#"[{"op": "room", "min": [10, 10], "max": [12, 12], "level": 0}]"#);
+    assert!(run(&["apply", &world, &other]).status.success(), "le second apply passe");
+    let theirs = std::fs::read(&world).expect("lire le monde");
+    cmds.write_all(br#"[{"op": "room", "min": [20, 20], "max": [22, 22], "level": 0}]"#).expect("écrire");
+    drop(cmds);
+    let o = slow.wait_with_output().expect("attendre le premier apply");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(1), "le premier apply est refusé : {err}");
+    assert!(err.contains("modifié par ailleurs"), "{err}");
+    assert_eq!(std::fs::read(&world).expect("relire le monde"), theirs, "le travail du second reste intact");
+    let left: Vec<_> = std::fs::read_dir(&dir).expect("lister").flatten().map(|e| e.file_name()).collect();
+    assert!(!left.iter().any(|n| n.to_string_lossy().ends_with(".tmp")), "{left:?}");
+    o
+}

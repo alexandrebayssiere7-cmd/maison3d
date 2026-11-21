@@ -512,6 +512,7 @@ pub fn save_on_close(
 fn may_close(ed: &mut Editor, in_game: bool, warned: &mut bool) -> bool {
     if in_game && !ed.save_if_modified() && !*warned {
         *warned = true;
+        ed.message.push_str(" Fermer encore abandonne les modifications.");
         return false;
     }
     true

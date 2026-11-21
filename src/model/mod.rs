@@ -11,6 +11,7 @@ mod catalog;
 mod check;
 mod demo;
 mod edit;
+mod file;
 mod geometry;
 mod openings;
 mod props;
@@ -22,6 +23,7 @@ mod suggest;
 pub use annotations::{Placement, Room, search};
 pub use catalog::{Category, PropKind};
 pub use demo::demo_house;
+pub use file::same_file;
 pub use geometry::{pick, pick_part, ray_obb};
 use geometry::{pool_parts, road_part, roof_part, wall_parts};
 pub use openings::OpeningKind;
@@ -352,6 +354,8 @@ pub enum WorldError {
         elem: ElemRef,
         err: crate::command::EditError,
     },
+    /// Le fichier a changé sur le disque depuis sa lecture : l'écrire perdrait ces changements.
+    Changed,
 }
 
 impl std::fmt::Display for WorldError {
@@ -362,6 +366,9 @@ impl std::fmt::Display for WorldError {
             Self::BadTerrain { n, full } => write!(f, "relief invalide : {n} altitudes au lieu de {full}"),
             Self::TooNew(v) => write!(f, "format {v} plus récent que ce programme (format {VERSION})"),
             Self::Invalid { elem, err } => write!(f, "élément {elem:?} invalide : {err}"),
+            Self::Changed => {
+                write!(f, "fichier modifié par ailleurs depuis sa lecture : rien n'est écrit pour ne pas l'écraser")
+            }
         }
     }
 }
@@ -477,19 +484,6 @@ impl House {
         }
         h.validate().map_err(|(elem, err)| WorldError::Invalid { elem, err })?;
         Ok(h)
-    }
-
-    /// Écrit à côté puis renomme : un arrêt en pleine écriture ne corrompt pas le monde.
-    pub fn save(&self, path: impl AsRef<std::path::Path>) -> Result<(), WorldError> {
-        let path = path.as_ref();
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let mut tmp = path.as_os_str().to_owned();
-        tmp.push(".tmp");
-        std::fs::write(&tmp, serde_json::to_string_pretty(self)?)?;
-        std::fs::rename(&tmp, path)?;
-        Ok(())
     }
 
     /// Toutes les pièces visibles ; `max_level` masque les étages supérieurs.
@@ -731,20 +725,6 @@ mod tests {
         std::fs::write(&path, "{ pas du json").unwrap();
         assert!(matches!(House::load(&path), Err(WorldError::Json(_))));
         let _ = std::fs::remove_file(path);
-    }
-    #[test]
-    fn save_writes_atomically_and_reports_errors() {
-        let dir = std::env::temp_dir().join("maison3d_house_save");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("sous/maison.json");
-        let h = demo_house();
-        h.save(&path).unwrap();
-        assert_eq!(House::load(&path).unwrap(), h);
-        assert!(!dir.join("sous/maison.json.tmp").exists());
-        // le dossier parent est un fichier
-        assert!(matches!(h.save(path.join("x.json")), Err(WorldError::Io(_))));
-        assert!(matches!(h.save(&dir), Err(WorldError::Io(_))), "un dossier n'est pas un fichier");
-        let _ = std::fs::remove_dir_all(dir);
     }
     #[test]
     fn loads_files_from_before_versioning() {

@@ -26,6 +26,11 @@ Ce guide s'affiche aussi avec `maison3d guide`.
 - **Tout ou rien** : à la première commande refusée, le monde n'est pas écrit, le code de sortie
   vaut 1, et le message (sur stderr) donne le JSON de la commande avec la raison du refus.
 - **Monde absent** : refusé, sauf avec `--new`.
+- **Monde modifié pendant l'`apply`** : juste avant d'écrire, `apply` relit le monde. S'il a changé
+  depuis sa lecture (un autre `apply`, l'éditeur), rien n'est écrit, le code de sortie vaut 1 et le
+  message dit « fichier modifié par ailleurs ». Relire le monde (`describe`, les indices ont pu
+  changer) puis relancer le lot. Un monde devenu illisible est refusé de même, avec la raison.
+  `--out` vers un autre fichier n'est pas concerné.
 - **Sortie** : pour chaque commande, `apply` affiche les éléments qu'elle a créés
   (`#3 ok → créés Wall 4 à 7, créé Slab 1`), puis les avertissements de `check`, puis `describe`.
   `--quiet` supprime le `describe`.
@@ -35,7 +40,9 @@ Ce guide s'affiche aussi avec `maison3d guide`.
   `{"index":0,"ok":true,"elem":{"Prop":3},"created":[{"Prop":3}],"removed":{}}`, puis une ligne
   `{"saved":"monde.json","warnings":[…]}` (`saved` vaut `null` avec `--dry-run`). Les références
   se recopient telles quelles dans `target`. Un refus donne `{"index":…,"ok":false,"error":"…"}`
-  et le code de sortie 1.
+  et le code de sortie 1. Si l'écriture du monde échoue (monde modifié pendant l'`apply`, disque…),
+  les lignes `"ok":true` déjà affichées ne valent plus : la dernière ligne est
+  `{"saved":null,"ok":false,"error":"…"}`, rien n'est écrit et le code de sortie vaut 1.
 
 ### Options de `shot`
 
