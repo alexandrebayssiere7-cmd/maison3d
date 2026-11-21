@@ -277,13 +277,6 @@ impl Editor {
         self.message = msg.into();
     }
 
-    /// Remplace toute la maison (nouveau, exemple, ouverture) de façon annulable.
-    pub fn replace_house(&mut self, h: House, msg: String) {
-        self.checkpoint();
-        self.house = h;
-        self.after_restore(&msg);
-    }
-
     /// Abandonne l'action en cours (mur en cours de tracé, rectangle, déplacement).
     pub fn cancel(&mut self) {
         self.wall_start = None;
@@ -404,9 +397,7 @@ impl Editor {
     }
 
     /// Ouvre le fichier du champ. Rouvrir le monde en cours abandonne ses changements, sans rien écrire
-    /// et de façon annulable. Ouvrir un autre monde enregistre d'abord celui en cours dans son propre
-    /// fichier s'il a changé, puis repart sans historique : annuler rendrait l'ancienne maison sous le
-    /// nom du nouveau fichier.
+    /// et de façon annulable ; ouvrir un autre monde passe par `switch_world`.
     pub fn load(&mut self) {
         let h = match House::load(&self.file) {
             Ok(h) => h,
@@ -415,25 +406,42 @@ impl Editor {
                 return;
             }
         };
-        let mut msg = format!("Ouvert : {}", self.file);
+        if !same_file(&self.file, &self.saved_file) {
+            let file = self.file.clone();
+            return self.switch_world(h, || file, "Ouvert");
+        }
         self.cancel();
-        if same_file(&self.file, &self.saved_file) {
-            // rien à annuler si la maison est déjà celle du disque : on garde alors Ctrl+Y
-            if self.house != h {
-                self.checkpoint();
-            }
-        } else {
-            if self.modified() {
-                if !self.save_if_modified() {
-                    return; // le message dit pourquoi ; la maison en cours reste ouverte
-                }
-                msg = format!("{msg} ({} enregistré)", self.saved_file);
-            }
-            self.undo.clear();
-            self.redo.clear();
+        // rien à annuler si la maison est déjà celle du disque : on garde alors Ctrl+Y
+        if self.house != h {
+            self.checkpoint();
         }
         self.saved = h.clone();
         self.saved_file = self.file.clone();
+        self.house = h;
+        self.after_restore(&format!("Ouvert : {}", self.file));
+    }
+
+    /// Passe au monde `h` (ouvert, nouveau ou exemple). Le monde en cours est d'abord enregistré dans
+    /// son propre fichier s'il a changé ; si c'est impossible, rien ne change (le message dit pourquoi).
+    /// Le nom du nouveau fichier n'est demandé qu'ensuite, pour qu'un nom libre ne reprenne pas celui
+    /// qu'on vient d'écrire. L'historique repart à zéro : annuler rendrait l'ancienne maison sous le
+    /// nom du nouveau fichier, qu'une fermeture écraserait.
+    pub fn switch_world(&mut self, h: House, file: impl FnOnce() -> String, what: &str) {
+        self.cancel();
+        let saved = self.modified().then(|| self.saved_file.clone());
+        if !self.save_if_modified() {
+            return;
+        }
+        let file = file();
+        let msg = match saved {
+            Some(old) => format!("{what} : {file} ({old} enregistré)"),
+            None => format!("{what} : {file}"),
+        };
+        self.undo.clear();
+        self.redo.clear();
+        self.saved = h.clone();
+        self.saved_file.clone_from(&file);
+        self.file = file;
         self.house = h;
         self.after_restore(&msg);
     }

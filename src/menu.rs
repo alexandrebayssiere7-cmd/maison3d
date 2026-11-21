@@ -30,7 +30,7 @@ fn worlds_dir_for(os: &str, var: impl Fn(&str) -> Option<OsString>) -> PathBuf {
 }
 
 /// Dossier où sont créés les mondes personnalisés.
-fn worlds_dir() -> PathBuf {
+pub fn worlds_dir() -> PathBuf {
     worlds_dir_for(std::env::consts::OS, |k| std::env::var_os(k))
 }
 
@@ -81,6 +81,12 @@ fn custom_worlds(dirs: &[PathBuf]) -> Vec<PathBuf> {
     v.sort();
     v.dedup();
     v
+}
+
+/// Nouveau ou Exemple depuis l'éditeur : `house` devient un nouveau monde, sous un nom libre de `dir`
+/// comme depuis le menu, pour ne jamais être enregistrée par-dessus le monde ouvert.
+pub fn start_world(ed: &mut Editor, house: House, dir: &Path, what: &str) {
+    ed.switch_world(house, || free_name(dir), what);
 }
 
 /// Repart d'un éditeur neuf (historique vidé) sur ce monde.
@@ -703,8 +709,8 @@ mod tests {
 
     impl Drop for TempFile {
         fn drop(&mut self) {
-            // le test a pu ne jamais créer le fichier
-            let _ = std::fs::remove_file(&self.0);
+            // le test a pu ne jamais créer le fichier (ou en faire un dossier)
+            let _ = std::fs::remove_file(&self.0).or_else(|_| std::fs::remove_dir_all(&self.0));
         }
     }
 
@@ -820,5 +826,81 @@ mod tests {
         play(&mut ed, House::default(), "mondes/chalet.json".into(), String::new());
         ed.file = "mondes/autre.json".into();
         assert_eq!(world_title(&ed), "CHALET");
+    }
+
+    #[test]
+    fn new_world_then_opening_another_leaves_the_open_world_intact() {
+        // scénario de maison3d-87 : sur chalet.json, Nouveau, on tape b.json, Ctrl+O, puis on ferme
+        let (mut ed, chalet) = opened("chalet.json");
+        let dir = TempFile::new("nouveaux_mondes");
+        std::fs::create_dir_all(&dir).unwrap();
+        start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+        let b = TempFile::new("chalet_b.json");
+        House::default().save(&b).unwrap();
+        ed.file = b.0.to_string_lossy().into_owned();
+        ed.load();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&chalet).unwrap(), demo_house(), "chalet.json intact");
+        assert_eq!(House::load(&b).unwrap(), House::default());
+    }
+
+    #[test]
+    fn new_world_then_closing_leaves_the_open_world_intact() {
+        let (mut ed, chalet) = opened("chalet_close.json");
+        let dir = TempFile::new("nouveaux_mondes_close");
+        std::fs::create_dir_all(&dir).unwrap();
+        start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&chalet).unwrap(), demo_house(), "chalet.json intact");
+    }
+
+    #[test]
+    fn new_and_example_save_the_open_world_then_take_a_free_name() {
+        let (mut ed, chalet) = opened("chalet_edit.json");
+        let dir = TempFile::new("nouveaux_mondes_edit");
+        std::fs::create_dir_all(&dir).unwrap();
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        let edited = ed.house.clone();
+        start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+        assert_eq!(House::load(&chalet).unwrap(), edited, "le monde modifié est d abord enregistré");
+        let first = dir.0.join("monde 1.json");
+        assert_eq!(ed.saved_file, first.to_string_lossy());
+        assert_eq!(ed.file, ed.saved_file);
+        assert!(!ed.modified() && !ed.can_undo());
+        assert!(may_close(&mut ed, true, &mut false));
+        assert!(!first.exists(), "un monde vide intact n est pas écrit");
+        start_world(&mut ed, demo_house(), &dir.0, "Maison d exemple");
+        assert!(!ed.modified(), "l exemple n est écrit que s il change");
+        ed.house.props.clear();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&first).unwrap(), ed.house, "l exemple modifié va dans son propre fichier");
+        assert_eq!(House::load(&chalet).unwrap(), edited);
+    }
+
+    #[test]
+    fn new_world_is_refused_when_the_open_one_cannot_be_saved() {
+        let (mut ed, _chalet) = opened("chalet_fail.json");
+        ed.house.props.clear();
+        let kept = ed.house.clone();
+        ed.saved_file = std::env::temp_dir().to_string_lossy().into_owned();
+        start_world(&mut ed, demo_house(), &std::env::temp_dir(), "Nouveau monde");
+        assert_eq!(ed.house, kept, "le travail non enregistré reste ouvert");
+        assert!(ed.message.starts_with("Erreur d'enregistrement"), "{}", ed.message);
+    }
+
+    #[test]
+    fn two_new_worlds_in_a_row_get_two_files() {
+        let (mut ed, _chalet) = opened("chalet_twice.json");
+        let dir = TempFile::new("nouveaux_mondes_twice");
+        std::fs::create_dir_all(&dir).unwrap();
+        start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+        ed.house.props.push(demo_house().props[0].clone());
+        let first = ed.house.clone();
+        start_world(&mut ed, House::default(), &dir.0, "Nouveau monde");
+        assert_eq!(ed.saved_file, dir.0.join("monde 2.json").to_string_lossy(), "le premier a pris monde 1");
+        ed.house.props.push(demo_house().props[1].clone());
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(dir.0.join("monde 1.json")).unwrap(), first, "le premier monde n est pas écrasé");
+        assert_eq!(House::load(dir.0.join("monde 2.json")).unwrap(), ed.house);
     }
 }

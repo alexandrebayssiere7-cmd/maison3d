@@ -14,6 +14,7 @@ use shortcuts::shortcuts;
 use crate::camera::CamState;
 use crate::command::Command;
 use crate::editor::{Editor, Tool};
+use crate::menu::{start_world, worlds_dir};
 use crate::model::{House, OpeningKind, PropKind, demo_house};
 use crate::render::Library;
 use crate::visit::Visitor;
@@ -134,10 +135,10 @@ fn release_button_focus(ctx: &egui::Context) {
 fn file_section(ui: &mut egui::Ui, ed: &mut Editor) {
     ui.horizontal(|ui| {
         if ui.button("📄 Nouveau").clicked() {
-            ed.replace_house(House::default(), "Nouveau projet (Ctrl+Z pour revenir)".into());
+            start_world(ed, House::default(), &worlds_dir(), "Nouveau monde");
         }
         if ui.button("✨ Exemple").on_hover_text("Charge une maison d'exemple").clicked() {
-            ed.replace_house(demo_house(), "Maison d'exemple chargée".into());
+            start_world(ed, demo_house(), &worlds_dir(), "Maison d'exemple");
         }
     });
     ui.horizontal(|ui| {
