@@ -65,6 +65,10 @@ impl Tool {
 #[derive(Resource)]
 pub struct Editor {
     pub house: House,
+    /// La maison telle que dans son fichier (ouverte ou enregistrée) : sert à savoir si elle a changé.
+    pub saved: House,
+    /// Fichier d'où vient `saved` (`file` est un champ de saisie, il peut déjà en viser un autre).
+    pub saved_file: String,
     undo: VecDeque<House>,
     redo: Vec<House>,
     pub dirty: bool,
@@ -144,6 +148,8 @@ impl Default for Editor {
     fn default() -> Self {
         Self {
             house: House::default(),
+            saved: House::default(),
+            saved_file: "maison.json".into(),
             undo: VecDeque::new(),
             redo: vec![],
             dirty: true,
@@ -233,6 +239,10 @@ impl Editor {
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
+    /// La maison diffère de son fichier : il faut l'enregistrer avant de la quitter.
+    pub fn modified(&self) -> bool {
+        self.house != self.saved
+    }
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
@@ -265,13 +275,6 @@ impl Editor {
         self.cancel();
         self.dirty = true;
         self.message = msg.into();
-    }
-
-    /// Remplace toute la maison (nouveau, exemple, ouverture) de façon annulable.
-    pub fn replace_house(&mut self, h: House, msg: String) {
-        self.checkpoint();
-        self.house = h;
-        self.after_restore(&msg);
     }
 
     /// Abandonne l'action en cours (mur en cours de tracé, rectangle, déplacement).
@@ -371,17 +374,85 @@ impl Editor {
         let res = self.house.save(&self.file);
         let ok = res.is_ok();
         self.message = match res {
-            Ok(()) => format!("Enregistré dans {}", self.file),
+            Ok(()) => {
+                self.saved = self.house.clone();
+                self.saved_file = self.file.clone();
+                format!("Enregistré dans {}", self.file)
+            }
             Err(e) => format!("Erreur d'enregistrement : {e}"),
         };
         ok
     }
 
-    pub fn load(&mut self) {
-        match House::load(&self.file) {
-            Ok(h) => self.replace_house(h, format!("Ouvert : {}", self.file)),
-            Err(e) => self.message = format!("Impossible d'ouvrir {} : {e}", self.file),
+    /// Avant de quitter le monde : l'enregistre s'il a changé, dans son propre fichier et non sous le
+    /// nom tapé dans le champ. Renvoie `false` si l'écriture a échoué (le message dit pourquoi).
+    pub fn save_if_modified(&mut self) -> bool {
+        if !self.modified() {
+            return true;
         }
+        let typed = std::mem::replace(&mut self.file, self.saved_file.clone());
+        let ok = self.save();
+        self.file = typed;
+        ok
+    }
+
+    /// Ouvre le fichier du champ. Rouvrir le monde en cours abandonne ses changements, sans rien écrire
+    /// et de façon annulable ; ouvrir un autre monde passe par `switch_world`.
+    pub fn load(&mut self) {
+        let h = match House::load(&self.file) {
+            Ok(h) => h,
+            Err(e) => {
+                self.message = format!("Impossible d'ouvrir {} : {e}", self.file);
+                return;
+            }
+        };
+        if !same_file(&self.file, &self.saved_file) {
+            let file = self.file.clone();
+            return self.switch_world(h, || file, "Ouvert");
+        }
+        self.cancel();
+        // rien à annuler si la maison est déjà celle du disque : on garde alors Ctrl+Y
+        if self.house != h {
+            self.checkpoint();
+        }
+        self.saved = h.clone();
+        self.saved_file = self.file.clone();
+        self.house = h;
+        self.after_restore(&format!("Ouvert : {}", self.file));
+    }
+
+    /// Passe au monde `h` (ouvert, nouveau ou exemple). Le monde en cours est d'abord enregistré dans
+    /// son propre fichier s'il a changé ; si c'est impossible, rien ne change (le message dit pourquoi).
+    /// Le nom du nouveau fichier n'est demandé qu'ensuite, pour qu'un nom libre ne reprenne pas celui
+    /// qu'on vient d'écrire. L'historique repart à zéro : annuler rendrait l'ancienne maison sous le
+    /// nom du nouveau fichier, qu'une fermeture écraserait.
+    pub fn switch_world(&mut self, h: House, file: impl FnOnce() -> String, what: &str) {
+        self.cancel();
+        let saved = self.modified().then(|| self.saved_file.clone());
+        if !self.save_if_modified() {
+            return;
+        }
+        let file = file();
+        let msg = match saved {
+            Some(old) => format!("{what} : {file} ({old} enregistré)"),
+            None => format!("{what} : {file}"),
+        };
+        self.undo.clear();
+        self.redo.clear();
+        self.saved = h.clone();
+        self.saved_file.clone_from(&file);
+        self.file = file;
+        self.house = h;
+        self.after_restore(&msg);
+    }
+}
+
+/// Les deux chemins désignent-ils le même fichier, même écrits autrement ? Si l'un n'existe pas,
+/// seul le texte peut être comparé.
+fn same_file(a: &str, b: &str) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(ca), Ok(cb)) => ca == cb,
+        _ => a == b,
     }
 }
 
@@ -511,25 +582,55 @@ mod tests {
     }
 
     #[test]
+    fn same_file_compares_paths_not_spellings() {
+        let dir = std::env::temp_dir().join(format!("maison3d_same_file_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (a, b) = (dir.join("a.json"), dir.join("b.json"));
+        std::fs::write(&a, "").unwrap();
+        std::fs::write(&b, "").unwrap();
+        let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        assert!(same_file(&s(&a), &s(&dir.join(".").join("a.json"))), "même fichier écrit autrement");
+        assert!(!same_file(&s(&a), &s(&b)));
+        assert!(!same_file(&s(&a), "absent.json"), "un seul des deux existe");
+        assert!(same_file("absent.json", "absent.json"), "absents : même texte");
+        assert!(!same_file("absent.json", "./absent.json"), "absents : textes différents");
+        // nettoyage seulement : un reste ne fausse aucun test
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn save_then_load_roundtrips() {
-        let dir = std::env::temp_dir().join("maison3d_editor_save");
+        let dir = std::env::temp_dir().join(format!("maison3d_editor_save_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let mut ed = with_table();
         ed.file = dir.join("sous/dossier/maison.json").to_str().unwrap().into();
+        assert!(ed.modified(), "la table n est pas encore dans un fichier");
         assert!(ed.save(), "{}", ed.message);
+        assert!(!ed.modified());
         let saved = ed.house.clone();
         ed.house = House::default();
+        ed.saved = House::default();
         ed.load();
         assert_eq!(ed.house, saved);
         assert!(ed.message.starts_with("Ouvert"));
+        assert!(!ed.modified(), "ouvert tel que dans le fichier");
         ed.undo();
-        assert_eq!(ed.house, House::default(), "ouvrir un fichier s'annule");
+        assert_eq!(ed.house, House::default(), "rouvrir le même fichier s'annule");
 
         ed.file = dir.join("absent.json").to_str().unwrap().into();
         ed.load();
         assert!(ed.message.starts_with("Impossible d'ouvrir"));
+        ed.house.props.clear();
         ed.file = dir.to_str().unwrap().into();
         assert!(!ed.save(), "un dossier n'est pas un fichier");
+        assert!(ed.modified(), "un échec n enregistre rien");
+        // le monde modifié ne peut pas être enregistré dans son fichier : on ne l'abandonne pas
+        ed.saved_file = ed.file.clone();
+        ed.file = dir.join("sous/dossier/maison.json").to_str().unwrap().into();
+        let kept = ed.house.clone();
+        ed.load();
+        assert_eq!(ed.house, kept);
+        assert!(ed.message.starts_with("Erreur d'enregistrement"));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

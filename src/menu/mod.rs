@@ -30,7 +30,7 @@ fn worlds_dir_for(os: &str, var: impl Fn(&str) -> Option<OsString>) -> PathBuf {
 }
 
 /// Dossier où sont créés les mondes personnalisés.
-fn worlds_dir() -> PathBuf {
+pub fn worlds_dir() -> PathBuf {
     worlds_dir_for(std::env::consts::OS, |k| std::env::var_os(k))
 }
 
@@ -83,10 +83,18 @@ fn custom_worlds(dirs: &[PathBuf]) -> Vec<PathBuf> {
     v
 }
 
+/// Nouveau ou Exemple depuis l'éditeur : `house` devient un nouveau monde, sous un nom libre de `dir`
+/// comme depuis le menu, pour ne jamais être enregistrée par-dessus le monde ouvert.
+pub fn start_world(ed: &mut Editor, house: House, dir: &Path, what: &str) {
+    ed.switch_world(house, || free_name(dir), what);
+}
+
 /// Repart d'un éditeur neuf (historique vidé) sur ce monde.
 fn play(ed: &mut Editor, house: House, file: String, message: String) {
     *ed = Editor::default();
+    ed.saved = house.clone();
     ed.house = house;
+    ed.saved_file.clone_from(&file);
     ed.file = file;
     ed.message = message;
 }
@@ -502,7 +510,7 @@ pub fn save_on_close(
 
 /// Enregistre le monde modifié avant de fermer ; un échec retient la fermeture une seule fois.
 fn may_close(ed: &mut Editor, in_game: bool, warned: &mut bool) -> bool {
-    if in_game && ed.can_undo() && !ed.save() && !*warned {
+    if in_game && !ed.save_if_modified() && !*warned {
         *warned = true;
         return false;
     }
@@ -526,12 +534,16 @@ pub fn hud_system(
     }
 }
 
+/// Nom du monde ouvert, pas celui tapé dans le champ tant qu'il n'est pas ouvert ou enregistré.
+fn world_title(ed: &Editor) -> String {
+    Path::new(&ed.saved_file).file_stem().unwrap_or_default().to_string_lossy().to_uppercase()
+}
+
 /// Nom du monde, mode, étage, heure et images/s ; vrai si l'on retourne au menu.
 fn hud(ui: &mut egui::Ui, ed: &mut Editor, s: &Settings, fps: f64) -> bool {
     ui.set_min_width(170.0);
     if s.hud {
-        let world = Path::new(&ed.file).file_stem().unwrap_or_default().to_string_lossy().to_uppercase();
-        ui.label(RichText::new(world).strong().size(15.0).color(ACCENT));
+        ui.label(RichText::new(world_title(ed)).strong().size(15.0).color(ACCENT));
         ui.label(
             RichText::new(format!("{}  ·  {}", if ed.walk { "Visite" } else { "Édition" }, level_name(ed.level)))
                 .color(Color32::from_gray(220)),
@@ -556,127 +568,8 @@ fn hud(ui: &mut egui::Ui, ed: &mut Editor, s: &Settings, fps: f64) -> bool {
             .min_size(vec2(ui.available_width(), 28.0)),
     );
     // si l'enregistrement échoue, on reste en jeu : l'erreur y est affichée
-    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && (!ed.can_undo() || ed.save())
+    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && ed.save_if_modified()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn frame(mut f: impl FnMut(&egui::Context)) {
-        let ctx = egui::Context::default();
-        let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 800.0))),
-            ..Default::default()
-        };
-        let _ = ctx.run(input, |ctx| f(ctx));
-    }
-
-    #[test]
-    fn every_screen_draws_without_requests() {
-        let (mut s, mut form) = (Settings::default(), WorldForm { new_name: Some("x".into()), error: "oups".into() });
-        for screen in [Screen::Start, Screen::Options, Screen::Levels, Screen::Game] {
-            frame(|ctx| assert!(menu_ui(ctx, screen, &mut s, &mut form).is_empty()));
-        }
-        assert_eq!(form.error, "oups");
-        let mut ed = Editor::default();
-        frame(|ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                assert!(!hud(ui, &mut ed, &s, 60.0));
-                ed.walk = true;
-                assert!(!hud(ui, &mut ed, &s, 60.0));
-            });
-        });
-        assert!((0.0..1.0).contains(&hue("Mon monde")));
-    }
-
-    #[test]
-    fn menu_requests_change_screen_window_and_world() {
-        let (mut next, mut window, mut ed, mut s) =
-            (NextState::<Screen>::default(), Window::default(), Editor::default(), Settings::default());
-        s.fullscreen = true;
-        s.vsync = false;
-        let actions = vec![MenuAction::Fullscreen, MenuAction::Vsync, MenuAction::Goto(Screen::Options)];
-        assert!(!apply_menu(actions, &mut next, &mut window, &mut ed, &s));
-        assert!(matches!(window.mode, WindowMode::BorderlessFullscreen(_)));
-        assert_eq!(window.present_mode, PresentMode::AutoNoVsync);
-        assert!(matches!(next, NextState::Pending(Screen::Options)));
-        let play = MenuAction::Play(Box::new(demo_house()), "mondes/a.json".into(), "Bienvenue".into());
-        assert!(apply_menu(vec![play, MenuAction::Quit], &mut next, &mut window, &mut ed, &s));
-        assert_eq!((ed.file.as_str(), ed.message.as_str()), ("mondes/a.json", "Bienvenue"));
-        assert!(matches!(next, NextState::Pending(Screen::Game)));
-        assert!(!ed.can_undo(), "nouvel éditeur, historique vide");
-    }
-
-    #[test]
-    fn new_world_names_are_checked() {
-        let dir = std::env::temp_dir().join("maison3d_menu_new_world");
-        // le dossier peut ne pas exister : seul compte qu'il soit vide ensuite
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(matches!(new_world(&dir, "  "), Err(NewWorldError::InvalidName)));
-        assert!(matches!(new_world(&dir, "a/b"), Err(NewWorldError::InvalidName)));
-        assert!(matches!(new_world(&dir, "a\\b"), Err(NewWorldError::InvalidName)));
-        let (house, file, msg) = new_world(&dir, " Chalet ").unwrap();
-        let chalet = dir.join("Chalet.json");
-        assert_eq!(
-            (house, file.as_str(), msg.as_str()),
-            (House::default(), chalet.to_str().unwrap(), "Nouveau monde « Chalet »")
-        );
-        assert_eq!(free_name(&dir), dir.join("monde 1.json").to_str().unwrap());
-        House::default().save(&chalet).unwrap();
-        House::default().save(dir.join("monde 1.json")).unwrap();
-        assert!(matches!(new_world(&dir, "Chalet"), Err(NewWorldError::Exists(n)) if n == "Chalet"));
-        assert_eq!(free_name(&dir), dir.join("monde 2.json").to_str().unwrap());
-    }
-
-    #[test]
-    fn worlds_are_listed_from_new_and_legacy_dirs() {
-        let root = std::env::temp_dir().join("maison3d_menu_custom_worlds");
-        // le dossier peut ne pas exister : seul compte qu'il soit vide ensuite
-        let _ = std::fs::remove_dir_all(&root);
-        let (new, old) = (root.join("nouveau"), root.join("ancien"));
-        for f in [new.join("b.json"), old.join("a.json")] {
-            House::default().save(f).unwrap();
-        }
-        std::fs::write(new.join("notes.txt"), "").unwrap();
-        let listed = custom_worlds(&[new.clone(), old.clone(), new.clone(), root.join("absent")]);
-        assert_eq!(listed, [old.join("a.json"), new.join("b.json")]);
-    }
-
-    #[test]
-    fn worlds_dir_follows_each_os_convention() {
-        let env = |pairs: &'static [(&str, &str)]| {
-            move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(v))
-        };
-        let home = env(&[("HOME", "/h"), ("APPDATA", "/a"), ("XDG_DATA_HOME", "/x")]);
-        let suffix = Path::new("maison3d").join("mondes");
-        assert_eq!(worlds_dir_for("macos", home), Path::new("/h/Library/Application Support").join(&suffix));
-        assert_eq!(worlds_dir_for("windows", home), Path::new("/a").join(&suffix));
-        assert_eq!(worlds_dir_for("linux", home), Path::new("/x").join(&suffix));
-        let no_xdg = env(&[("HOME", "/h"), ("XDG_DATA_HOME", "")]);
-        assert_eq!(worlds_dir_for("linux", no_xdg), Path::new("/h/.local/share").join(&suffix));
-        let nothing = env(&[]);
-        for os in ["macos", "windows", "linux", "freebsd"] {
-            assert_eq!(worlds_dir_for(os, nothing), Path::new("mondes"), "{os}");
-        }
-        assert!(worlds_dir().ends_with(&suffix) || worlds_dir() == Path::new("mondes"));
-    }
-
-    #[test]
-    fn new_world_errors_have_labels() {
-        assert_eq!(NewWorldError::InvalidName.to_string(), "Nom invalide");
-        assert_eq!(NewWorldError::Exists("Chalet".into()).to_string(), "« Chalet » existe déjà");
-    }
-
-    #[test]
-    fn closing_saves_and_warns_once_on_failure() {
-        let mut ed = Editor::default();
-        let mut warned = false;
-        assert!(may_close(&mut ed, true, &mut warned), "rien à enregistrer");
-        ed.checkpoint();
-        ed.file = std::env::temp_dir().to_string_lossy().into_owned();
-        assert!(!may_close(&mut ed, true, &mut warned), "échec : on reste pour voir l erreur");
-        assert!(may_close(&mut ed, true, &mut warned), "seconde demande : on ferme");
-        assert!(may_close(&mut ed, false, &mut false), "hors jeu : rien à enregistrer");
-    }
-}
+mod tests;
