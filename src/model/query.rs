@@ -141,6 +141,11 @@ impl Grid {
         inside.then(|| c.y as usize * self.nx + c.x as usize)
     }
 
+    /// Free cell under `p`, `None` in a wall or off the grid: the room a point belongs to.
+    fn free_cell(&self, p: Vec2) -> Option<usize> {
+        self.cell(p).filter(|&c| self.owner[c] == FREE)
+    }
+
     fn center(&self, x: usize, z: usize) -> Vec2 {
         self.origin + (Vec2::new(x as f32, z as f32) + 0.5) * CELL
     }
@@ -205,7 +210,7 @@ impl House {
     /// n'a pas de mur.
     pub fn room_at(&self, level: i32, p: Vec2) -> Option<RoomInfo> {
         let g = Grid::new(self, level)?;
-        let start = g.cell(p).filter(|&c| g.owner[c] == FREE)?;
+        let start = g.free_cell(p)?;
         let (cells, open) = g.fill(start, &mut vec![false; g.owner.len()]);
         Some(self.describe_cells(level, &g, &cells, open))
     }
@@ -264,9 +269,9 @@ impl House {
             .filter(|(_, p)| p.level == level && g.cell(p.pos).is_some_and(|c| inside[c]))
             .map(|(i, _)| i)
             .collect();
-        let names = (self.names.iter())
-            .filter(|n| n.level == level && g.cell(n.at).is_some_and(|c| inside[c]))
-            .map(|n| n.name.clone())
+        let names = (self.name_cells(level, g))
+            .filter(|(_, c)| c.is_some_and(|c| inside[c]))
+            .map(|(name, _)| name.to_owned())
             .collect();
         RoomInfo {
             level,
@@ -328,22 +333,61 @@ impl House {
         hits
     }
 
-    /// Avertissements : un nom posé dans un mur, ou deux noms pour une même pièce.
+    /// Avertissements : un nom posé dans un mur, ou plusieurs noms pour une même pièce.
     pub(super) fn name_warnings(&self, out: &mut Vec<String>) {
-        let mut named: Vec<(&str, RoomInfo)> = vec![];
-        for n in &self.names {
-            let Some(r) = self.room_at(n.level, n.at) else {
+        let mut levels: Vec<i32> = self.names.iter().map(|n| n.level).collect();
+        levels.sort_unstable();
+        levels.dedup();
+        for l in levels {
+            let (lost, rooms) = self.names_by_room(l);
+            for name in lost {
                 out.push(format!(
-                    "Le nom « {} » est posé dans un mur ou sur un étage sans mur : le reposer (name_room)",
-                    n.name
+                    "Le nom « {name} » est posé dans un mur ou sur un étage sans mur : le reposer (name_room)"
                 ));
+            }
+            for names in rooms {
+                if let [first @ .., last] = &names[..]
+                    && !first.is_empty()
+                {
+                    let first: Vec<String> = first.iter().map(|n| format!("« {n} »")).collect();
+                    out.push(format!(
+                        "{} et « {last} » nomment la même pièce : il manque une cloison ?",
+                        first.join(", ")
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Noms de l'étage `level` posés hors de toute pièce, puis les noms de chaque pièce nommée.
+    /// Même découpage que `rooms`, mais une grille par étage et un remplissage par pièce nommée
+    /// (pas un par nom), sans décrire les pièces : `check` reste rapide avec beaucoup de noms.
+    fn names_by_room(&self, level: i32) -> (Vec<&str>, Vec<Vec<&str>>) {
+        let Some(g) = Grid::new(self, level) else {
+            return (self.names.iter().filter(|n| n.level == level).map(|n| n.name.as_str()).collect(), vec![]);
+        };
+        let (mut lost, mut rooms) = (vec![], vec![]);
+        let (mut seen, mut room_of) = (vec![false; g.owner.len()], vec![0; g.owner.len()]);
+        for (name, start) in self.name_cells(level, &g) {
+            let Some(start) = start else {
+                lost.push(name);
                 continue;
             };
-            if let Some((other, _)) = named.iter().find(|(_, o)| o.level == r.level && o.at == r.at) {
-                out.push(format!("« {other} » et « {} » nomment la même pièce : il manque une cloison ?", n.name));
+            if !seen[start] {
+                for c in g.fill(start, &mut seen).0 {
+                    room_of[c] = rooms.len();
+                }
+                rooms.push(vec![]);
             }
-            named.push((&n.name, r));
+            rooms[room_of[start]].push(name);
         }
+        (lost, rooms)
+    }
+
+    /// Names of level `level` with the free cell they sit on, `None` in a wall or off the grid.
+    /// The single rule for which room holds a name, shared by `describe_cells` and `names_by_room`.
+    fn name_cells<'a>(&'a self, level: i32, g: &Grid) -> impl Iterator<Item = (&'a str, Option<usize>)> {
+        (self.names.iter()).filter(move |n| n.level == level).map(|n| (n.name.as_str(), g.free_cell(n.at)))
     }
 }
 
@@ -504,5 +548,85 @@ mod tests {
         let w = h.warnings();
         assert!(w.iter().any(|m| m.contains("« Cuisine » et « coin repas »")), "{w:?}");
         assert!(w.iter().any(|m| m.contains("« mur » est posé dans un mur")), "{w:?}");
+    }
+
+    /// Grande pièce dont le centre tombe dans une petite pièce : le point `at` de la grande pièce
+    /// dépend de l'ordre du remplissage, il ne doit pas décider si deux noms la partagent.
+    #[test]
+    fn two_names_in_one_big_room_are_reported() {
+        let mut h =
+            House { walls: room_walls(Vec2::splat(-20.0), Vec2::splat(20.0), 0, 3.0, 0.2, WHITE), ..House::default() };
+        h.walls.extend(room_walls(Vec2::ZERO, Vec2::new(10.0, 6.0), 0, 3.0, 0.2, WHITE));
+        h.names.push(RoomName { name: "jardin".into(), level: 0, at: Vec2::new(-10.0, -10.0) });
+        h.names.push(RoomName { name: "cour".into(), level: 0, at: Vec2::new(-9.0, 15.0) });
+        let w = h.warnings();
+        assert_eq!(w, ["« jardin » et « cour » nomment la même pièce : il manque une cloison ?"]);
+    }
+
+    #[test]
+    fn three_names_in_one_room_give_one_warning() {
+        let mut h = flat();
+        h.names.push(RoomName { name: "coin repas".into(), level: 0, at: Vec2::new(3.0, 3.0) });
+        h.names.push(RoomName { name: "office".into(), level: 0, at: Vec2::new(1.0, 1.0) });
+        h.names.push(RoomName { name: "salon".into(), level: 0, at: Vec2::new(6.5, 2.0) });
+        h.names.push(RoomName { name: "grenier".into(), level: 2, at: Vec2::new(6.5, 2.0) });
+        h.names.push(RoomName { name: "dehors".into(), level: 0, at: Vec2::new(-30.0, 2.0) });
+        let w = h.warnings();
+        assert_eq!(
+            w,
+            [
+                "Le nom « dehors » est posé dans un mur ou sur un étage sans mur : le reposer (name_room)",
+                "« Cuisine », « coin repas » et « office » nomment la même pièce : il manque une cloison ?",
+                "Le nom « grenier » est posé dans un mur ou sur un étage sans mur : le reposer (name_room)",
+            ]
+        );
+    }
+
+    /// `rooms` and `check` must put the same names in the same rooms, and lose the same ones.
+    #[test]
+    fn rooms_and_name_warnings_group_names_alike() {
+        let name = |name: &str, level, at| RoomName { name: name.into(), level, at };
+        let mut on_partition = flat();
+        on_partition.names.push(name("cloison", 0, Vec2::new(5.0, 2.0)));
+        let mut floors = flat();
+        floors.walls.extend(room_walls(Vec2::ZERO, Vec2::new(8.0, 4.0), 1, 3.0, 0.2, WHITE));
+        floors.names.extend([
+            name("chambre", 1, Vec2::new(4.0, 2.0)),
+            name("bureau", 1, Vec2::new(1.0, 1.0)),
+            name("grenier", 2, Vec2::new(1.0, 1.0)),
+            name("coin repas", 0, Vec2::new(3.0, 3.0)),
+            name("terrasse", 0, Vec2::new(-0.5, 2.0)),
+            name("loin", 0, Vec2::new(-30.0, 2.0)),
+        ]);
+        let mut big =
+            House { walls: room_walls(Vec2::splat(-20.0), Vec2::splat(20.0), 0, 3.0, 0.2, WHITE), ..House::default() };
+        big.walls.extend(room_walls(Vec2::ZERO, Vec2::new(10.0, 6.0), 0, 3.0, 0.2, WHITE));
+        big.names.extend([
+            name("jardin", 0, Vec2::new(-10.0, -10.0)),
+            name("cour", 0, Vec2::new(-9.0, 15.0)),
+            name("atelier", 0, Vec2::new(5.0, 3.0)),
+        ]);
+        for h in [flat(), on_partition, floors, big] {
+            let rooms = h.rooms();
+            let mut levels: Vec<i32> = h.names.iter().map(|n| n.level).collect();
+            levels.sort_unstable();
+            levels.dedup();
+            for l in levels {
+                let (lost, mut grouped) = h.names_by_room(l);
+                let mut from_rooms: Vec<Vec<&str>> = (rooms.iter())
+                    .filter(|r| r.level == l && !r.names.is_empty())
+                    .map(|r| r.names.iter().map(String::as_str).collect())
+                    .collect();
+                grouped.sort();
+                from_rooms.sort();
+                assert_eq!(grouped, from_rooms, "level {l}");
+                let placed = from_rooms.concat();
+                let unplaced: Vec<&str> = (h.names.iter())
+                    .filter(|n| n.level == l && !placed.contains(&n.name.as_str()))
+                    .map(|n| n.name.as_str())
+                    .collect();
+                assert_eq!(lost, unplaced, "level {l}");
+            }
+        }
     }
 }
