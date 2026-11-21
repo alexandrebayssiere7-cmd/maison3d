@@ -329,6 +329,47 @@ mod tests {
         }
     }
 
+    /// Un éditeur avec un mur de `len` m de haut de `height` m, sélectionné.
+    fn selected_wall(len: f32, height: f32) -> Editor {
+        let mut ed = Editor::default();
+        let (a, b, color) = (Vec2::ZERO, Vec2::new(len, 0.0), [1.0; 3]);
+        ed.house.walls.push(crate::model::Wall {
+            a,
+            b,
+            level: 0,
+            height,
+            thick: 0.2,
+            color,
+            openings: vec![],
+            texture: 0,
+        });
+        ed.selected = Some(ElemRef::Wall(0));
+        ed
+    }
+
+    #[test]
+    fn selecting_keeps_values_beyond_the_sliders() {
+        // un mur de 12 m de haut, accepté par la CLI, au-delà du curseur (10 m)
+        let mut ed = selected_wall(4.0, 12.0);
+        let before = ed.house.clone();
+        frame(|ctx| editor_panels(ctx, &mut ed, &THUMBS));
+        assert_eq!(ed.house, before, "sélectionner ne modifie rien");
+        assert!(!ed.can_undo());
+    }
+
+    #[test]
+    fn opening_as_wide_as_its_wall_does_not_crash_the_panel() {
+        // l état laissé par le curseur de largeur poussé au bout
+        for len in [2.0, 8.05] {
+            let mut ed = selected_wall(len, 3.0);
+            let mut o = crate::model::Opening::new(OpeningKind::Window, len / 2.0);
+            o.width = len;
+            ed.house.walls[0].openings.push(o);
+            ed.selected = Some(ElemRef::Opening(0, 0));
+            frame(|ctx| editor_panels(ctx, &mut ed, &THUMBS));
+        }
+    }
+
     #[test]
     fn visit_overlay_shows_speed_and_actions() {
         let mut v = Visitor::default();

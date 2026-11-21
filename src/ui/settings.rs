@@ -266,7 +266,8 @@ pub(super) fn selection_section(ui: &mut egui::Ui, ed: &mut Editor, thumbs: &Thu
     if !selection_props(ui, &mut ed.house, sel, thumbs) {
         return;
     }
-    ed.record_prop_edit(before);
+    // un refus garde la maison d'avant et son message posé par record_prop_edit
+    let _ = ed.record_prop_edit(before);
     ui.horizontal(|ui| {
         if !matches!(sel, ElemRef::Opening(..)) && ui.button("⧉ Dupliquer").on_hover_text("Ctrl+D").clicked() {
             ed.duplicate_selected();
@@ -298,34 +299,37 @@ fn selection_title(h: &House, sel: ElemRef) -> String {
     }
 }
 
-/// Curseurs et finitions de l'élément sélectionné, modifiés directement dans la maison ;
-/// faux si l'élément n'existe plus.
+/// Curseur de la sélection : ne borne que la valeur que l'on fait glisser, pour qu'une valeur
+/// hors plage (un mur de 12 m posé par la CLI) survive à la sélection. `House::apply` valide.
+fn edit_slider(value: &mut f32, range: std::ops::RangeInclusive<f32>) -> Slider<'_> {
+    Slider::new(value, range).clamping(egui::SliderClamping::Edits)
+}
+
+/// Curseurs et finitions de l'élément sélectionné, modifiés directement dans la maison puis
+/// rejoués par `Editor::record_prop_edit` ; faux si l'élément n'existe plus.
 fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thumbs) -> bool {
     match sel {
         ElemRef::Wall(i) => {
             let Some(w) = h.walls.get_mut(i) else { return false };
             ui.label(format!("Longueur : {:.2} m  •  {} ouverture(s)", w.len(), w.openings.len()));
-            ui.add(Slider::new(&mut w.height, 0.5..=10.0).text("hauteur").suffix(" m"));
-            ui.add(Slider::new(&mut w.thick, 0.05..=1.0).text("épaisseur").suffix(" m"));
+            ui.add(edit_slider(&mut w.height, 0.5..=10.0).text("hauteur").suffix(" m"));
+            ui.add(edit_slider(&mut w.thick, 0.05..=1.0).text("épaisseur").suffix(" m"));
             finish_row(ui, "s_mur", &mut w.color, &mut w.texture, thumbs);
         }
         ElemRef::Opening(wi, oi) => {
             let Some(w) = h.walls.get_mut(wi) else { return false };
             let (len, wall_h) = (w.len(), w.height);
             let Some(o) = w.openings.get_mut(oi) else { return false };
-            ui.add(Slider::new(&mut o.width, 0.3..=len.max(0.4)).text("largeur").suffix(" m"));
-            ui.add(Slider::new(&mut o.height, 0.3..=wall_h).text("hauteur").suffix(" m"));
-            ui.add(Slider::new(&mut o.sill, 0.0..=wall_h - 0.3).text("allège").suffix(" m"));
-            ui.add(Slider::new(&mut o.t, 0.0..=len).text("position").suffix(" m"));
+            ui.add(edit_slider(&mut o.width, 0.3..=len.max(0.4)).text("largeur").suffix(" m"));
+            ui.add(edit_slider(&mut o.height, 0.3..=wall_h).text("hauteur").suffix(" m"));
+            ui.add(edit_slider(&mut o.sill, 0.0..=wall_h - 0.3).text("allège").suffix(" m"));
+            ui.add(edit_slider(&mut o.t, 0.0..=len).text("position").suffix(" m"));
             let current: Vec<Finish> = (0..o.kind.slots().len()).map(|i| o.finish(i)).collect();
             if let Some((i, f)) = parts_rows(ui, "s_ouverture", o.kind.slots(), &current, thumbs)
                 && let Some((c, t)) = o.finish_mut(i)
             {
                 (*c, *t) = (f.color, f.texture);
             }
-            // garde l'ouverture dans le mur
-            o.width = o.width.min(len - 0.1);
-            o.t = o.t.clamp(o.width / 2.0 + 0.05, len - o.width / 2.0 - 0.05);
         }
         ElemRef::Slab(i) => {
             let Some(s) = h.slabs.get_mut(i) else { return false };
@@ -341,16 +345,16 @@ fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thum
                 }
             });
             if r.kind != RoofKind::Flat {
-                ui.add(Slider::new(&mut r.height, 0.3..=8.0).text("hauteur").suffix(" m"));
+                ui.add(edit_slider(&mut r.height, 0.3..=8.0).text("hauteur").suffix(" m"));
             }
-            ui.add(Slider::new(&mut r.overhang, 0.0..=2.0).text("débord").suffix(" m"));
+            ui.add(edit_slider(&mut r.overhang, 0.0..=2.0).text("débord").suffix(" m"));
             finish_row(ui, "s_toit", &mut r.color, &mut r.texture, thumbs);
         }
         ElemRef::Prop(i) => {
             let Some(p) = h.props.get_mut(i) else { return false };
-            ui.add(Slider::new(&mut p.rot, 0.0..=359.0).text("rotation").suffix("°"));
+            ui.add(edit_slider(&mut p.rot, 0.0..=359.0).text("rotation").suffix("°"));
             if let Some(dim) = p.kind.dim() {
-                ui.add(Slider::new(&mut p.height, dim_range(p.kind)).text(dim).suffix(" m"));
+                ui.add(edit_slider(&mut p.height, dim_range(p.kind)).text(dim).suffix(" m"));
             }
             let current: Vec<Finish> = (0..p.kind.slots().len()).map(|i| p.finish(i)).collect();
             if let Some((i, f)) = parts_rows(ui, "s_meuble", p.kind.slots(), &current, thumbs)
@@ -367,13 +371,13 @@ fn selection_props(ui: &mut egui::Ui, h: &mut House, sel: ElemRef, thumbs: &Thum
             let Some(p) = h.pools.get_mut(i) else { return false };
             let size = p.max - p.min;
             ui.label(format!("{:.0} × {:.0} m", size.x, size.y));
-            ui.add(Slider::new(&mut p.depth, 0.5..=3.0).text("profondeur").suffix(" m"));
+            ui.add(edit_slider(&mut p.depth, 0.5..=3.0).text("profondeur").suffix(" m"));
             finish_row(ui, "s_piscine", &mut p.color, &mut p.texture, thumbs);
         }
         ElemRef::Road(i) => {
             let Some(r) = h.roads.get_mut(i) else { return false };
             ui.label(format!("Longueur : {:.2} m", r.a.distance(r.b)));
-            ui.add(Slider::new(&mut r.width, 1.0..=12.0).text("largeur").suffix(" m"));
+            ui.add(edit_slider(&mut r.width, 1.0..=12.0).text("largeur").suffix(" m"));
             finish_row(ui, "s_route", &mut r.color, &mut r.texture, thumbs);
         }
     }
