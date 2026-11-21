@@ -15,6 +15,8 @@ pub enum EditError {
     NotFound(ElemRef, usize),
     /// `paint` sans `target` ni `targets`.
     NoTarget,
+    /// `add_storey` avec `min` sans `max`, ou l'inverse.
+    HalfArea,
     WallTooShort,
     PoolOffGrid,
     RoadTooShort,
@@ -93,6 +95,7 @@ impl std::fmt::Display for EditError {
             Self::NotFound(e, 0) => write!(f, "Élément introuvable : {e:?} (aucun élément de ce type)"),
             Self::NotFound(e, n) => write!(f, "Élément introuvable : {e:?} (indices valides : 0 à {})", n - 1),
             Self::NoTarget => write!(f, "Rien à peindre : donner `target` ou `targets`"),
+            Self::HalfArea => write!(f, "Zone incomplète : donner `min` et `max` ensemble, ou aucun des deux"),
             Self::WallTooShort => write!(f, "Mur trop court (min 5 cm)"),
             Self::PoolOffGrid => write!(f, "Piscine : coins au mètre près exigés"),
             Self::RoadTooShort => write!(f, "Route trop courte (min 5 cm)"),
@@ -181,6 +184,7 @@ mod tests {
             (EditError::NotFound(ElemRef::Wall(3), 0), "aucun élément"),
             (EditError::NotFound(ElemRef::Wall(3), 2), "0 à 1"),
             (EditError::NoTarget, "Rien à peindre"),
+            (EditError::HalfArea, "Zone incomplète"),
             (EditError::WallTooShort, "Mur trop court"),
             (EditError::PoolOffGrid, "au mètre"),
             (EditError::RoadTooShort, "Route trop courte"),

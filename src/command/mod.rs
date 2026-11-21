@@ -194,13 +194,13 @@ pub enum Command {
     /// changent pas ; les copies sont ajoutées à la fin, dans l'ordre des originaux. Dans un
     /// monde à plusieurs bâtiments, donner `min` et `max` pour n'agir que sur l'un d'eux.
     AddStorey {
-        /// Étage à copier ; `level + 1` doit rester ≤ 9.
+        /// Étage à copier, de -1 à 8 ; refusé si un élément concerné est déjà à l'étage 9.
         level: i32,
-        /// Coin nord-ouest de la zone concernée (absent : tout le monde).
+        /// Coin nord-ouest de la zone concernée, à donner avec `max` (les deux absents : tout le monde).
         #[serde(default)]
         #[schemars(with = "Option<[f32; 2]>")]
         min: Option<Vec2>,
-        /// Coin sud-est de la zone concernée.
+        /// Coin sud-est de la zone concernée, à donner avec `min`.
         #[serde(default)]
         #[schemars(with = "Option<[f32; 2]>")]
         max: Option<Vec2>,
@@ -335,7 +335,7 @@ impl House {
             Command::AddPool(p) => self.add_checked_pool(p),
             Command::AddRoad(r) => self.add_checked_road(r),
             Command::AddOpening { wall, opening } => self.add_opening(wall, opening),
-            Command::AddStorey { level, min, max } => self.add_storey_checked(level, min.zip(max)),
+            Command::AddStorey { level, min, max } => self.add_storey_checked(level, min, max),
             Command::GenerateTerrain { seed, amp, scale, mountains } => {
                 self.generate_checked(seed, amp, scale, mountains)
             }
@@ -576,12 +576,29 @@ impl House {
         Ok(Some(ElemRef::Opening(wall, w.openings.len() - 1)))
     }
 
-    fn add_storey_checked(&mut self, level: i32, area: Option<(Vec2, Vec2)>) -> Result<Option<ElemRef>, EditError> {
-        validate::level(level + 1)?;
+    fn add_storey_checked(
+        &mut self,
+        level: i32,
+        min: Option<Vec2>,
+        max: Option<Vec2>,
+    ) -> Result<Option<ElemRef>, EditError> {
+        validate::level(level)?;
+        validate::level(level.saturating_add(1))?;
+        let area = match (min, max) {
+            (Some(lo), Some(hi)) => Some((lo, hi)),
+            (None, None) => None,
+            _ => return Err(EditError::HalfArea),
+        };
         if let Some((lo, hi)) = area {
             validate::rect(lo, hi)?;
         }
         self.add_storey(level, area);
+        // un élément déjà au dernier étage vient de monter trop haut : apply restaure la maison
+        let walls = self.walls.iter().map(|w| w.level);
+        let slabs = self.slabs.iter().map(|s| s.level);
+        let roofs = self.roofs.iter().map(|r| r.level);
+        let top = walls.chain(slabs).chain(roofs).chain(self.props.iter().map(|p| p.level)).max();
+        top.map_or(Ok(()), validate::level)?;
         Ok(None)
     }
 
