@@ -16,17 +16,22 @@ impl House {
     /// Écrit à côté, dans un .tmp propre au processus, puis renomme : un arrêt en pleine écriture
     /// ne corrompt pas le monde, et deux processus n'écrivent pas dans le même .tmp.
     fn write(&self, path: &std::path::Path, read: Option<&House>) -> Result<(), WorldError> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
+        let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+        std::fs::create_dir_all(dir)?;
         let mut tmp = path.as_os_str().to_owned();
         tmp.push(format!(".{}.tmp", std::process::id()));
         let json = serde_json::to_string_pretty(self)?;
-        let res = std::fs::write(&tmp, json)
-            .map_err(WorldError::from)
+        let res = std::fs::write(&tmp, json).map_err(WorldError::from).and_then(|()| {
+            // Saves into this directory take turns from the check to the rename, so no other save can
+            // slip in between. The lock is advisory and lives on the directory: the world file itself
+            // is replaced by each rename. Released when `lock` is dropped.
+            // shortcut: opening a directory fails on Windows, which no build targets; lock a sibling file there
+            let lock = std::fs::File::open(dir)?;
+            lock.lock()?;
             // vérifié au dernier moment, juste avant de remplacer le fichier
-            .and_then(|()| read.map_or(Ok(()), |r| check_unchanged(path, r)))
-            .and_then(|()| Ok(std::fs::rename(&tmp, path)?));
+            read.map_or(Ok(()), |r| check_unchanged(path, r))?;
+            Ok(std::fs::rename(&tmp, path)?)
+        });
         if res.is_err() {
             // le .tmp est à nous ; s'il ne s'efface pas, l'erreur rendue reste la bonne à afficher
             let _ = std::fs::remove_file(&tmp);
@@ -129,6 +134,27 @@ mod tests {
         std::os::unix::fs::symlink(dir.join("absent/x"), &tmp).unwrap();
         assert!(matches!(demo_house().save(&path), Err(WorldError::Io(_))));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "no .tmp is left behind");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    /// Another save holds the directory between its check and its rename: ours waits, then sees its work.
+    #[test]
+    fn a_save_waits_for_the_one_in_progress() {
+        let dir = std::env::temp_dir().join(format!("maison3d_house_lock_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("maison.json");
+        let read = demo_house();
+        read.save(&path).unwrap();
+        let held = std::fs::File::open(&dir).unwrap();
+        held.lock().unwrap();
+        let (mut mine, p, r) = (read.clone(), path.clone(), read.clone());
+        mine.props.clear();
+        let ours = std::thread::spawn(move || mine.save_if_unchanged(&p, &r));
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        // the other save writes its world while it still holds the lock
+        std::fs::write(&path, serde_json::to_string_pretty(&House::default()).unwrap()).unwrap();
+        drop(held);
+        assert!(matches!(ours.join().unwrap(), Err(WorldError::Changed)));
+        assert_eq!(House::load(&path).unwrap(), House::default(), "their work is kept");
         let _ = std::fs::remove_dir_all(dir);
     }
     #[test]
