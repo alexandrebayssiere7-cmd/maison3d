@@ -236,9 +236,9 @@ fn on_floor(room: &RoomInfo, target: Option<Vec2>, at: &dyn Fn(Vec2, f32) -> Pro
     out
 }
 
+// shortcut: alias kept so PR 24 rebases without conflict, inline as p.front() once it lands
 fn front(p: &Prop) -> Vec2 {
-    let (s, c) = p.rot.to_radians().sin_cos();
-    Vec2::new(s, c)
+    p.front()
 }
 
 /// Rectangle de profondeur `depth` devant l'objet (coins 2 et 3 : son avant).

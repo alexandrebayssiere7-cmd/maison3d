@@ -59,7 +59,7 @@ impl House {
             }
             if p.kind == PropKind::Stairs {
                 let (lo, hi) = p.local_box();
-                let front = Vec2::new(p.rot.to_radians().sin(), p.rot.to_radians().cos());
+                let front = p.front();
                 let top = p.pos + front * (hi.z - f32::midpoint(lo.z, hi.z) + 0.4);
                 if !self.on_floor(p.level + climb, top) {
                     out.push(format!(
