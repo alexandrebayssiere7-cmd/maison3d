@@ -278,6 +278,11 @@ impl Editor {
     pub fn cancel(&mut self) {
         self.wall_start = None;
         self.drag_start = None;
+        self.abandon_move();
+    }
+
+    /// Remet la maison d'avant le glisser-déplacer en cours, s'il y en a un.
+    fn abandon_move(&mut self) {
         if let Some((_, orig, _)) = self.move_drag.take() {
             self.house = orig;
             self.dirty = true;
@@ -320,7 +325,9 @@ impl Editor {
 
     /// Applique des commandes en un seul point d'annulation : toutes ou aucune.
     /// En cas d'erreur, la maison est intacte et le message dit pourquoi.
+    /// Un glisser-déplacer en cours est d'abord abandonné : son aperçu n'est pas dans l'historique.
     pub fn apply(&mut self, cmds: impl IntoIterator<Item = Command>) -> Result<Option<ElemRef>, EditError> {
+        self.abandon_move();
         let mut h = self.house.clone();
         let mut last = None;
         for c in cmds {

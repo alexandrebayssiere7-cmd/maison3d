@@ -327,6 +327,56 @@ mod tests {
         assert_eq!(ed.house.props[0].pos, Vec2::ZERO);
     }
 
+    /// Lance `act` au milieu d'un glisser de la table puis relâche plus loin : la maison doit être
+    /// celle que `act` donne sans glisser, avec un seul point d'annulation vers l'origine.
+    fn act_during_drag(act: fn(&mut Editor)) {
+        let mut expected = with_table();
+        expected.selected = Some(ElemRef::Prop(0));
+        act(&mut expected);
+        let mut ed = with_table();
+        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true);
+        ed.select_input(Some(v(2.0, 1.0)), None, false, true);
+        act(&mut ed);
+        ed.select_input(Some(v(3.0, 1.0)), None, false, true);
+        ed.select_input(Some(v(3.0, 1.0)), None, false, false);
+        assert_eq!(ed.house, expected.house, "le glisser est abandonné avant l'action");
+        ed.undo();
+        assert_eq!(ed.house, with_table().house, "une annulation remet la table à sa place d'origine");
+        assert!(!ed.can_undo(), "un seul point d'annulation");
+    }
+
+    #[test]
+    fn delete_during_a_drag_removes_the_element() {
+        act_during_drag(Editor::delete_selected);
+    }
+
+    #[test]
+    fn duplicate_during_a_drag() {
+        act_during_drag(Editor::duplicate_selected);
+    }
+
+    #[test]
+    fn rotate_during_a_drag() {
+        act_during_drag(Editor::rotate_selected);
+    }
+
+    #[test]
+    fn nudge_during_a_drag() {
+        act_during_drag(|ed| ed.nudge_selected(v(0.0, 1.0)));
+    }
+
+    #[test]
+    fn refused_command_during_a_drag_still_abandons_it() {
+        let mut ed = with_table();
+        ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true);
+        ed.select_input(Some(v(2.0, 1.0)), None, false, true);
+        let err = ed.apply([Command::Remove { target: ElemRef::Wall(3) }]).unwrap_err();
+        assert!(matches!(err, crate::editor::EditError::NotFound(ElemRef::Wall(3), _)), "{err}");
+        ed.select_input(Some(v(3.0, 1.0)), None, false, false);
+        assert_eq!(ed.house, with_table().house);
+        assert!(!ed.can_undo());
+    }
+
     #[test]
     fn holding_still_during_a_drag_rebuilds_nothing() {
         let mut ed = with_table();
