@@ -14,9 +14,17 @@ fn smooth(x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
+/// Pente maximale (m par m) du talus que `keep_flat` laisse autour d'un bâtiment : 45°.
+const FLAT_SLOPE: f32 = 1.0;
+
+/// Distance de `p` au rectangle `lo`–`hi` moins la bande plate de 3 m autour (négative dedans).
+fn past_margin(p: Vec2, lo: Vec2, hi: Vec2) -> f32 {
+    p.distance(p.clamp(lo, hi)) - 3.0
+}
+
 /// 0 dans le rectangle et jusqu'à 3 m autour, puis remonte vers 1 sur 15 m.
 fn flat_weight(p: Vec2, lo: Vec2, hi: Vec2) -> f32 {
-    smooth((p.distance(p.clamp(lo, hi)) - 3.0) / 15.0)
+    smooth(past_margin(p, lo, hi) / 15.0)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -146,9 +154,15 @@ impl Terrain {
     }
 
     /// Ramène en douceur le relief à 0 autour du rectangle `lo`–`hi` (un bâtiment posé après le relief).
+    /// Borne la hauteur par un talus en cône plutôt que la multiplier : 0 jusqu'à 3 m du
+    /// rectangle, puis `FLAT_SLOPE` m de plus par mètre. Aplanir dix fois la même zone revient à
+    /// l'aplanir une fois, dans n'importe quel ordre, et la pente reste au plus celle du relief
+    /// ou du talus. Le relief plus bas que le talus est intact : une colline de 20 m est touchée
+    /// jusqu'à 23 m du bâtiment.
     pub fn keep_flat(&mut self, lo: Vec2, hi: Vec2) {
         for (k, y) in self.h.iter_mut().enumerate() {
-            *y *= flat_weight(Self::vertex(k % SIDE, k / SIDE), lo, hi);
+            let cap = FLAT_SLOPE * past_margin(Self::vertex(k % SIDE, k / SIDE), lo, hi).max(0.0);
+            *y = y.clamp(-cap, cap);
         }
     }
 
@@ -249,5 +263,50 @@ mod tests {
         t.grade(a, b, 4.0);
         let mid = t.height(Vec2::new(-40.0, -40.0));
         assert!((mid - f32::midpoint(t.height(a), t.height(b))).abs() < 0.05);
+    }
+
+    #[test]
+    fn keep_flat_is_idempotent_and_leaves_far_relief() {
+        let mut t = Terrain::default();
+        t.generate(3, 20.0, 30.0, false, None);
+        let raw = t.clone();
+        let (lo, hi) = (Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+        t.keep_flat(lo, hi);
+        assert_eq!(t.height(Vec2::ZERO), 0.0);
+        assert_eq!(t.height(Vec2::new(7.0, 0.0)), 0.0, "plat jusqu'à 3 m du rectangle");
+        let once = t.clone();
+        for _ in 0..10 {
+            t.keep_flat(lo, hi);
+        }
+        assert!(t == once, "aplanir dix fois = aplanir une fois");
+        // loin du rectangle, le talus dépasse la colline : relief d'origine intact
+        let far = Vec2::new(60.0, 0.0);
+        assert_eq!(t.height(far), raw.height(far));
+        // deux zones dans un ordre ou dans l'autre : même relief
+        let other = (Vec2::new(10.0, -5.0), Vec2::new(20.0, 5.0));
+        let mut ab = raw.clone();
+        ab.keep_flat(lo, hi);
+        ab.keep_flat(other.0, other.1);
+        let mut ba = raw;
+        ba.keep_flat(other.0, other.1);
+        ba.keep_flat(lo, hi);
+        assert!(ab == ba, "l'ordre ne compte pas");
+    }
+
+    #[test]
+    fn keep_flat_never_steepens_the_relief() {
+        // colline haute : un plafond trop raide creuserait un cratère autour de la maison
+        let mut t = Terrain::default();
+        t.generate(3, 40.0, 30.0, false, None);
+        let raw = t.clone();
+        t.keep_flat(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
+        let mut worst = 0.0_f32;
+        for j in 0..SIDE {
+            for i in 0..N {
+                let (before, after) = ((raw.at(i + 1, j) - raw.at(i, j)).abs(), (t.at(i + 1, j) - t.at(i, j)).abs());
+                worst = worst.max(after - before.max(1.0));
+            }
+        }
+        assert!(worst < 1e-4, "pente au-delà de 1 m par m et du relief d'origine : {worst}");
     }
 }

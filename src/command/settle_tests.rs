@@ -195,3 +195,38 @@ fn swapping_wall_ends_is_not_a_move() {
     assert_eq!(h.footprint(ElemRef::Wall(0)), before);
     assert_eq!(h.footprint(ElemRef::Prop(0)), None);
 }
+
+#[test]
+fn back_and_forth_moves_flatten_only_once() {
+    let mut h = built();
+    let step = |h: &mut House, dx: f32| h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(dx, 0.0) });
+    step(&mut h, 0.5).unwrap();
+    step(&mut h, -0.5).unwrap();
+    let once = h.terrain.h.clone();
+    for _ in 0..10 {
+        step(&mut h, 0.5).unwrap();
+        step(&mut h, -0.5).unwrap();
+    }
+    assert!(h.terrain.h == once, "chaque aller-retour aplanit un peu plus");
+}
+
+#[test]
+fn same_building_twice_flattens_like_once() {
+    let room = r#"{"op":"room","min":[-40,17],"max":[-34,23],"level":0}"#;
+    let mut once = hilly();
+    once.apply(serde_json::from_str(room).unwrap()).unwrap();
+    let mut twice = once.clone();
+    twice.apply(serde_json::from_str(room).unwrap()).unwrap();
+    assert!(twice.terrain == once.terrain, "deux fois la même pièce");
+    // copies des murs sur place, mur aux extrémités inversées : rien de plus
+    let mut copies = once.clone();
+    for i in 0..4 {
+        copies.apply(Command::Duplicate { target: ElemRef::Wall(i), by: Vec2::ZERO }).unwrap();
+    }
+    let w = &copies.walls[0];
+    let swap = fields(serde_json::json!({"a": [w.b.x, w.b.y], "b": [w.a.x, w.a.y]}));
+    copies.apply(Command::Set { target: ElemRef::Wall(0), fields: swap }).unwrap();
+    assert!(copies.terrain == once.terrain, "copies sur place");
+    let ten_m = Vec2::new(-24.0, 20.0);
+    assert!(once.terrain.height(ten_m).abs() > 0.5, "il reste du relief à 10 m de la maison");
+}
