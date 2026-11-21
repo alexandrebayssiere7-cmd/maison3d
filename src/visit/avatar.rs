@@ -4,7 +4,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
 
-use super::{HIPS_Y, RUN_SPEED, Stance, Visitor, WALK_SPEED};
+use super::{HIPS_Y, Stance, Visitor, WALK_SPEED, run_amount};
 use crate::render::MainCamera;
 
 /// Angles des articulations (radians) et hauteur du bassin ; indice 0 = gauche, 1 = droite.
@@ -163,7 +163,7 @@ pub(super) fn target_pose(v: &Visitor, speed: f32, t: f32) -> Pose {
             ..default()
         },
         Stance::Stand => {
-            let run = ((speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)).clamp(0.0, 1.0);
+            let run = run_amount(speed);
             let moving = (speed / WALK_SPEED).min(1.0);
             let (s, c) = v.phase.sin_cos();
             let leg = moving * (0.42 + 0.45 * run);
@@ -222,6 +222,7 @@ pub fn animate_avatar(
 
 #[cfg(test)]
 mod tests {
+    use super::super::RUN_SPEED;
     use super::*;
 
     #[test]

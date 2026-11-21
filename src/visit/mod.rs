@@ -418,6 +418,14 @@ mod tests {
     }
 
     #[test]
+    fn run_amount_goes_from_walk_to_run() {
+        assert_eq!(run_amount(0.0), 0.0);
+        assert_eq!(run_amount(WALK_SPEED), 0.0);
+        assert!((run_amount(f32::midpoint(WALK_SPEED, RUN_SPEED)) - 0.5).abs() < 1e-6);
+        assert_eq!(run_amount(RUN_SPEED * 2.0), 1.0);
+    }
+
+    #[test]
     fn walls_block_and_open_doors_let_through() {
         // devant la façade sud (mur en z = 0), fenêtre en x = 1.2 : allège pleine, on bute
         let blocked = walk(Vec3::new(1.2, 0.0, -2.0), 2.0, &solids(0.0));
