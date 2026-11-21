@@ -39,7 +39,8 @@ fn apply_shortcuts(ed: &mut Editor, cmd: bool, shift: bool, axes: (Vec3, Vec3), 
 
 /// Ctrl / Cmd + touche.
 fn command_shortcuts(ed: &mut Editor, shift: bool, pressed: Pressed) {
-    // en visite, remplacer la maison fausserait l'index de la voiture conduite
+    // en visite, remplacer la maison fausserait l'index de la voiture conduite ;
+    // dupliquer y créerait une copie invisible qui referme les portes
     let edit = !ed.walk;
     if edit && (pressed(Key::Z) && shift || pressed(Key::Y)) {
         ed.redo();
@@ -49,7 +50,7 @@ fn command_shortcuts(ed: &mut Editor, shift: bool, pressed: Pressed) {
         ed.save();
     } else if edit && pressed(Key::O) {
         ed.load();
-    } else if pressed(Key::D) {
+    } else if edit && pressed(Key::D) {
         ed.duplicate_selected();
     }
 }
@@ -182,6 +183,17 @@ mod tests {
         press(&mut ed, true, false, &[Key::Y]);
         assert_eq!(ed.message, opened, "pas de rétablissement en visite");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ctrl_d_does_nothing_during_the_visit() {
+        let mut ed = with_lamp();
+        ed.walk = true;
+        press(&mut ed, true, false, &[Key::D]);
+        assert_eq!(ed.house.props.len(), 1, "pas de copie en visite");
+        ed.walk = false;
+        press(&mut ed, true, false, &[Key::Z]);
+        assert_eq!(ed.house.props, [], "un seul annuler revient avant la lampe : aucun point ajouté");
     }
 
     #[test]
