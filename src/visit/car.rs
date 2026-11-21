@@ -172,7 +172,8 @@ impl Car {
             pos.y += deficit;
             // à l'atterrissage la suspension absorbe la chute ; en montée on garde l'élan vertical
             let ground = h.iter().sum::<f32>() / 4.0;
-            self.vel.y = ((ground - ground_before) / dt).clamp(0.0, 12.0);
+            // dt nul (image figée) : 0 / 0 donnerait NaN, que `clamp` laisse passer
+            self.vel.y = ((ground - ground_before) / dt.max(1e-4)).clamp(0.0, 12.0);
             let (front, back) = (f32::midpoint(h[0], h[1]), f32::midpoint(h[2], h[3]));
             let (left, right) = (f32::midpoint(h[0], h[2]), f32::midpoint(h[1], h[3]));
             let k = 1.0 - (-14.0 * dt).exp();
@@ -573,6 +574,15 @@ mod tests {
         let loaded = House::load(&path);
         std::fs::remove_file(&path).unwrap();
         assert_eq!(loaded.unwrap(), ed.house, "le monde enregistré se recharge");
+    }
+
+    #[test]
+    fn advance_with_zero_dt_keeps_the_car_finite() {
+        let house = demo_house();
+        let mut car = Car::new(0, Vec3::new(0.0, house.ground(Vec2::ZERO), 0.0), 0.0);
+        let input = DriveInput { throttle: 1.0, steer: 0.0, handbrake: false };
+        car.advance(&input, &[], &house, 0.0);
+        assert!(car.pos.is_finite() && car.vel.is_finite(), "{:?} {:?}", car.pos, car.vel);
     }
 
     #[test]
