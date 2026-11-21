@@ -7,7 +7,7 @@ use bevy::math::Vec2;
 use super::annotations::Placement;
 use super::check::{Solid, overlap, wall_box};
 use super::query::RoomOpening;
-use super::query::on_ground;
+use super::query::{footprint, on_ground};
 use super::{Prop, PropKind, RoomInfo, RoomSide};
 
 /// Une position proposée, avec ce qui l'a fait préférer.
@@ -134,7 +134,10 @@ impl super::House {
             why.push("masque une fenêtre".into());
         }
         // une lampe ou une plante va le long d'un mur, pas au milieu du passage
-        if facing.is_none() && p.kind.annotation().is_some_and(|a| a.placement == Placement::Floor) && area(&c) < 0.5 {
+        if facing.is_none()
+            && p.kind.annotation().is_some_and(|a| a.placement == Placement::Floor)
+            && footprint(&c) < 0.5
+        {
             let (lo, hi) = room.inner;
             let d = (p.pos - lo).min(hi - p.pos).min_element();
             score -= 0.5 * d;
@@ -271,11 +274,6 @@ fn blocks_door(c: &[Vec2; 4], room: &RoomInfo) -> bool {
 /// À moins de 40 cm d'une ouverture retenue par `which`, en face d'elle.
 fn on_opening(c: &[Vec2; 4], room: &RoomInfo, which: impl Fn(&RoomOpening) -> bool) -> bool {
     room.openings.iter().filter(|o| which(o)).any(|o| overlap(c, &opening_zone(o, o.width / 2.0, 0.4)))
-}
-
-/// Aire au sol de l'emprise `c`.
-fn area(c: &[Vec2; 4]) -> f32 {
-    c[0].distance(c[1]) * c[1].distance(c[2])
 }
 
 #[cfg(test)]

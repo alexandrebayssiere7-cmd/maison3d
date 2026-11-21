@@ -386,7 +386,7 @@ pub(super) fn on_ground(k: super::PropKind) -> bool {
 }
 
 /// Aire du rectangle `c` (coins dans l'ordre du contour).
-fn footprint(c: &[Vec2; 4]) -> f32 {
+pub(super) fn footprint(c: &[Vec2; 4]) -> f32 {
     c[0].distance(c[1]) * c[1].distance(c[2])
 }
 
