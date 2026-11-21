@@ -149,7 +149,7 @@ impl Solid {
 }
 
 /// Emprise au sol d'un mur : rectangle de son épaisseur autour du segment.
-fn wall_box(w: &Wall) -> [Vec2; 4] {
+pub(super) fn wall_box(w: &Wall) -> [Vec2; 4] {
     let n = w.dir().perp() * (w.thick / 2.0);
     [w.a + n, w.b + n, w.b - n, w.a - n]
 }

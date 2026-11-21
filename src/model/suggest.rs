@@ -5,7 +5,7 @@
 use bevy::math::Vec2;
 
 use super::annotations::Placement;
-use super::check::{Solid, overlap};
+use super::check::{Solid, overlap, wall_box};
 use super::query::RoomOpening;
 use super::query::on_ground;
 use super::{Prop, PropKind, RoomInfo, RoomSide};
@@ -30,7 +30,12 @@ impl super::House {
     pub fn suggest(&self, kind: PropKind, room: &RoomInfo, facing: Option<usize>, count: usize) -> Vec<Suggestion> {
         let placement = kind.annotation().map_or(Placement::Floor, |a| a.placement);
         let solids: Vec<Solid> = room.props.iter().filter_map(|&i| Solid::of(&self.props[i])).collect();
+        // `inner` est le rectangle englobant : une pièce en L y laisse des cloisons et la pièce
+        // voisine, d'où le test du centre et des murs (même règle que `check`)
+        let walls: Vec<[Vec2; 4]> = self.walls.iter().filter(|w| w.level == room.level).map(wall_box).collect();
+        let in_room = self.in_room(room);
         let mut all: Vec<Suggestion> = (self.candidates(kind, room, placement, facing).into_iter())
+            .filter(|(p, _, _)| in_room(p.pos) && walls.iter().all(|w| !overlap(&p.corners(), w)))
             .filter(|(p, _, _)| self.fits(p, room, placement, &solids))
             .map(|(p, why, bonus)| self.rate(&p, room, facing, (vec![why], bonus)))
             .collect();

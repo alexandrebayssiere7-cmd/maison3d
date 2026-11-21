@@ -210,6 +210,17 @@ impl House {
         Some(self.describe_cells(level, &g, &cells, open))
     }
 
+    /// Le point est-il dans `room`, et pas seulement dans son rectangle `inner` (pièce en L) ?
+    /// La grille n'est remplie qu'une fois, pour tester beaucoup de points.
+    pub(super) fn in_room(&self, room: &RoomInfo) -> impl Fn(Vec2) -> bool {
+        let g = Grid::new(self, room.level);
+        let mut seen = vec![false; g.as_ref().map_or(0, |g| g.owner.len())];
+        if let Some((g, start)) = g.as_ref().and_then(|g| Some((g, g.cell(room.at)?))) {
+            g.fill(start, &mut seen);
+        }
+        move |p| g.as_ref().and_then(|g| g.cell(p)).is_some_and(|c| seen[c])
+    }
+
     /// Pièce nommée `name`, sans tenir compte de la casse.
     pub fn find_room(&self, name: &str) -> Option<RoomInfo> {
         let n = self.names.iter().find(|n| same_name(&n.name, name))?;
