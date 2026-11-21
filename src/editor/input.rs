@@ -124,7 +124,11 @@ impl Editor {
         if self.walk {
             return o;
         }
-        let Some(ray) = inp.ray else { return o };
+        let Some(ray) = inp.ray else {
+            // hors de la fenêtre : un bouton relâché termine quand même le déplacement
+            self.select_input(None, None, false, inp.pressed);
+            return o;
+        };
         let aim = self.aim(ray, inp);
         if let Some(p) = aim.p.filter(|_| self.tool.places_at_cursor() && !inp.over_ui) {
             let y = if self.level == 0 { self.house.terrain.height(p) } else { elev(self.level) };
@@ -171,7 +175,7 @@ impl Editor {
                 if !inp.over_ui {
                     self.hovered = hit;
                 }
-                self.select_input(a.p, hit, a.click, inp.pressed, a.released);
+                self.select_input(a.p, hit, a.click, inp.pressed);
             }
             Tool::Wall | Tool::Road => self.segment_frame(a, o),
             Tool::Room | Tool::Floor | Tool::Roof | Tool::Pool => self.rect_frame(a, o),
@@ -409,6 +413,21 @@ mod tests {
         assert_eq!(ed.hovered, None);
         ed.pointer(&click_at(3.0, 0.0));
         assert_eq!(ed.house.props.len(), 1, "la gomme efface la lampe");
+    }
+
+    #[test]
+    fn pointer_ends_a_drag_released_outside_the_window_or_with_alt() {
+        for last in [PointerInput::default(), PointerInput { alt: true, just_released: true, ..click_at(2.0, 1.0) }] {
+            let mut ed = with_table();
+            refresh(&mut ed);
+            ed.pointer(&PointerInput { just_released: false, ..click_at(0.0, 0.0) });
+            ed.pointer(&PointerInput { just_pressed: false, just_released: false, ..click_at(2.0, 1.0) });
+            ed.pointer(&PointerInput { pressed: false, just_pressed: false, ..last });
+            assert!(ed.can_undo(), "relâché perdu : {last:?}");
+            assert_eq!(ed.house.props[0].pos, v(2.0, 1.0));
+            ed.undo();
+            assert_eq!(ed.house.props[0].pos, Vec2::ZERO);
+        }
     }
 
     #[test]
