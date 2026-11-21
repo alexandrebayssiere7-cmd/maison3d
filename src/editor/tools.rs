@@ -485,6 +485,25 @@ mod tests {
     }
 
     #[test]
+    fn another_undo_point_ends_the_sculpt_gesture() {
+        let mut ed = Editor { brush_strength: 10.0, ..Editor::default() };
+        ed.sculpt_input(Some(Vec2::ZERO), true, true, 0.1);
+        let sculpted = ed.house.terrain.height(Vec2::ZERO);
+        // a refused command makes no undo point: the gesture goes on
+        let res = ed.apply([Command::Remove { target: ElemRef::Wall(9) }]);
+        assert!(matches!(res, Err(crate::command::EditError::NotFound(ElemRef::Wall(9), 0))), "{res:?}");
+        ed.sculpt_input(Some(Vec2::ZERO), false, true, 0.1);
+        let h = ed.house.terrain.height(Vec2::ZERO);
+        assert!(h > sculpted);
+        let w = ed.new_wall(Vec2::new(5.0, 5.0), Vec2::new(8.0, 5.0));
+        assert!(ed.apply([Command::AddWall(w)]).is_ok());
+        ed.sculpt_input(Some(Vec2::ZERO), false, true, 0.1);
+        assert_eq!(ed.house.terrain.height(Vec2::ZERO), h, "the wall ends the gesture, even with the button held");
+        ed.undo();
+        assert_eq!((ed.house.walls.len(), ed.house.terrain.height(Vec2::ZERO)), (0, h), "undo only removes the wall");
+    }
+
+    #[test]
     fn paint_eyedropper_and_erase() {
         let mut ed = with_table();
         ed.set_tool(Tool::Eyedropper);
