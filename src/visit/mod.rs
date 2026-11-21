@@ -588,6 +588,21 @@ mod tests {
     }
 
     #[test]
+    fn visitor_follows_the_car_so_escape_recenters_the_editor_on_it() {
+        let mut ed = scene(vec![prop(PropKind::Car, 0.0, 0.0)]);
+        let mut v = entered(Vec3::new(0.0, 0.0, 3.5));
+        v.pitch = -0.4;
+        run(&mut v, &mut ed, VisitInput::default(), 3);
+        run(&mut v, &mut ed, VisitInput { act: true, ..default() }, 1);
+        ed.parts.clear();
+        run(&mut v, &mut ed, VisitInput { mv: Vec2::Y, ..default() }, 180);
+        assert!(v.car.is_some() && v.pos.z > 5.0, "le visiteur suit la voiture : {}", v.pos);
+        // Échap : la caméra d'édition reprend `v.pos`, qui doit être là où la voiture est garée
+        assert!(v.leave(&mut ed));
+        assert_eq!(v.pos.xz(), ed.house.props[0].pos);
+    }
+
+    #[test]
     fn opens_the_door_in_front() {
         let mut ed = Editor::default();
         ed.house = demo_house();

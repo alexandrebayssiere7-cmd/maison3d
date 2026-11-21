@@ -231,6 +231,11 @@ impl Visitor {
     ) -> Transform {
         let input = DriveInput { throttle: inp.mv.y, steer: -inp.mv.x, handbrake: inp.handbrake };
         car.advance(&input, solids, &ed.house, dt);
+        // en quittant la visite, la caméra d'édition se recentre sur `pos`
+        // a NaN position would break the editor camera until restart: keep the last finite one
+        if car.pos.is_finite() {
+            self.pos = car.pos;
+        }
         let cam = self.car_camera(&mut car, &ed.parts, &ed.house, inp.look, dt);
         self.speed_kmh = Some(car.speed() * 3.6);
         self.target = None;
@@ -574,6 +579,16 @@ mod tests {
         let loaded = House::load(&path);
         std::fs::remove_file(&path).unwrap();
         assert_eq!(loaded.unwrap(), ed.house, "le monde enregistré se recharge");
+    }
+
+    #[test]
+    fn a_car_with_a_nan_position_does_not_move_the_visitor() {
+        let mut ed = Editor::default();
+        ed.house = demo_house();
+        let mut v = Visitor { pos: Vec3::new(1.0, 0.0, 2.0), ..default() };
+        let car = Car::new(0, Vec3::new(f32::NAN, 0.0, f32::NAN), 0.0);
+        v.drive(car, &mut ed, &VisitInput::default(), &[], 1.0 / 60.0);
+        assert_eq!(v.pos, Vec3::new(1.0, 0.0, 2.0), "the editor camera must not inherit NaN");
     }
 
     #[test]
