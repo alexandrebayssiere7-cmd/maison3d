@@ -86,6 +86,7 @@ fn custom_worlds(dirs: &[PathBuf]) -> Vec<PathBuf> {
 /// Repart d'un éditeur neuf (historique vidé) sur ce monde.
 fn play(ed: &mut Editor, house: House, file: String, message: String) {
     *ed = Editor::default();
+    ed.saved = house.clone();
     ed.house = house;
     ed.file = file;
     ed.message = message;
@@ -502,7 +503,7 @@ pub fn save_on_close(
 
 /// Enregistre le monde modifié avant de fermer ; un échec retient la fermeture une seule fois.
 fn may_close(ed: &mut Editor, in_game: bool, warned: &mut bool) -> bool {
-    if in_game && ed.can_undo() && !ed.save() && !*warned {
+    if in_game && ed.modified() && !ed.save() && !*warned {
         *warned = true;
         return false;
     }
@@ -556,7 +557,7 @@ fn hud(ui: &mut egui::Ui, ed: &mut Editor, s: &Settings, fps: f64) -> bool {
             .min_size(vec2(ui.available_width(), 28.0)),
     );
     // si l'enregistrement échoue, on reste en jeu : l'erreur y est affichée
-    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && (!ed.can_undo() || ed.save())
+    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && (!ed.modified() || ed.save())
 }
 
 #[cfg(test)]
@@ -673,10 +674,69 @@ mod tests {
         let mut ed = Editor::default();
         let mut warned = false;
         assert!(may_close(&mut ed, true, &mut warned), "rien à enregistrer");
-        ed.checkpoint();
+        ed.house.walls.push(crate::model::room_walls(Vec2::ZERO, Vec2::ONE, 0, 3.0, 0.2, [1.0; 3]).remove(0));
         ed.file = std::env::temp_dir().to_string_lossy().into_owned();
         assert!(!may_close(&mut ed, true, &mut warned), "échec : on reste pour voir l erreur");
         assert!(may_close(&mut ed, true, &mut warned), "seconde demande : on ferme");
         assert!(may_close(&mut ed, false, &mut false), "hors jeu : rien à enregistrer");
+    }
+
+    /// Fichier temporaire propre à ce processus, supprimé en fin de test.
+    struct TempFile(PathBuf);
+
+    impl TempFile {
+        fn new(name: &str) -> Self {
+            Self(std::env::temp_dir().join(format!("maison3d_{}_{name}", std::process::id())))
+        }
+    }
+
+    impl AsRef<Path> for TempFile {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            // le test a pu ne jamais créer le fichier
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    /// Un monde enregistré dans `name` puis ouvert comme depuis le menu.
+    fn opened(name: &str) -> (Editor, TempFile) {
+        let path = TempFile::new(name);
+        demo_house().save(&path).unwrap();
+        let mut ed = Editor::default();
+        play(&mut ed, House::load(&path).unwrap(), path.0.to_string_lossy().into_owned(), String::new());
+        (ed, path)
+    }
+
+    #[test]
+    fn closing_saves_changes_made_without_undo_point() {
+        let (mut ed, path) = opened("maison3d_close_no_undo.json");
+        // comme la voiture garée : la maison change sans point d annulation
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&path).unwrap(), ed.house);
+    }
+
+    #[test]
+    fn closing_after_save_then_undo_restores_the_file() {
+        let (mut ed, path) = opened("maison3d_close_undo.json");
+        let wall = crate::model::room_walls(Vec2::splat(30.0), Vec2::splat(34.0), 0, 3.0, 0.2, [1.0; 3]).remove(0);
+        ed.apply([crate::command::Command::AddWall(wall)]).unwrap();
+        assert!(ed.save());
+        ed.undo();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(House::load(&path).unwrap(), demo_house(), "le mur annulé ne reste pas dans le fichier");
+    }
+
+    #[test]
+    fn closing_an_untouched_world_does_not_rewrite_it() {
+        let (mut ed, path) = opened("maison3d_close_untouched.json");
+        std::fs::write(&path, "témoin").unwrap();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "témoin");
     }
 }

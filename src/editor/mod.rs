@@ -65,6 +65,8 @@ impl Tool {
 #[derive(Resource)]
 pub struct Editor {
     pub house: House,
+    /// La maison telle que dans son fichier (ouverte ou enregistrée) : sert à savoir si elle a changé.
+    pub saved: House,
     undo: VecDeque<House>,
     redo: Vec<House>,
     pub dirty: bool,
@@ -144,6 +146,7 @@ impl Default for Editor {
     fn default() -> Self {
         Self {
             house: House::default(),
+            saved: House::default(),
             undo: VecDeque::new(),
             redo: vec![],
             dirty: true,
@@ -232,6 +235,10 @@ impl Editor {
 
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
+    }
+    /// La maison diffère de son fichier : il faut l'enregistrer avant de la quitter.
+    pub fn modified(&self) -> bool {
+        self.house != self.saved
     }
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
@@ -371,7 +378,10 @@ impl Editor {
         let res = self.house.save(&self.file);
         let ok = res.is_ok();
         self.message = match res {
-            Ok(()) => format!("Enregistré dans {}", self.file),
+            Ok(()) => {
+                self.saved = self.house.clone();
+                format!("Enregistré dans {}", self.file)
+            }
             Err(e) => format!("Erreur d'enregistrement : {e}"),
         };
         ok
@@ -379,7 +389,10 @@ impl Editor {
 
     pub fn load(&mut self) {
         match House::load(&self.file) {
-            Ok(h) => self.replace_house(h, format!("Ouvert : {}", self.file)),
+            Ok(h) => {
+                self.saved = h.clone();
+                self.replace_house(h, format!("Ouvert : {}", self.file));
+            }
             Err(e) => self.message = format!("Impossible d'ouvrir {} : {e}", self.file),
         }
     }
@@ -512,24 +525,30 @@ mod tests {
 
     #[test]
     fn save_then_load_roundtrips() {
-        let dir = std::env::temp_dir().join("maison3d_editor_save");
+        let dir = std::env::temp_dir().join(format!("maison3d_editor_save_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let mut ed = with_table();
         ed.file = dir.join("sous/dossier/maison.json").to_str().unwrap().into();
+        assert!(ed.modified(), "la table n est pas encore dans un fichier");
         assert!(ed.save(), "{}", ed.message);
+        assert!(!ed.modified());
         let saved = ed.house.clone();
         ed.house = House::default();
+        ed.saved = House::default();
         ed.load();
         assert_eq!(ed.house, saved);
         assert!(ed.message.starts_with("Ouvert"));
+        assert!(!ed.modified(), "ouvert tel que dans le fichier");
         ed.undo();
         assert_eq!(ed.house, House::default(), "ouvrir un fichier s'annule");
+        assert!(ed.modified());
 
         ed.file = dir.join("absent.json").to_str().unwrap().into();
         ed.load();
         assert!(ed.message.starts_with("Impossible d'ouvrir"));
         ed.file = dir.to_str().unwrap().into();
         assert!(!ed.save(), "un dossier n'est pas un fichier");
+        assert!(ed.modified(), "un échec n enregistre rien");
         let _ = std::fs::remove_dir_all(dir);
     }
 }
