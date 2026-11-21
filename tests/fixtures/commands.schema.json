@@ -881,7 +881,7 @@
           ]
         },
         {
-          "description": "Remplace le relief par un relief aléatoire. Le rectangle qui englobe tous les murs et sols\nreste plat, ainsi que 3 m autour, puis le relief monte sur 15 m ; routes et piscines sont\nterrassées à nouveau. Le relief retombe à 0 sur les bords du terrain. Un bâtiment ajouté\nensuite aplanit lui aussi le relief autour de lui.",
+          "description": "Remplace le relief par un relief aléatoire. Le rectangle qui englobe tous les murs et sols\nreste plat, ainsi que 3 m autour, puis le relief ne remonte pas plus vite qu'un talus à\n45° (1 m par mètre) ; routes et piscines sont terrassées à nouveau. Le relief retombe à 0\nsur les bords du terrain. Un bâtiment ajouté ou déplacé ensuite aplanit le relief autour\nde lui selon la même règle.",
           "type": "object",
           "properties": {
             "op": {

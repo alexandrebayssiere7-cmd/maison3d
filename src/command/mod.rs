@@ -206,9 +206,10 @@ pub enum Command {
         max: Option<Vec2>,
     },
     /// Remplace le relief par un relief aléatoire. Le rectangle qui englobe tous les murs et sols
-    /// reste plat, ainsi que 3 m autour, puis le relief monte sur 15 m ; routes et piscines sont
-    /// terrassées à nouveau. Le relief retombe à 0 sur les bords du terrain. Un bâtiment ajouté
-    /// ensuite aplanit lui aussi le relief autour de lui.
+    /// reste plat, ainsi que 3 m autour, puis le relief ne remonte pas plus vite qu'un talus à
+    /// 45° (1 m par mètre) ; routes et piscines sont terrassées à nouveau. Le relief retombe à 0
+    /// sur les bords du terrain. Un bâtiment ajouté ou déplacé ensuite aplanit le relief autour
+    /// de lui selon la même règle.
     GenerateTerrain {
         /// Graine : la même graine redonne le même relief.
         seed: u32,

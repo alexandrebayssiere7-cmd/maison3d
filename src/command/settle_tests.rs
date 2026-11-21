@@ -453,3 +453,17 @@ fn chained_t_junctions_settle_in_one_regrade() {
     h.apply(Command::GenerateTerrain { seed: 5, amp: 40.0, scale: 25.0, mountains: true }).unwrap();
     assert_eq!(regrade_moves(&mut h), 0.0);
 }
+
+#[test]
+fn generated_relief_already_obeys_the_building_rule() {
+    let mut h = House::default();
+    h.apply(serde_json::from_str(r#"{"op":"room","min":[-5,-4],"max":[5,4],"level":0}"#).unwrap()).unwrap();
+    h.apply(Command::GenerateTerrain { seed: 3, amp: 60.0, scale: 40.0, mountains: true }).unwrap();
+    let before = h.terrain.clone();
+    // un mur recopié sur place, puis déplacé vers l'intérieur et ramené : rien ne doit bouger
+    h.apply(Command::Duplicate { target: ElemRef::Wall(0), by: Vec2::ZERO }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(0.0, 1.0) }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(0.0, -1.0) }).unwrap();
+    let moved = h.terrain.h.iter().zip(&before.h).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max);
+    assert!(h.terrain == before, "le relief a changé de {moved} m au plus");
+}

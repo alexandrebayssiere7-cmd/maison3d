@@ -46,11 +46,6 @@ fn past_margin(p: Vec2, lo: Vec2, hi: Vec2) -> f32 {
     p.distance(p.clamp(lo, hi)) - 3.0
 }
 
-/// 0 dans le rectangle et jusqu'à 3 m autour, puis remonte vers 1 sur 15 m.
-fn flat_weight(p: Vec2, lo: Vec2, hi: Vec2) -> f32 {
-    smooth(past_margin(p, lo, hi) / 15.0)
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Brush {
     Raise,
@@ -205,18 +200,20 @@ impl Terrain {
     }
 
     /// Relief aléatoire : collines douces ou montagnes à crêtes, de taille `scale` (m).
-    /// La zone `keep` (la maison) reste plate, et le terrain retombe à 0 sur les bords.
+    /// La zone `keep` (la maison) est aplanie comme par `keep_flat`, et le terrain retombe à 0
+    /// sur les bords.
     pub fn generate(&mut self, seed: u32, amp: f32, scale: f32, mountains: bool, keep: Option<(Vec2, Vec2)>) {
         self.h = (0..SIDE * SIDE)
             .map(|k| {
                 let p = Self::vertex(k % SIDE, k / SIDE);
                 let n = fbm(p / scale, seed);
                 let shape = if mountains { (1.0 - (2.0 * n - 1.0).abs()).powi(3) * 2.0 } else { 2.0 * n - 0.8 };
-                let edge = smooth((HALF - p.abs().max_element()) / 15.0);
-                let near = keep.map_or(1.0, |(lo, hi)| flat_weight(p, lo, hi));
-                amp * shape * edge * near
+                amp * shape * smooth((HALF - p.abs().max_element()) / 15.0)
             })
             .collect();
+        if let Some((lo, hi)) = keep {
+            self.keep_flat(lo, hi);
+        }
     }
 
     /// Ramène en douceur le relief à 0 autour du rectangle `lo`–`hi` (un bâtiment posé après le relief).
