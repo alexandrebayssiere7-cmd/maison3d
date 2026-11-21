@@ -149,6 +149,10 @@ impl Opening {
         let Finish { color, texture } = kind.slots()[0].finish();
         Self { kind, t, width, height, sill, color, texture, finishes: vec![] }
     }
+    /// Toute ouverture qui part du sol est une porte, battante ou coulissante.
+    pub fn is_door(&self) -> bool {
+        self.sill < 0.05
+    }
     pub fn finish(&self, slot: usize) -> Finish {
         finish_at(Finish { color: self.color, texture: self.texture }, &self.finishes, self.kind.slots(), slot)
     }
@@ -633,6 +637,18 @@ pub fn room_walls(min: Vec2, max: Vec2, level: i32, height: f32, thick: f32, col
 mod tests {
     use super::*;
     use crate::command::EditError;
+
+    #[test]
+    fn an_opening_from_the_floor_is_a_door() {
+        let mut o = Opening::new(OpeningKind::Window, 1.0);
+        assert!(!o.is_door());
+        o.sill = 0.049;
+        assert!(o.is_door());
+        o.sill = 0.05;
+        assert!(!o.is_door());
+        assert!(Opening::new(OpeningKind::GarageDoor, 1.0).is_door());
+    }
+
     fn wall(len: f32) -> Wall {
         Wall {
             a: Vec2::ZERO,

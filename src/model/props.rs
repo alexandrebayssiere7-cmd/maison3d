@@ -76,6 +76,11 @@ impl Prop {
         let (color, texture, height) = (kind.default_color(), kind.default_texture(), kind.default_height());
         Prop { kind, pos, level, rot, color, texture, height, finishes: vec![], scale: 1.0 }
     }
+    /// Unit vector pointing to the front of the prop, on the ground.
+    pub fn front(&self) -> Vec2 {
+        let (s, c) = self.rot.to_radians().sin_cos();
+        Vec2::new(s, c)
+    }
     /// Finition de la partie `slot` (0 = `color` et `texture`).
     pub fn finish(&self, slot: usize) -> Finish {
         finish_at(Finish { color: self.color, texture: self.texture }, &self.finishes, self.kind.slots(), slot)
@@ -191,6 +196,14 @@ pub fn prop_parts(p: &Prop, owner: ElemRef, open: f32, y: f32) -> Vec<Part> {
 mod tests {
     use super::super::*;
     use super::*;
+
+    #[test]
+    fn front_follows_rotation() {
+        let front = |rot| Prop::new(PropKind::Sofa, Vec2::ZERO, 0, rot).front();
+        assert!(front(0.0).abs_diff_eq(Vec2::Y, 1e-6));
+        assert!(front(90.0).abs_diff_eq(Vec2::X, 1e-6));
+        assert!(front(180.0).abs_diff_eq(-Vec2::Y, 1e-6));
+    }
 
     #[test]
     fn local_frame_and_corners_agree() {

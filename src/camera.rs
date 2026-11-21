@@ -54,9 +54,14 @@ impl CamState {
 
     /// Avant horizontal et droite de la caméra orbitale.
     pub fn axes(&self) -> (Vec3, Vec3) {
-        let (s, c) = self.yaw.sin_cos();
-        (Vec3::new(-s, 0.0, -c), Vec3::new(c, 0.0, -s))
+        yaw_axes(self.yaw)
     }
+}
+
+/// Avant et droite à l'horizontale pour un regard tourné de `yaw` (0 : vers -z).
+pub fn yaw_axes(yaw: f32) -> (Vec3, Vec3) {
+    let (s, c) = yaw.sin_cos();
+    (Vec3::new(-s, 0.0, -c), Vec3::new(c, 0.0, -s))
 }
 
 /// Entrées d'une image pour la caméra d'édition.
@@ -251,6 +256,15 @@ pub fn camera_control(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn axes_face_away_from_the_eye_and_right_is_a_quarter_turn() {
+        let cam = |yaw| CamState { yaw, ..default() };
+        let (fwd, right) = cam(0.0).axes();
+        assert!(fwd.abs_diff_eq(Vec3::NEG_Z, 1e-6) && right.abs_diff_eq(Vec3::X, 1e-6));
+        let (fwd, right) = cam(std::f32::consts::FRAC_PI_2).axes();
+        assert!(fwd.abs_diff_eq(Vec3::NEG_X, 1e-6) && right.abs_diff_eq(Vec3::NEG_Z, 1e-6));
+    }
 
     fn frame(inp: CamInput) -> CamInput {
         CamInput { sensitivity: 1.0, dt: 0.1, ..inp }

@@ -297,7 +297,7 @@ impl House {
             for (j, o) in w.openings.iter().enumerate() {
                 let pos = w.a + w.dir() * o.t;
                 if pos.cmpge(lo - margin).all() && pos.cmple(hi + margin).all() {
-                    let (kind, width, door) = (o.kind, o.width, o.sill < 0.05);
+                    let (kind, width, door) = (o.kind, o.width, o.is_door());
                     out.push(RoomOpening { wall: rw.wall, index: j, kind, side: rw.side, pos, width, door });
                 }
             }
@@ -386,7 +386,7 @@ pub(super) fn on_ground(k: super::PropKind) -> bool {
 }
 
 /// Aire du rectangle `c` (coins dans l'ordre du contour).
-fn footprint(c: &[Vec2; 4]) -> f32 {
+pub(super) fn footprint(c: &[Vec2; 4]) -> f32 {
     c[0].distance(c[1]) * c[1].distance(c[2])
 }
 

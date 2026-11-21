@@ -20,7 +20,7 @@ use car::{Car, park};
 use collide::{camera_clearance, collider, floor_at, push_out, solid};
 use interact::yaw_facing;
 
-use crate::camera::CamState;
+use crate::camera::{CamState, yaw_axes};
 use crate::editor::Editor;
 use crate::model::{ElemRef, House, Part, elev};
 use crate::render::MainCamera;
@@ -239,8 +239,7 @@ impl Visitor {
 
     /// Avant et droite à l'horizontale, selon le regard.
     fn axes(&self) -> (Vec3, Vec3) {
-        let (sy, cy) = self.yaw.sin_cos();
-        (Vec3::new(-sy, 0.0, -cy), Vec3::new(cy, 0.0, -sy))
+        yaw_axes(self.yaw)
     }
 
     /// Une image de visite ; renvoie la position de la caméra.
@@ -360,11 +359,25 @@ impl Visitor {
         if !self.third {
             return Transform::from_translation(eye).with_rotation(look);
         }
-        let pivot = eye + Vec3::Y * 0.1;
-        let desired = look * Vec3::new(0.35, 0.15, self.boom);
+        self.third_person(parts, house, eye + Vec3::Y * 0.1, Vec3::new(0.35, 0.15, self.boom), 4.0, dt)
+    }
+
+    /// Caméra à la 3e personne : placée en `offset` (repère du regard) autour de `pivot`, rapprochée
+    /// des obstacles, puis rendue à la vitesse `rate`.
+    fn third_person(
+        &mut self,
+        parts: &[Part],
+        house: &House,
+        pivot: Vec3,
+        offset: Vec3,
+        rate: f32,
+        dt: f32,
+    ) -> Transform {
+        let look = self.look();
+        let desired = look * offset;
         let (len, dir) = (desired.length(), desired.normalize());
         let free = camera_clearance(parts, pivot, dir, len, house.ground(Vec2::new(pivot.x, pivot.z)));
-        self.follow_boom(free, 4.0, dt);
+        self.follow_boom(free, rate, dt);
         Transform::from_translation(pivot + dir * self.boom_cur).with_rotation(look)
     }
 
@@ -415,6 +428,22 @@ mod tests {
             pos.y = floor_at(pos, s, 0.0);
         }
         pos
+    }
+
+    #[test]
+    fn walking_axes_face_the_look_and_right_is_a_quarter_turn() {
+        let (fwd, right) = Visitor::default().axes();
+        assert!(fwd.abs_diff_eq(Vec3::NEG_Z, 1e-6) && right.abs_diff_eq(Vec3::X, 1e-6));
+        let (fwd, right) = Visitor { yaw: std::f32::consts::FRAC_PI_2, ..default() }.axes();
+        assert!(fwd.abs_diff_eq(Vec3::NEG_X, 1e-6) && right.abs_diff_eq(Vec3::NEG_Z, 1e-6));
+    }
+
+    #[test]
+    fn run_amount_goes_from_walk_to_run() {
+        assert_eq!(run_amount(0.0), 0.0);
+        assert_eq!(run_amount(WALK_SPEED), 0.0);
+        assert!((run_amount(f32::midpoint(WALK_SPEED, RUN_SPEED)) - 0.5).abs() < 1e-6);
+        assert_eq!(run_amount(RUN_SPEED * 2.0), 1.0);
     }
 
     #[test]

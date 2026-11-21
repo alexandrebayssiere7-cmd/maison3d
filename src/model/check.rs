@@ -59,7 +59,7 @@ impl House {
             }
             if p.kind == PropKind::Stairs {
                 let (lo, hi) = p.local_box();
-                let front = Vec2::new(p.rot.to_radians().sin(), p.rot.to_radians().cos());
+                let front = p.front();
                 let top = p.pos + front * (hi.z - f32::midpoint(lo.z, hi.z) + 0.4);
                 if !self.on_floor(p.level + climb, top) {
                     out.push(format!(
@@ -82,8 +82,7 @@ impl House {
                 out.push(format!("Wall {i} est enterré : le relief dépasse 30 cm à son pied"));
             }
             for (j, o) in w.openings.iter().enumerate() {
-                // toute ouverture qui part du sol est une porte, battante ou coulissante
-                if o.sill < 0.05 && w.level != 0 {
+                if o.is_door() && w.level != 0 {
                     let at = w.a + w.dir() * o.t;
                     let n = w.dir().perp() * (w.thick / 2.0 + 0.4);
                     if !(self.on_floor(w.level, at + n) && self.on_floor(w.level, at - n)) {
