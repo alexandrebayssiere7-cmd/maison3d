@@ -391,6 +391,18 @@ impl Editor {
         ok
     }
 
+    /// Avant de quitter le monde : l'enregistre s'il a changé, dans son propre fichier et non sous le
+    /// nom tapé dans le champ. Renvoie `false` si l'écriture a échoué (le message dit pourquoi).
+    pub fn save_if_modified(&mut self) -> bool {
+        if !self.modified() {
+            return true;
+        }
+        let typed = std::mem::replace(&mut self.file, self.saved_file.clone());
+        let ok = self.save();
+        self.file = typed;
+        ok
+    }
+
     /// Ouvre le fichier du champ. Rouvrir le monde en cours abandonne ses changements, sans rien écrire
     /// et de façon annulable. Ouvrir un autre monde enregistre d'abord celui en cours dans son propre
     /// fichier s'il a changé, puis repart sans historique : annuler rendrait l'ancienne maison sous le
@@ -412,10 +424,7 @@ impl Editor {
             }
         } else {
             if self.modified() {
-                let target = std::mem::replace(&mut self.file, self.saved_file.clone());
-                let saved = self.save();
-                self.file = target;
-                if !saved {
+                if !self.save_if_modified() {
                     return; // le message dit pourquoi ; la maison en cours reste ouverte
                 }
                 msg = format!("{msg} ({} enregistré)", self.saved_file);

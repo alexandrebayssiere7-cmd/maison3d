@@ -504,7 +504,7 @@ pub fn save_on_close(
 
 /// Enregistre le monde modifié avant de fermer ; un échec retient la fermeture une seule fois.
 fn may_close(ed: &mut Editor, in_game: bool, warned: &mut bool) -> bool {
-    if in_game && ed.modified() && !ed.save() && !*warned {
+    if in_game && !ed.save_if_modified() && !*warned {
         *warned = true;
         return false;
     }
@@ -558,7 +558,7 @@ fn hud(ui: &mut egui::Ui, ed: &mut Editor, s: &Settings, fps: f64) -> bool {
             .min_size(vec2(ui.available_width(), 28.0)),
     );
     // si l'enregistrement échoue, on reste en jeu : l'erreur y est affichée
-    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && (!ed.modified() || ed.save())
+    menu.on_hover_text("Enregistre le monde s'il a été modifié").clicked() && ed.save_if_modified()
 }
 
 #[cfg(test)]
@@ -676,7 +676,7 @@ mod tests {
         let mut warned = false;
         assert!(may_close(&mut ed, true, &mut warned), "rien à enregistrer");
         ed.house.walls.push(crate::model::room_walls(Vec2::ZERO, Vec2::ONE, 0, 3.0, 0.2, [1.0; 3]).remove(0));
-        ed.file = std::env::temp_dir().to_string_lossy().into_owned();
+        ed.saved_file = std::env::temp_dir().to_string_lossy().into_owned();
         assert!(!may_close(&mut ed, true, &mut warned), "échec : on reste pour voir l erreur");
         assert!(may_close(&mut ed, true, &mut warned), "seconde demande : on ferme");
         assert!(may_close(&mut ed, false, &mut false), "hors jeu : rien à enregistrer");
@@ -797,5 +797,16 @@ mod tests {
         ed.undo();
         assert!(may_close(&mut ed, true, &mut false));
         assert_eq!(House::load(&path).unwrap(), edited, "Ctrl+Z après réouverture reprend le travail");
+    }
+
+    #[test]
+    fn closing_saves_to_the_opened_file_not_the_typed_name() {
+        let (mut ed, a) = opened("close_typed_a.json");
+        ed.house.props[0].pos += Vec2::new(3.0, 0.0);
+        let b = TempFile::new("close_typed_b.json");
+        ed.file = b.0.to_string_lossy().into_owned();
+        assert!(may_close(&mut ed, true, &mut false));
+        assert!(!b.0.exists(), "le nom tapé sans ouvrir n est pas une cible");
+        assert_eq!(House::load(&a).unwrap(), ed.house);
     }
 }
