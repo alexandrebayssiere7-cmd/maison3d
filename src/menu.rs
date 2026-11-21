@@ -528,12 +528,16 @@ pub fn hud_system(
     }
 }
 
+/// Nom du monde ouvert, pas celui tapé dans le champ tant qu'il n'est pas ouvert ou enregistré.
+fn world_title(ed: &Editor) -> String {
+    Path::new(&ed.saved_file).file_stem().unwrap_or_default().to_string_lossy().to_uppercase()
+}
+
 /// Nom du monde, mode, étage, heure et images/s ; vrai si l'on retourne au menu.
 fn hud(ui: &mut egui::Ui, ed: &mut Editor, s: &Settings, fps: f64) -> bool {
     ui.set_min_width(170.0);
     if s.hud {
-        let world = Path::new(&ed.file).file_stem().unwrap_or_default().to_string_lossy().to_uppercase();
-        ui.label(RichText::new(world).strong().size(15.0).color(ACCENT));
+        ui.label(RichText::new(world_title(ed)).strong().size(15.0).color(ACCENT));
         ui.label(
             RichText::new(format!("{}  ·  {}", if ed.walk { "Visite" } else { "Édition" }, level_name(ed.level)))
                 .color(Color32::from_gray(220)),
@@ -808,5 +812,13 @@ mod tests {
         assert!(may_close(&mut ed, true, &mut false));
         assert!(!b.0.exists(), "le nom tapé sans ouvrir n est pas une cible");
         assert_eq!(House::load(&a).unwrap(), ed.house);
+    }
+
+    #[test]
+    fn hud_names_the_opened_world_not_the_typed_one() {
+        let mut ed = Editor::default();
+        play(&mut ed, House::default(), "mondes/chalet.json".into(), String::new());
+        ed.file = "mondes/autre.json".into();
+        assert_eq!(world_title(&ed), "CHALET");
     }
 }
