@@ -1,5 +1,7 @@
 //! Meubles, escaliers, végétaux et voitures posés dans la maison ou le jardin.
 
+use std::sync::OnceLock;
+
 use bevy::math::{Quat, Vec2, Vec3};
 use bevy::transform::components::Transform;
 use schemars::JsonSchema;
@@ -7,6 +9,13 @@ use serde::{Deserialize, Serialize};
 
 use super::shapes::{prop_shapes, prop_slots};
 use super::{ElemRef, Finish, House, LEVEL_H, Part, PropKind, Rgb, Shape, Slot, WHITE, Wall, finish_at, finish_at_mut};
+
+#[cfg(test)]
+thread_local! {
+    /// `local_box` calculées par ce fil : les tests de `suggest` vérifient qu'elle n'est pas
+    /// refaite à chaque place essayée.
+    pub static LOCAL_BOXES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 impl PropKind {
     /// Parties colorables (`prop_slots`) ; la partie 0 reçoit `color` et `texture` de l'objet.
@@ -91,6 +100,8 @@ impl Prop {
     /// Boîte englobante dans le repère de l'objet (x = largeur, y = hauteur, z = profondeur,
     /// avant vers +z), tirée de sa géométrie réelle.
     pub fn local_box(&self) -> (Vec3, Vec3) {
+        #[cfg(test)]
+        LOCAL_BOXES.with(|n| n.set(n.get() + 1));
         let local = Prop { pos: Vec2::ZERO, rot: 0.0, ..self.clone() };
         prop_parts(&local, ElemRef::Prop(0), 0.0, 0.0)
             .into_iter()
@@ -107,7 +118,12 @@ impl Prop {
     }
     /// Coins au sol `[x, z]` de l'emprise, dans le monde.
     pub fn corners(&self) -> [Vec2; 4] {
-        let (lo, hi) = self.local_box();
+        self.corners_in(self.local_box())
+    }
+    /// World ground corners `[x, z]` of a box `(lo, hi)` given in the object frame (as returned
+    /// by `local_box`), moved to `pos` and turned by `rot`. Only `pos` and `rot` of `self` are
+    /// read, so a caller can compute the box once and reuse it for many positions.
+    pub fn corners_in(&self, (lo, hi): (Vec3, Vec3)) -> [Vec2; 4] {
         let (s, c) = self.rot.to_radians().sin_cos();
         [(lo.x, lo.z), (hi.x, lo.z), (hi.x, hi.z), (lo.x, hi.z)]
             .map(|(x, z)| self.pos + Vec2::new(x * c + z * s, -x * s + z * c))
@@ -117,9 +133,16 @@ impl Prop {
 impl PropKind {
     /// Encombrement `[largeur x, profondeur z, hauteur]` à `rot` 0 et hauteur par défaut.
     pub fn size(self) -> Vec3 {
-        let (lo, hi) = Prop::new(self, Vec2::ZERO, 0, 0.0).local_box();
-        let s = hi - lo;
-        Vec3::new(s.x, s.z, s.y)
+        // calculé une fois par sorte : `flat` et `on_ground` servent à chaque place essayée par
+        // `suggest`, et la géométrie d'un arbre est longue à refaire
+        static SIZES: OnceLock<[Vec3; PropKind::ALL.len()]> = OnceLock::new();
+        SIZES.get_or_init(|| {
+            PropKind::ALL.map(|k| {
+                let (lo, hi) = Prop::new(k, Vec2::ZERO, 0, 0.0).local_box();
+                let s = hi - lo;
+                Vec3::new(s.x, s.z, s.y)
+            })
+        })[self as usize]
     }
 }
 
@@ -212,6 +235,13 @@ mod tests {
         assert!((hi - lo).abs_diff_eq(Vec2::new(2.0, 1.6), 0.05), "lit tourné : {lo} {hi}");
         let lamp = PropKind::StreetLamp.size();
         assert!(lamp.z > 4.0 && PropKind::StreetLamp.outdoor() && PropKind::Shelf.size().y < 0.5);
+    }
+    #[test]
+    fn cached_sizes_match_the_geometry_of_every_kind() {
+        for k in PropKind::ALL {
+            let (lo, hi) = Prop::new(k, Vec2::ZERO, 0, 0.0).local_box();
+            assert_eq!(k.size(), Vec3::new(hi.x - lo.x, hi.z - lo.z, hi.y - lo.y), "{k:?}");
+        }
     }
     #[test]
     fn each_part_keeps_its_own_finish() {
