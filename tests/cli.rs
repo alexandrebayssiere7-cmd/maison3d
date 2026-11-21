@@ -311,6 +311,12 @@ fn apply_refuses_to_overwrite_a_world_changed_meanwhile() {
         let same = w.parent().expect("dossier").join(".").join(w.file_name().expect("nom"));
         vec!["--out".into(), same.to_str().expect("chemin UTF-8").into()]
     });
+    // a script reading stdout already saw ok:true lines: the refusal must reach it there too
+    let o = concurrent_apply_is_refused("concurrent-json", |_| vec!["--json".into()]);
+    let out = stdout(&o);
+    let last: Value = serde_json::from_str(out.lines().last().expect("une ligne")).expect("ligne JSON");
+    assert_eq!(last["ok"], false, "{out}");
+    assert!(last["error"].as_str().is_some_and(|e| e.contains("modifié par ailleurs")), "{out}");
 }
 
 /// Le premier `apply` (avec les options `extra`, selon le monde) attend ses commandes pendant qu'un second écrit.

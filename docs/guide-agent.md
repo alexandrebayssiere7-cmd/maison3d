@@ -40,7 +40,9 @@ Ce guide s'affiche aussi avec `maison3d guide`.
   `{"index":0,"ok":true,"elem":{"Prop":3},"created":[{"Prop":3}],"removed":{}}`, puis une ligne
   `{"saved":"monde.json","warnings":[…]}` (`saved` vaut `null` avec `--dry-run`). Les références
   se recopient telles quelles dans `target`. Un refus donne `{"index":…,"ok":false,"error":"…"}`
-  et le code de sortie 1.
+  et le code de sortie 1. Si l'écriture du monde échoue (monde modifié pendant l'`apply`, disque…),
+  les lignes `"ok":true` déjà affichées ne valent plus : la dernière ligne est
+  `{"saved":null,"ok":false,"error":"…"}`, rien n'est écrit et le code de sortie vaut 1.
 
 ### Options de `shot`
 

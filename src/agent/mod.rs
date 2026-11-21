@@ -228,14 +228,22 @@ fn apply(world: &str, cmds: &str, o: &ApplyOpts) -> Result<(), CliError> {
         }
     }
     let saved = if o.dry_run { None } else { Some(o.out.unwrap_or(world)) };
-    match saved {
-        // un autre `apply` a pu écrire le monde lu pendant celui-ci : ne pas écraser son travail
-        Some(path) if same_file(path, world) => h.save_if_unchanged(path, &read)?,
-        Some(path) => h.save(path)?,
-        None => {}
+    if let Some(path) = saved {
+        save(&h, path, world, &read).inspect_err(|e| {
+            // the ok:true lines are already out: a script must see on stdout that nothing was written
+            if o.json {
+                println!("{}", serde_json::json!({ "saved": null, "ok": false, "error": e.to_string() }));
+            }
+        })?;
     }
     print!("{}", summary(&h, saved, o));
     Ok(())
+}
+
+/// Writes `h` to `path`; the world read (`world`, which held `read`) is only replaced if it did not change.
+fn save(h: &House, path: &str, world: &str, read: &House) -> Result<(), WorldError> {
+    // un autre `apply` a pu écrire le monde lu pendant celui-ci : ne pas écraser son travail
+    if same_file(path, world) { h.save_if_unchanged(path, read) } else { h.save(path) }
 }
 
 fn load_or_new(world: &str, new: bool) -> Result<House, CliError> {
