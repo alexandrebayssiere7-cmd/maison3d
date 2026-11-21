@@ -234,6 +234,8 @@ impl Editor {
         self.doors.clear();
         // un autre point d'annulation clôt le geste du panneau, qui rejoue depuis le dernier
         self.prop_edit_active = false;
+        // it ends the sculpt gesture too, or its next strokes would be undone with that other action
+        self.sculpting = false;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -270,7 +272,9 @@ impl Editor {
 
     fn after_restore(&mut self, msg: &str) {
         self.selected = None;
+        // les gestes en cours n'ont plus de point d'annulation : il faut recliquer
         self.prop_edit_active = false;
+        self.sculpting = false;
         self.doors.clear();
         self.cancel();
         self.dirty = true;
