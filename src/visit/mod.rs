@@ -359,11 +359,25 @@ impl Visitor {
         if !self.third {
             return Transform::from_translation(eye).with_rotation(look);
         }
-        let pivot = eye + Vec3::Y * 0.1;
-        let desired = look * Vec3::new(0.35, 0.15, self.boom);
+        self.third_person(parts, house, eye + Vec3::Y * 0.1, Vec3::new(0.35, 0.15, self.boom), 4.0, dt)
+    }
+
+    /// Caméra à la 3e personne : placée en `offset` (repère du regard) autour de `pivot`, rapprochée
+    /// des obstacles, puis rendue à la vitesse `rate`.
+    fn third_person(
+        &mut self,
+        parts: &[Part],
+        house: &House,
+        pivot: Vec3,
+        offset: Vec3,
+        rate: f32,
+        dt: f32,
+    ) -> Transform {
+        let look = self.look();
+        let desired = look * offset;
         let (len, dir) = (desired.length(), desired.normalize());
         let free = camera_clearance(parts, pivot, dir, len, house.ground(Vec2::new(pivot.x, pivot.z)));
-        self.follow_boom(free, 4.0, dt);
+        self.follow_boom(free, rate, dt);
         Transform::from_translation(pivot + dir * self.boom_cur).with_rotation(look)
     }
 

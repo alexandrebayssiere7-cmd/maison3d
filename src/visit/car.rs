@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
-use super::collide::{camera_clearance, push_out, support_height};
+use super::collide::{push_out, support_height};
 use super::{VisitInput, Visitor, lerp_angle, yaw_facing};
 use crate::command::Command;
 use crate::editor::Editor;
@@ -264,12 +264,7 @@ impl Visitor {
             // place conducteur, à gauche
             return Transform::from_translation(body.transform_point(Vec3::new(0.4, 1.25, -0.25))).with_rotation(look);
         }
-        let pivot = car.pos + Vec3::Y * 1.7;
-        let desired = look * Vec3::new(0.0, 0.4, DRIVE_BOOM);
-        let (len, dir) = (desired.length(), desired.normalize());
-        let free = camera_clearance(parts, pivot, dir, len, house.ground(Vec2::new(pivot.x, pivot.z)));
-        self.follow_boom(free, 3.0, dt);
-        Transform::from_translation(pivot + dir * self.boom_cur).with_rotation(look)
+        self.third_person(parts, house, car.pos + Vec3::Y * 1.7, Vec3::new(0.0, 0.4, DRIVE_BOOM), 3.0, dt)
     }
 
     /// Descend côté conducteur.
