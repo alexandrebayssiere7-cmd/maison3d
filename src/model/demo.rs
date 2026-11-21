@@ -2,6 +2,8 @@
 
 use bevy::math::Vec2;
 
+use crate::command::Command;
+
 use super::{
     House, LEVEL_H, Opening, OpeningKind, Pool, Prop, PropKind, Road, Roof, RoofKind, Slab, WHITE_TEX, Wall, room_walls,
 };
@@ -34,20 +36,23 @@ pub fn demo_house() -> House {
         texture: find("Tuiles terre cuite"),
     });
     h.generate_terrain(7, 6.0, 45.0, false);
-    h.add_pool(Pool {
+    // par `apply`, comme toute modification : piscine et route se posent sur le relief de la même façon
+    let pool = Pool {
         min: Vec2::new(-10.0, 1.0),
         max: Vec2::new(-4.0, 5.0),
         depth: 1.5,
         color: WHITE_TEX,
         texture: find("Mosaïque bleue"),
-    });
-    h.add_road(Road {
+    };
+    h.apply(Command::AddPool(pool)).expect("la piscine de la démo est valide");
+    let road = Road {
         a: Vec2::new(14.0, -6.0),
         b: Vec2::new(14.0, -60.0),
         width: 4.0,
         color: [0.55, 0.55, 0.57],
         texture: find("Béton brut"),
-    });
+    };
+    h.apply(Command::AddRoad(road)).expect("la route de la démo est valide");
     h
 }
 

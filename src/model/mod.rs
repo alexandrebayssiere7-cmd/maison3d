@@ -552,16 +552,6 @@ impl House {
         }
     }
 
-    pub fn add_pool(&mut self, p: Pool) {
-        self.pools.push(p);
-        self.regrade();
-    }
-
-    pub fn add_road(&mut self, r: Road) {
-        self.roads.push(r);
-        self.regrade();
-    }
-
     pub fn sculpt(&mut self, mode: crate::terrain::Brush, c: Vec2, r: f32, amount: f32, target: f32, seed: u32) {
         self.terrain.brush(mode, c, r, amount, target, seed);
         self.regrade();
