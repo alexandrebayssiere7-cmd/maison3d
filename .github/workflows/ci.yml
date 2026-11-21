@@ -53,7 +53,10 @@ jobs:
       - name: Toolchain Rust
         run: rustup toolchain install
 
+      # seul main enregistre le cache : les caches de PR (1,2 Go chacun) saturaient les 10 Go du dépôt et évinçaient celui de main
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build
         run: cargo build --locked
@@ -76,7 +79,10 @@ jobs:
       - name: Toolchain Rust
         run: rustup toolchain install
 
+      # seul main enregistre le cache : les caches de PR (1,2 Go chacun) saturaient les 10 Go du dépôt et évinçaient celui de main
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
