@@ -285,3 +285,17 @@ fn suggest_prints_place_prop_commands_that_apply() {
     assert!(stdout(&applied).contains("Aucun problème"), "{}", stdout(&applied));
     assert!(!run(&["suggest", &world, "Sofa"]).status.success(), "--room manquant");
 }
+
+#[test]
+fn shot_fails_when_the_image_cannot_be_written() {
+    let dir = tmp_dir("shot-nope");
+    let world = world_with_room(&dir);
+    let png = dir.join("absent").join("vue.png");
+    let o = run(&["shot", &world, png.to_str().expect("chemin UTF-8")]);
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(!o.status.success(), "dossier inexistant : la capture doit échouer");
+    assert!(err.contains("vue.png"), "le message nomme l'image : {err}");
+    let xyz = run(&["shot", &world, dir.join("vue.xyz").to_str().expect("chemin UTF-8")]);
+    let err = String::from_utf8_lossy(&xyz.stderr);
+    assert!(!xyz.status.success() && err.contains("png"), "format refusé avant le rendu : {err}");
+}

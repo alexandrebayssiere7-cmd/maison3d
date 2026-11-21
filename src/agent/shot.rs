@@ -138,8 +138,32 @@ fn shot_paths(png: &str, [persp, plan]: [bool; 2]) -> [Option<String>; 2] {
     [persp.then(|| png.to_owned()), plan.then_some(top)]
 }
 
+/// Fait place nette : chaque image doit être un PNG (seul format que Bevy sait écrire ici)
+/// et pouvoir être créée (dossier présent, droits) ; une ancienne image ne passera pas pour la nouvelle.
+fn clear_targets(paths: &[Option<String>; 2]) -> Result<(), CliError> {
+    for p in paths.iter().flatten() {
+        let ext = std::path::Path::new(p).extension().and_then(|e| e.to_str());
+        if !ext.is_some_and(|e| e.eq_ignore_ascii_case("png")) {
+            return Err(CliError::BadOption(format!("image {p} (format accepté : png)")));
+        }
+        let probe = std::fs::File::create(p).and_then(|_| std::fs::remove_file(p));
+        probe.map_err(|e| CliError::NotWritten(p.clone(), Some(e)))?;
+    }
+    Ok(())
+}
+
+/// Après le rendu : Bevy ne fait que journaliser un échec d'écriture, on vérifie donc chaque image
+/// (un encodage raté ou un disque plein laisse un fichier vide).
+fn check_written(paths: &[Option<String>; 2]) -> Result<(), CliError> {
+    let written = |p: &&String| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() > 0);
+    match paths.iter().flatten().find(|p| !written(p)) {
+        Some(p) => Err(CliError::NotWritten(p.clone(), None)),
+        None => Ok(()),
+    }
+}
+
 /// Rend le monde hors écran, enregistre les images demandées et quitte.
-pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
+pub(super) fn shot(h: House, png: &str, o: &ShotOpts) -> Result<(), CliError> {
     let framing = frame(&h, o);
     let mut ed = Editor::default();
     ed.house = h;
@@ -147,8 +171,9 @@ pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
         (ed.level, ed.hide_upper) = (l, true);
     }
     let paths = shot_paths(png, o.views);
-    let shot =
-        Shot { paths, framing, plan_level: o.level.unwrap_or(0), saved: 0, target: Handle::default(), size: o.size };
+    clear_targets(&paths)?;
+    let (plan_level, target) = (o.level.unwrap_or(0), Handle::default());
+    let shot = Shot { paths: paths.clone(), framing, plan_level, saved: 0, target, size: o.size };
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -170,6 +195,11 @@ pub(super) fn shot(h: House, png: &str, o: &ShotOpts) {
         .add_systems(Startup, (render::setup_scene, render_to_image).chain())
         .add_systems(Update, (render::rebuild, render::update_sun, take_shots).chain())
         .run();
+    check_written(&paths)?;
+    for p in paths.iter().flatten() {
+        println!("{p}");
+    }
+    Ok(())
 }
 
 /// Image vide aux dimensions demandées, utilisable comme cible de rendu et lisible pour la capture.
@@ -193,6 +223,9 @@ fn render_to_image(
     shot.target = images.add(target_image(shot.size));
     cam.target = RenderTarget::Image(shot.target.clone().into());
 }
+
+/// Au-delà, on quitte même si des captures manquent (quelques secondes de rendu).
+const MAX_FRAMES: u32 = 600;
 
 pub(super) fn take_shots(
     mut commands: Commands,
@@ -224,10 +257,8 @@ pub(super) fn take_shots(
             (ed.level, ed.hide_upper, ed.dirty) = (shot.plan_level, true, true);
         }
         20 => capture(&mut commands, &shot.target, shot.paths[1].as_ref()),
-        _ if shot.saved >= shot.expected() => {
-            for p in shot.paths.iter().flatten() {
-                println!("{p}");
-            }
+        // une capture qui ne revient jamais ne bloque pas : `check_written` dira laquelle manque
+        _ if shot.saved >= shot.expected() || *frame > MAX_FRAMES => {
             exit.write(AppExit::Success);
         }
         _ => {}
@@ -346,6 +377,64 @@ mod tests {
         world.resource_mut::<Shot>().saved = 1;
         world.run_system(id).unwrap();
         assert!(!world.resource::<Events<AppExit>>().is_empty());
+    }
+
+    #[test]
+    fn shots_give_up_when_a_capture_never_returns() {
+        let mut world = World::new();
+        world.init_resource::<Events<AppExit>>();
+        let framing = frame(&House::default(), &ShotOpts::default());
+        let paths = [Some("a.png".to_string()), Some("b.png".to_string())];
+        world.insert_resource(Shot {
+            paths,
+            framing,
+            plan_level: 0,
+            saved: 0,
+            target: Handle::default(),
+            size: (8, 8),
+        });
+        world.insert_resource(Editor::default());
+        world.spawn((MainCamera, Transform::default()));
+        let id = world.register_system(take_shots);
+        for _ in 0..MAX_FRAMES {
+            world.run_system(id).unwrap();
+        }
+        assert!(world.resource::<Events<AppExit>>().is_empty(), "attend encore");
+        world.run_system(id).unwrap();
+        assert!(!world.resource::<Events<AppExit>>().is_empty(), "délai dépassé : quitte");
+    }
+
+    #[test]
+    fn targets_are_cleared_before_and_checked_after() {
+        let dir = std::env::temp_dir().join(format!("maison3d-shot-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = dir.join("vue.png").to_str().unwrap().to_owned();
+        std::fs::write(&png, "ancienne").unwrap();
+        let paths = [Some(png.clone()), None];
+        clear_targets(&paths).unwrap();
+        assert!(!std::path::Path::new(&png).exists(), "l'ancienne image est supprimée");
+        assert!(matches!(check_written(&paths), Err(CliError::NotWritten(p, None)) if p == png));
+        // un échec d'encodage (ou un disque plein) laisse un fichier vide ou tronqué
+        std::fs::write(&png, "").unwrap();
+        assert!(matches!(check_written(&paths), Err(CliError::NotWritten(p, None)) if p == png));
+        std::fs::write(&png, "nouvelle").unwrap();
+        assert!(check_written(&paths).is_ok());
+        let nope = [None, Some(dir.join("absent/vue.png").to_str().unwrap().to_owned())];
+        assert!(matches!(clear_targets(&nope), Err(CliError::NotWritten(_, Some(_)))));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_png_images_are_accepted_before_rendering() {
+        let dir = std::env::temp_dir().join(format!("maison3d-shot-ext-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for bad in ["vue.xyz", "vue.jpg", "vue"] {
+            let p = dir.join(bad).to_str().unwrap().to_owned();
+            assert!(matches!(clear_targets(&[Some(p.clone()), None]), Err(CliError::BadOption(_))), "{bad}");
+            assert!(!std::path::Path::new(&p).exists(), "{bad} : rien n'est créé");
+        }
+        assert!(clear_targets(&[Some(dir.join("VUE.PNG").to_str().unwrap().to_owned()), None]).is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

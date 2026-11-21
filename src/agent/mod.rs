@@ -71,6 +71,8 @@ enum CliError {
     NoRoom(String),
     /// `suggest` dans un espace ouvert : point désigné.
     OpenRoom(String),
+    /// Image de `shot` absente après le rendu, avec la cause quand elle est connue.
+    NotWritten(String, Option<std::io::Error>),
 }
 
 const USAGE: &str = "usage : maison3d apply <monde.json> <commandes.json> [--new] [--quiet] [--dry-run] \
@@ -102,6 +104,8 @@ impl std::fmt::Display for CliError {
                 "{at} n'est pas dans une pièce fermée (dehors, ou un mur manque) : suggest ne propose \
                  qu'à l'intérieur ; fermer la pièce, ou poser l'objet avec place_prop"
             ),
+            Self::NotWritten(p, Some(e)) => write!(f, "image non écrite : {p} ({e})"),
+            Self::NotWritten(p, None) => write!(f, "image non écrite : {p}"),
         }
     }
 }
@@ -156,8 +160,7 @@ fn run(args: &[&str]) -> Result<(), CliError> {
         }
         ["shot", world, png] => {
             let o = shot::ShotOpts::parse(&flags)?;
-            shot::shot(House::load(world)?, png, &o);
-            Ok(())
+            shot::shot(House::load(world)?, png, &o)
         }
         ["schema"] => {
             only(&["--brief"])?;
@@ -721,6 +724,8 @@ mod tests {
             (world, "disque plein"),
             (cmds, "c.json : illisible"),
             (CliError::OpenRoom("-1,-1".into()), "-1,-1 n'est pas dans une pièce fermée"),
+            (CliError::NotWritten("v.png".into(), None), "image non écrite : v.png"),
+            (CliError::NotWritten("v.png".into(), Some(std::io::Error::other("absent"))), "v.png (absent)"),
         ] {
             assert!(err.to_string().contains(want), "{err:?} → {err}");
         }
