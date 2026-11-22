@@ -19,7 +19,7 @@ impl Editor {
         let start = if self.prop_edit_active { self.undo.back() } else { None };
         let mut h = start.unwrap_or(&self.house).clone();
         let fields = elem_fields(&edited, target).map_err(|e| EditError::BadFields(e.to_string()));
-        if let Err(e) = fields.and_then(|fields| h.apply(Command::Set { target, fields })) {
+        if let Err(e) = fields.and_then(|fields| h.apply(Command::Set { target: target.into(), fields })) {
             self.message = e.to_string();
             return Err(e);
         }
@@ -125,7 +125,7 @@ mod tests {
         ed.selected = Some(ElemRef::Road(0));
         let fields = serde_json::from_str(r#"{"width": 8}"#).unwrap();
         let mut expected = ed.house.clone();
-        assert!(expected.apply(Command::Set { target: ElemRef::Road(0), fields }).is_ok());
+        assert!(expected.apply(Command::Set { target: ElemRef::Road(0).into(), fields }).is_ok());
         let before = ed.house.clone();
         ed.house.roads[0].width = 8.0;
         assert!(ed.record_prop_edit(before).is_ok());
@@ -147,7 +147,7 @@ mod tests {
         ed.selected = Some(ElemRef::Road(0));
         let mut expected = ed.house.clone();
         let fields = serde_json::from_str(r#"{"width": 4}"#).unwrap();
-        assert!(expected.apply(Command::Set { target: ElemRef::Road(0), fields }).is_ok());
+        assert!(expected.apply(Command::Set { target: ElemRef::Road(0).into(), fields }).is_ok());
         assert!(frame(&mut ed, |h| h.roads[0].width = 12.0).is_ok());
         assert_ne!(ed.house.terrain, expected.terrain, "12 m de large aplanit plus");
         assert!(frame(&mut ed, |h| h.roads[0].width = 4.0).is_ok());
@@ -187,7 +187,7 @@ mod tests {
             ed.selected = Some(t);
             let before = ed.house.clone();
             let paint = Command::Paint {
-                target: Some(t),
+                target: Some(t.into()),
                 targets: vec![],
                 part: 0,
                 color: Some([0.1, 0.2, 0.3]),

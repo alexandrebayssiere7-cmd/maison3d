@@ -323,7 +323,7 @@ pub(super) fn park(car: &Car, ed: &mut Editor) {
         // garer ne change aucun indice : le garage ouvert pour sortir la voiture reste ouvert
         let doors = std::mem::take(&mut ed.doors);
         // refus déjà affiché dans le message par Editor::apply ; la maison reste intacte
-        let _ = ed.apply([Command::Set { target: ElemRef::Prop(car.prop), fields }]);
+        let _ = ed.apply([Command::Set { target: ElemRef::Prop(car.prop).into(), fields }]);
         ed.doors = doors;
     }
     ed.driving = None;

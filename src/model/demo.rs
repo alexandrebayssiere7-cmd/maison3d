@@ -17,6 +17,7 @@ pub fn demo_house() -> House {
         level: 0,
         color: WHITE_TEX,
         texture: find("Parquet chêne"),
+        tag: None,
     });
     h.slabs.push(Slab {
         min: Vec2::new(-2.0, -5.0),
@@ -24,6 +25,7 @@ pub fn demo_house() -> House {
         level: 0,
         color: WHITE_TEX,
         texture: find("Dalles de jardin"),
+        tag: None,
     });
     h.roofs.push(Roof {
         min: Vec2::ZERO,
@@ -34,6 +36,7 @@ pub fn demo_house() -> House {
         overhang: 0.5,
         color: WHITE_TEX,
         texture: find("Tuiles terre cuite"),
+        tag: None,
     });
     h.generate_terrain(7, 6.0, 45.0, false);
     // par `apply`, comme toute modification : piscine et route se posent sur le relief de la même façon
@@ -43,6 +46,7 @@ pub fn demo_house() -> House {
         depth: 1.5,
         color: WHITE_TEX,
         texture: find("Mosaïque bleue"),
+        tag: None,
     };
     h.apply(Command::AddPool(pool)).expect("la piscine de la démo est valide");
     let road = Road {
@@ -51,6 +55,7 @@ pub fn demo_house() -> House {
         width: 4.0,
         color: [0.55, 0.55, 0.57],
         texture: find("Béton brut"),
+        tag: None,
     };
     h.apply(Command::AddRoad(road)).expect("la route de la démo est valide");
     h
@@ -71,6 +76,7 @@ fn demo_walls() -> Vec<Wall> {
         color: [0.85, 0.9, 0.95],
         openings: vec![],
         texture: find("Plâtre"),
+        tag: None,
     });
     let op = Opening::new;
     walls[0].openings = vec![op(OpeningKind::Door, 3.0), op(OpeningKind::Window, 1.2), op(OpeningKind::Window, 8.0)];

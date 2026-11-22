@@ -295,7 +295,7 @@ mod tests {
             [(RoofKind::Butterfly, 1.2), (RoofKind::Sawtooth, 1.5), (RoofKind::Dome, 2.5)].into_iter().enumerate()
         {
             let min = bevy::math::Vec2::new(10.0 * i as f32, 0.0);
-            h.apply(Command::PlaceRoof { min, max: min + 6.0, level: 1, kind, texture: None }).unwrap();
+            h.apply(Command::PlaceRoof { min, max: min + 6.0, level: 1, kind, texture: None, tag: None }).unwrap();
             assert_eq!(h.roofs[i].height, height, "{kind:?}");
         }
     }

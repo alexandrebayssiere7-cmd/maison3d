@@ -427,6 +427,7 @@ mod tests {
             color: WHITE,
             openings: vec![Opening::new(kind, 3.0)],
             texture: 0,
+            tag: None,
         };
         House { walls: vec![wall], ..House::default() }
     }

@@ -7,7 +7,7 @@
   },
   "$defs": {
     "Command": {
-      "description": "Une modification du monde. En JSON : `{\"op\": \"add_wall\", \"a\": [0, 0], \"b\": [4, 0], ...}`.\n\nConventions : mètres et degrés. Un point au sol est `[x, z]` (y est la verticale) ; la vue de\ndessus de `maison3d shot` met -z (le nord) en haut. `level` va de -1 (sous-sol) à 9 et chaque\nétage fait 3 m : le sol de `level` est à `3 × level` m. `color` est `[r, g, b]` entre 0 et 1\n(`[1, 1, 1]` montre la texture telle quelle) ; `texture` vaut 0 (aucune) ou un indice de\n`maison3d textures`. Tout point doit rester sur le terrain : x et z entre -80 et 80 m.\nUn champ inconnu (faute de frappe) fait refuser la commande.\n\nLes éléments sont désignés par leur indice dans leur liste (`{\"Wall\": 0}`,\n`{\"Opening\": [mur, n]}`), affiché par `maison3d describe` ; `apply` affiche ceux que crée\nchaque commande. Une suppression décale les indices suivants de la même liste.\n\nPréférer `room` et les `place_*`, qui remplissent dimensions et matières par défaut\n(`maison3d catalog` les liste) ; les `add_*` demandent tous les champs.",
+      "description": "Une modification du monde. En JSON : `{\"op\": \"add_wall\", \"a\": [0, 0], \"b\": [4, 0], ...}`.\n\nConventions : mètres et degrés. Un point au sol est `[x, z]` (y est la verticale) ; la vue de\ndessus de `maison3d shot` met -z (le nord) en haut. `level` va de -1 (sous-sol) à 9 et chaque\nétage fait 3 m : le sol de `level` est à `3 × level` m. `color` est `[r, g, b]` entre 0 et 1\n(`[1, 1, 1]` montre la texture telle quelle) ; `texture` vaut 0 (aucune) ou un indice de\n`maison3d textures`. Tout point doit rester sur le terrain : x et z entre -80 et 80 m.\nUn champ inconnu (faute de frappe) fait refuser la commande.\n\nLes éléments sont désignés par leur indice dans leur liste (`{\"Wall\": 0}`,\n`{\"Opening\": [mur, n]}`), affiché par `maison3d describe` ; `apply` affiche ceux que crée\nchaque commande. Une suppression décale les indices suivants de la même liste. `remove`,\n`move`, `paint` et `set` acceptent aussi `{\"tag\": \"haie-nord\"}` : tous les éléments posés\navec cette étiquette (champ `tag`), sans compter les indices.\n\nPréférer `room` et les `place_*`, qui remplissent dimensions et matières par défaut\n(`maison3d catalog` les liste) ; les `add_*` demandent tous les champs.",
       "oneOf": [
         {
           "description": "Pièce rectangulaire : 4 murs (centrés sur le bord du rectangle) et un sol. Crée les murs\ndans l'ordre nord (z = min), est (x = max), sud (z = max), ouest (x = min), chacun de `a`\nvers `b` dans le sens horaire vu du dessus, puis le sol. Deux pièces accolées ont chacune\nleur mur sur la cloison commune : pour un logement à plusieurs pièces, une `room` pour\nl'enveloppe puis des `add_wall` pour les cloisons.",
@@ -82,6 +82,14 @@
             },
             "name": {
               "description": "Nom de la pièce (« cuisine », « chambre 1 »), posé en son centre comme `name_room`.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur les 4 murs et le sol (voir `remove`), 1 à 40 caractères.",
               "type": [
                 "string",
                 "null"
@@ -223,6 +231,14 @@
               ],
               "format": "float",
               "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -264,6 +280,14 @@
                 {
                   "type": "null"
                 }
+              ],
+              "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
               ],
               "default": null
             }
@@ -325,6 +349,14 @@
               ],
               "format": "float",
               "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur chaque objet de la rangée (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -381,6 +413,14 @@
               ],
               "format": "uint",
               "minimum": 0,
+              "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur le toit (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
               "default": null
             }
           },
@@ -459,6 +499,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -522,6 +569,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -595,6 +649,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -675,6 +736,13 @@
               "type": "number",
               "format": "float",
               "default": 1.0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -735,6 +803,13 @@
               "type": "integer",
               "format": "uint",
               "minimum": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -795,6 +870,13 @@
               "type": "integer",
               "format": "uint",
               "minimum": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -933,7 +1015,7 @@
           "additionalProperties": false
         },
         {
-          "description": "Supprime un élément (un mur emporte ses ouvertures). Décale de 1 les indices suivants\nde la même liste : dans un lot, supprimer du plus grand indice au plus petit.",
+          "description": "Supprime un élément (un mur emporte ses ouvertures), ou tous ceux d'une étiquette. Décale\nles indices suivants de la même liste : dans un lot, supprimer du plus grand indice au\nplus petit, ou viser une étiquette.",
           "type": "object",
           "properties": {
             "op": {
@@ -941,7 +1023,8 @@
               "const": "remove"
             },
             "target": {
-              "$ref": "#/$defs/ElemRef"
+              "description": "Élément (`{\"Prop\": 3}`) ou étiquette (`{\"tag\": \"haie-nord\"}`) à supprimer.",
+              "$ref": "#/$defs/Target"
             }
           },
           "additionalProperties": false,
@@ -951,7 +1034,7 @@
           ]
         },
         {
-          "description": "Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de\n`by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une\npiscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :\nterrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du\nrez-de-chaussée.",
+          "description": "Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de\n`by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une\npiscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :\nterrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du\nrez-de-chaussée. Avec une étiquette, chaque élément est déplacé ; renvoie le dernier.",
           "type": "object",
           "properties": {
             "op": {
@@ -959,7 +1042,8 @@
               "const": "move"
             },
             "target": {
-              "$ref": "#/$defs/ElemRef"
+              "description": "Élément ou étiquette à déplacer.",
+              "$ref": "#/$defs/Target"
             },
             "by": {
               "description": "Décalage `[dx, dz]` en mètres.",
@@ -1041,10 +1125,10 @@
               "const": "paint"
             },
             "target": {
-              "description": "Élément à peindre.",
+              "description": "Élément ou étiquette à peindre.",
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ElemRef"
+                  "$ref": "#/$defs/Target"
                 },
                 {
                   "type": "null"
@@ -1052,10 +1136,10 @@
               ]
             },
             "targets": {
-              "description": "Autres éléments à peindre de la même façon, par exemple les 4 murs d'une pièce :\n`\"targets\": [{\"Wall\": 0}, {\"Wall\": 1}, {\"Wall\": 2}, {\"Wall\": 3}]`.",
+              "description": "Autres éléments ou étiquettes à peindre de la même façon, par exemple les 4 murs\nd'une pièce : `\"targets\": [{\"Wall\": 0}, {\"Wall\": 1}, {\"Wall\": 2}, {\"Wall\": 3}]`.",
               "type": "array",
               "items": {
-                "$ref": "#/$defs/ElemRef"
+                "$ref": "#/$defs/Target"
               }
             },
             "part": {
@@ -1094,7 +1178,7 @@
           ]
         },
         {
-          "description": "Modifie des champs d'un élément existant, sans changer son indice : par exemple\n`{\"op\": \"set\", \"target\": {\"Prop\": 3}, \"fields\": {\"height\": 4.5}}`. Les noms et les bornes\nsont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de\nl'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur\nchange, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché.",
+          "description": "Modifie des champs d'un élément existant, sans changer son indice : par exemple\n`{\"op\": \"set\", \"target\": {\"Prop\": 3}, \"fields\": {\"height\": 4.5}}`. Les noms et les bornes\nsont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de\nl'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur\nchange, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché. Avec une\nétiquette, chaque élément est modifié et le dernier renvoyé ; refusée en entier si un\nchamp n'existe pas pour l'un d'eux (`height` sur un groupe mur + sol, par exemple).",
           "type": "object",
           "properties": {
             "op": {
@@ -1102,7 +1186,8 @@
               "const": "set"
             },
             "target": {
-              "$ref": "#/$defs/ElemRef"
+              "description": "Élément ou étiquette à modifier.",
+              "$ref": "#/$defs/Target"
             },
             "fields": {
               "description": "Champs à remplacer et leur nouvelle valeur.",
@@ -2551,6 +2636,29 @@
       "additionalProperties": false,
       "required": [
         "color"
+      ]
+    },
+    "Target": {
+      "description": "Élément visé par son indice (`{\"Wall\": 0}`, `{\"Opening\": [mur, n]}`, comme dans `describe`),\nou groupe d'éléments par leur étiquette (`{\"tag\": \"haie-nord\"}`) : plus besoin de compter\nles indices, qu'une suppression décale.",
+      "anyOf": [
+        {
+          "description": "Un seul élément, par son indice dans sa liste.",
+          "$ref": "#/$defs/ElemRef"
+        },
+        {
+          "description": "Tous les murs, sols, toits, objets, piscines et routes dont le champ `tag` vaut `tag`.",
+          "type": "object",
+          "properties": {
+            "tag": {
+              "description": "Étiquette, comparée à l'identique (casse et accents compris) ; refusée si aucun\nélément ne la porte.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tag"
+          ]
+        }
       ]
     },
     "ElemRef": {

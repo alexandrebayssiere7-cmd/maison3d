@@ -14,9 +14,11 @@ use crate::model::{
 use crate::textures::find;
 
 mod error;
+mod target;
 mod validate;
 
 pub use error::EditError;
+pub use target::Target;
 
 /// Une modification du monde. En JSON : `{"op": "add_wall", "a": [0, 0], "b": [4, 0], ...}`.
 ///
@@ -29,7 +31,9 @@ pub use error::EditError;
 ///
 /// Les éléments sont désignés par leur indice dans leur liste (`{"Wall": 0}`,
 /// `{"Opening": [mur, n]}`), affiché par `maison3d describe` ; `apply` affiche ceux que crée
-/// chaque commande. Une suppression décale les indices suivants de la même liste.
+/// chaque commande. Une suppression décale les indices suivants de la même liste. `remove`,
+/// `move`, `paint` et `set` acceptent aussi `{"tag": "haie-nord"}` : tous les éléments posés
+/// avec cette étiquette (champ `tag`), sans compter les indices.
 ///
 /// Préférer `room` et les `place_*`, qui remplissent dimensions et matières par défaut
 /// (`maison3d catalog` les liste) ; les `add_*` demandent tous les champs.
@@ -65,6 +69,9 @@ pub enum Command {
         /// Nom de la pièce (« cuisine », « chambre 1 »), posé en son centre comme `name_room`.
         #[serde(default)]
         name: Option<String>,
+        /// Étiquette posée sur les 4 murs et le sol (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Nomme la pièce qui contient le point `at` : l'espace fermé par les murs autour de lui,
     /// cloisons comprises. `maison3d query` la retrouve ensuite par ce nom. Redonner un nom déjà
@@ -111,6 +118,9 @@ pub enum Command {
         /// Échelle uniforme, 0,2 à 5 (1 par défaut) : multiplie toutes les dimensions de l'objet.
         #[serde(default)]
         scale: Option<f32>,
+        /// Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Objet posé dos à un mur, avant tourné à l'opposé du mur, sur l'étage du mur : `pos` et
     /// `rot` sont calculés (arrière contre la face du mur). Refusé si l'objet dépasse du mur en
@@ -125,6 +135,9 @@ pub enum Command {
         /// le mur ; refusé si les deux côtés en ont un (cloison) ou aucun.
         #[serde(default)]
         side: Option<Side>,
+        /// Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`
     /// mètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.
@@ -146,6 +159,9 @@ pub enum Command {
         /// direction `from` → `to`).
         #[serde(default)]
         rot: Option<f32>,
+        /// Étiquette posée sur chaque objet de la rangée (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit
     /// plat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
@@ -163,6 +179,9 @@ pub enum Command {
         /// Matière (« Tuiles terre cuite » par défaut, « Zinc » pour un toit plat).
         #[serde(default)]
         texture: Option<usize>,
+        /// Étiquette posée sur le toit (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Mur droit, tous champs explicites. Pour une cloison intérieure, mettre ses extrémités sur
     /// les murs existants. Au rez-de-chaussée, le relief est aplani autour.
@@ -222,16 +241,21 @@ pub enum Command {
     },
     /// Remet tout le terrain à plat, à l'altitude 0.
     FlattenTerrain,
-    /// Supprime un élément (un mur emporte ses ouvertures). Décale de 1 les indices suivants
-    /// de la même liste : dans un lot, supprimer du plus grand indice au plus petit.
-    Remove { target: ElemRef },
+    /// Supprime un élément (un mur emporte ses ouvertures), ou tous ceux d'une étiquette. Décale
+    /// les indices suivants de la même liste : dans un lot, supprimer du plus grand indice au
+    /// plus petit, ou viser une étiquette.
+    Remove {
+        /// Élément (`{"Prop": 3}`) ou étiquette (`{"tag": "haie-nord"}`) à supprimer.
+        target: Target,
+    },
     /// Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de
     /// `by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une
     /// piscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :
     /// terrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du
-    /// rez-de-chaussée.
+    /// rez-de-chaussée. Avec une étiquette, chaque élément est déplacé ; renvoie le dernier.
     Move {
-        target: ElemRef,
+        /// Élément ou étiquette à déplacer.
+        target: Target,
         /// Décalage `[dx, dz]` en mètres.
         #[schemars(with = "[f32; 2]")]
         by: Vec2,
@@ -256,13 +280,13 @@ pub enum Command {
     /// porte…), listées par `maison3d catalog` (`parts`). Peint `target` puis chaque élément de
     /// `targets` (au moins un des deux) ; refusée en entier si l'un d'eux n'existe pas.
     Paint {
-        /// Élément à peindre.
+        /// Élément ou étiquette à peindre.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        target: Option<ElemRef>,
-        /// Autres éléments à peindre de la même façon, par exemple les 4 murs d'une pièce :
-        /// `"targets": [{"Wall": 0}, {"Wall": 1}, {"Wall": 2}, {"Wall": 3}]`.
+        target: Option<Target>,
+        /// Autres éléments ou étiquettes à peindre de la même façon, par exemple les 4 murs
+        /// d'une pièce : `"targets": [{"Wall": 0}, {"Wall": 1}, {"Wall": 2}, {"Wall": 3}]`.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        targets: Vec<ElemRef>,
+        targets: Vec<Target>,
         /// Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,
         /// sols, toits, piscines et routes n'ont que la partie 0.
         #[serde(default)]
@@ -276,9 +300,12 @@ pub enum Command {
     /// `{"op": "set", "target": {"Prop": 3}, "fields": {"height": 4.5}}`. Les noms et les bornes
     /// sont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de
     /// l'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur
-    /// change, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché.
+    /// change, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché. Avec une
+    /// étiquette, chaque élément est modifié et le dernier renvoyé ; refusée en entier si un
+    /// champ n'existe pas pour l'un d'eux (`height` sur un groupe mur + sol, par exemple).
     Set {
-        target: ElemRef,
+        /// Élément ou étiquette à modifier.
+        target: Target,
         /// Champs à remplacer et leur nouvelle valeur.
         fields: serde_json::Map<String, serde_json::Value>,
     },
@@ -288,11 +315,7 @@ impl Command {
     /// L'élément existant que vise la commande, s'il y en a un.
     fn target(&self) -> Option<ElemRef> {
         match self {
-            Command::Remove { target }
-            | Command::Move { target, .. }
-            | Command::Duplicate { target, .. }
-            | Command::Rotate { target, .. }
-            | Command::Set { target, .. } => Some(*target),
+            Command::Duplicate { target, .. } | Command::Rotate { target, .. } => Some(*target),
             _ => None,
         }
     }
@@ -316,22 +339,24 @@ impl House {
             self.found(target)?;
         }
         match cmd {
-            Command::Room { min, max, level, height, thick, wall_texture, floor_texture, name } => {
+            Command::Room { min, max, level, height, thick, wall_texture, floor_texture, name, tag } => {
                 let walls = (height.unwrap_or(LEVEL_H), thick.unwrap_or(0.2));
                 let textures = (wall_texture.unwrap_or_else(|| find("Crépi blanc")), floor_texture);
-                self.add_room(min, max, level, walls, textures, name)
+                self.add_room(min, max, level, walls, textures, (name, tag))
             }
             Command::NameRoom { name, level, at } => self.name_room(name, level, at),
             Command::UnnameRoom { name } => self.unname_room(name),
             Command::PlaceOpening { wall, kind, t } => self.add_opening(wall, Opening::new(kind, t)),
-            Command::PlaceProp { kind, pos, level, rot, scale } => {
-                self.add_prop(Prop { scale: scale.unwrap_or(1.0), ..Prop::new(kind, pos, level, rot) })
+            Command::PlaceProp { kind, pos, level, rot, scale, tag } => {
+                self.add_prop(Prop { scale: scale.unwrap_or(1.0), tag, ..Prop::new(kind, pos, level, rot) })
             }
-            Command::PlaceAgainst { kind, wall, t, side } => self.place_against(kind, wall, t, side),
-            Command::PlaceRow { kind, from, to, step, level, rot } => {
-                self.place_row(kind, (from, to), step, level, rot)
+            Command::PlaceAgainst { kind, wall, t, side, tag } => self.place_against(kind, wall, t, side, tag),
+            Command::PlaceRow { kind, from, to, step, level, rot, tag } => {
+                self.place_row(kind, (from, to), step, level, (rot, tag))
             }
-            Command::PlaceRoof { min, max, level, kind, texture } => self.place_roof((min, max), level, kind, texture),
+            Command::PlaceRoof { min, max, level, kind, texture, tag } => {
+                self.place_roof((min, max), level, kind, texture, tag)
+            }
             Command::AddWall(w) => self.add_wall(w),
             Command::AddSlab(s) => self.add_slab(s),
             Command::AddRoof(r) => self.add_roof(r),
@@ -347,17 +372,15 @@ impl House {
                 self.terrain = crate::terrain::Terrain::default();
                 Ok(None)
             }
-            Command::Remove { target } => {
-                self.remove_settled(target);
-                Ok(None)
-            }
-            Command::Move { target, by } => self.move_elem(target, by),
+            Command::Remove { target } => self.remove_all(&target),
+            Command::Move { target, by } => self.each(&target, |h, e| h.move_elem(e, by)),
             Command::Duplicate { target, by } => self.duplicate_checked(target, by),
             Command::Rotate { target, deg } => self.rotate(target, deg),
             Command::Paint { target, targets, part, color, texture } => {
-                self.paint_all(target.into_iter().chain(targets), part, color, texture)
+                let refs = target.iter().chain(&targets).map(|t| self.resolve(t)).collect::<Result<Vec<_>, _>>()?;
+                self.paint_all(refs.into_iter().flatten(), part, color, texture)
             }
-            Command::Set { target, fields } => self.set(target, fields),
+            Command::Set { target, fields } => self.each(&target, |h, e| h.set(e, fields.clone())),
         }
     }
 
@@ -368,6 +391,7 @@ impl House {
         level: i32,
         kind: RoofKind,
         texture: Option<usize>,
+        tag: Option<String>,
     ) -> Result<Option<ElemRef>, EditError> {
         let flat = kind == RoofKind::Flat;
         let texture = texture.unwrap_or_else(|| find(if flat { "Zinc" } else { "Tuiles terre cuite" }));
@@ -377,7 +401,7 @@ impl House {
             RoofKind::Sawtooth => 1.5,
             _ => 2.5,
         };
-        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
+        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture, tag })
     }
 
     fn generate_checked(
@@ -401,7 +425,7 @@ impl House {
         Ok(Some(copy))
     }
 
-    fn found(&self, target: ElemRef) -> Result<(), EditError> {
+    pub(super) fn found(&self, target: ElemRef) -> Result<(), EditError> {
         if self.exists(target) { Ok(()) } else { Err(EditError::NotFound(target, self.count(target))) }
     }
 
@@ -414,8 +438,8 @@ impl House {
         texture: Option<usize>,
     ) -> Result<Option<ElemRef>, EditError> {
         let mut last = None;
+        // `resolve` a déjà vérifié que chaque cible existe
         for target in targets {
-            self.found(target)?;
             last = self.paint(target, part, color, texture)?;
         }
         last.map(Some).ok_or(EditError::NoTarget)
@@ -448,15 +472,16 @@ impl House {
         level: i32,
         (height, thick): (f32, f32),
         (wall_texture, floor_texture): (usize, Option<usize>),
-        name: Option<String>,
+        (name, tag): (Option<String>, Option<String>),
     ) -> Result<Option<ElemRef>, EditError> {
         validate::rect(min, max)?;
         for mut w in room_walls(min, max, level, height, thick, WHITE_TEX) {
             w.texture = wall_texture;
+            w.tag.clone_from(&tag);
             self.add_wall(w)?;
         }
         let texture = floor_texture.unwrap_or_else(|| find("Parquet chêne clair"));
-        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture })?;
+        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture, tag })?;
         match name {
             Some(name) => self.name_room(name, level, (min + max) / 2.0).map(|_| made),
             None => Ok(made),
@@ -516,7 +541,7 @@ impl House {
 
     /// Retire l'élément ; routes et piscines restantes lisaient peut-être le relief qu'il
     /// portait : elles sont terrassées à nouveau.
-    fn remove_settled(&mut self, target: ElemRef) {
+    pub(super) fn remove_settled(&mut self, target: ElemRef) {
         self.remove(target);
         let ground = !matches!(target, ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_));
         if ground && !self.terrain.h.is_empty() {
@@ -557,11 +582,12 @@ impl House {
         wall: usize,
         t: f32,
         side: Option<Side>,
+        tag: Option<String>,
     ) -> Result<Option<ElemRef>, EditError> {
         let n = self.walls.len();
         let w = self.walls.get(wall).ok_or(EditError::WallNotFound(wall, n))?;
         let side = side.or_else(|| self.floor_side(w, t)).ok_or(EditError::SideUnknown(wall))?;
-        let p = Prop::against(kind, w, t, side);
+        let p = Prop { tag, ..Prop::against(kind, w, t, side) };
         let (lo, hi) = p.local_box();
         // même marge qu'une ouverture : l'objet ne mord pas sur les murs perpendiculaires
         let (t_min, t_max) = w.t_range(2.0 * hi.x.max(-lo.x));
@@ -584,7 +610,7 @@ impl House {
         (from, to): (Vec2, Vec2),
         step: f32,
         level: i32,
-        rot: Option<f32>,
+        (rot, tag): (Option<f32>, Option<String>),
     ) -> Result<Option<ElemRef>, EditError> {
         validate::range("step", step, 0.1, 2.0 * crate::terrain::HALF)?;
         let d = to - from;
@@ -597,7 +623,7 @@ impl House {
         let mut last = None;
         for k in 0..count {
             let pos = from + d.normalize_or_zero() * step * k as f32;
-            last = self.add_prop(Prop::new(kind, pos, level, rot))?;
+            last = self.add_prop(Prop { tag: tag.clone(), ..Prop::new(kind, pos, level, rot) })?;
         }
         Ok(last)
     }
@@ -707,3 +733,6 @@ mod tests;
 
 #[cfg(test)]
 mod settle_tests;
+
+#[cfg(test)]
+mod tag_tests;

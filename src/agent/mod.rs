@@ -315,7 +315,11 @@ fn changes(before: &Counts, after: &Counts, result: Option<ElemRef>) -> String {
         match a.cmp(b) {
             std::cmp::Ordering::Greater if a - b == 1 => parts.push(format!("créé {name} {b}")),
             std::cmp::Ordering::Greater => parts.push(format!("créés {name} {b} à {}", a - 1)),
-            std::cmp::Ordering::Less => parts.push(format!("supprimé, les {name} suivants sont décalés de {}", b - a)),
+            std::cmp::Ordering::Less if b - a == 1 => {
+                parts.push(format!("supprimé, les {name} suivants sont décalés de 1"));
+            }
+            // une étiquette retire des éléments épars : les indices suivants reculent inégalement
+            std::cmp::Ordering::Less => parts.push(format!("supprimés {} {name}, indices suivants changés", b - a)),
             std::cmp::Ordering::Equal => {}
         }
     }
@@ -598,7 +602,14 @@ mod tests {
         let mut h = House::default();
         let before = Counts::of(&h);
         let e = h
-            .apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None })
+            .apply(Command::PlaceProp {
+                kind: PropKind::Lamp,
+                pos: Vec2::ZERO,
+                level: 0,
+                rot: 0.0,
+                scale: None,
+                tag: None,
+            })
             .unwrap();
         let v = step_json(2, &before, &Counts::of(&h), e);
         assert_eq!(
@@ -606,7 +617,7 @@ mod tests {
             serde_json::json!({ "index": 2, "ok": true, "elem": {"Prop": 0}, "created": [{"Prop": 0}], "removed": {} })
         );
         let before = Counts::of(&h);
-        let e = h.apply(Command::Remove { target: ElemRef::Prop(0) }).unwrap();
+        let e = h.apply(Command::Remove { target: ElemRef::Prop(0).into() }).unwrap();
         assert_eq!(step_json(0, &before, &Counts::of(&h), e)["removed"], serde_json::json!({ "Prop": 1 }));
     }
 
@@ -659,7 +670,7 @@ mod tests {
     fn brief_and_help_come_from_the_schema() {
         let brief = schema_brief();
         assert!(brief.contains("room(min: [x, z], max: [x, z], level: entier, height?: nombre"), "{brief}");
-        assert!(brief.contains("place_row(") && brief.contains("set(target: ElemRef, fields: object)"), "{brief}");
+        assert!(brief.contains("place_row(") && brief.contains("set(target: Target, fields: object)"), "{brief}");
         let room = help("place_prop").unwrap();
         assert!(
             room.contains("- rot (nombre, facultatif)") && room.contains("- kind (PropKind, obligatoire)"),
@@ -680,12 +691,18 @@ mod tests {
             wall_texture: None,
             floor_texture: None,
             name: None,
+            tag: None,
         };
         let e = h.apply(room).unwrap();
         assert_eq!(changes(&before, &Counts::of(&h), e), " → créés Wall 0 à 3, créé Slab 0");
         let before = Counts::of(&h);
-        let e = h.apply(Command::Remove { target: ElemRef::Wall(1) }).unwrap();
+        let e = h.apply(Command::Remove { target: ElemRef::Wall(1).into() }).unwrap();
         assert_eq!(changes(&before, &Counts::of(&h), e), " → supprimé, les Wall suivants sont décalés de 1");
+        let before = Counts::of(&h);
+        h.walls[0].tag = Some("t".into());
+        h.walls[2].tag = Some("t".into());
+        let e = h.apply(Command::Remove { target: crate::command::Target::Tag { tag: "t".into() } }).unwrap();
+        assert_eq!(changes(&before, &Counts::of(&h), e), " → supprimés 2 Wall, indices suivants changés");
         let before = Counts::of(&h);
         let e = h.apply(Command::PlaceOpening { wall: 0, kind: OpeningKind::Window, t: 2.0 }).unwrap();
         assert_eq!(changes(&before, &Counts::of(&h), e), " → Opening [0, 0]");
@@ -792,6 +809,7 @@ mod tests {
             level: 0,
             rot: 0.0,
             scale: None,
+            tag: None,
         })
         .unwrap();
         h.apply(Command::AddRoad(Road {
@@ -800,6 +818,7 @@ mod tests {
             width: 3.0,
             color: WHITE_TEX,
             texture: 0,
+            tag: None,
         }))
         .unwrap();
         assert_eq!(describe::bounds(&h), Some((Vec2::new(-3.0, -1.0), Vec2::new(5.0, 7.0))));

@@ -64,7 +64,8 @@ ne s'ouvre, en 2 à 3 secondes) et écrit sur la sortie standard le chemin de ch
 2. Écrire un lot de commandes cohérent (une pièce et ses ouvertures, un étage…), puis `apply`.
    Pour les répétitions, générer le JSON avec un petit script.
 3. Lire la sortie :
-   - les indices créés : les noter, plutôt que de les recompter ;
+   - les indices créés : les noter, plutôt que de les recompter ; mieux, poser une étiquette
+     (`tag`) sur ce qu'on retouchera d'un bloc, puis le viser par `{"tag": …}` (voir Étiquettes) ;
    - les avertissements : les corriger avant de continuer.
 4. Avant de meubler une pièce, `query monde.json room <nom>` : les faces intérieures des murs
    et la place des portes y sont données, inutile de les recalculer. Pour un objet dont la place
@@ -87,6 +88,7 @@ Exemples complets et testés dans `docs/exemples/` :
 | `rue.json` | Chaussée, trottoirs, passage piéton, lampadaires, voitures garées, et deux maisons face à face dont une à étage (`add_storey` limité à une zone). |
 | `jardin.json` | Relief, piscine, allée, route, haie en rangée, lampadaires et végétaux. |
 | `retouches.json` | Toutes les commandes `add_*`, `set` et les commandes d'édition. |
+| `etiquettes.json` | Pièce, toit et rangées étiquetés, puis repeints, déplacés, modifiés et supprimés par étiquette. |
 
 ## Repère
 
@@ -116,7 +118,7 @@ Exemples complets et testés dans `docs/exemples/` :
   - sud (z = max, de est vers ouest) ;
   - ouest (x = min, de sud vers nord).
   
-  `room` accepte `height`, `thick`, `wall_texture` et `floor_texture`.
+  `room` accepte `height`, `thick`, `wall_texture`, `floor_texture` et `tag`.
 - `t` d'une ouverture est la distance depuis `a` jusqu'au **centre** de l'ouverture.
   - Sur le mur sud d'une `room` de x 0 à 8, `a` est à x = 8 : `t = 2` place l'ouverture en x = 6.
   - La plage permise laisse 5 cm, plus la demi-épaisseur du mur, à chaque bout. En cas de refus,
@@ -243,8 +245,26 @@ murs (`place_against` pour le canapé), puis `place_roof`.
 - Chaque liste (murs, sols, toits, objets, piscines, routes) est numérotée dans l'ordre de
   création, et `apply` affiche les indices créés.
 - `remove` décale de 1 les éléments suivants **de la même liste**. Dans un lot, supprimer du plus
-  grand indice au plus petit. `set` modifie sans renuméroter.
+  grand indice au plus petit, ou viser une étiquette. `set` modifie sans renuméroter.
 - Une ouverture se désigne par `{"Opening": [mur, n]}`.
+
+## Étiquettes
+
+Plutôt que compter les indices (`describe | grep -c`) et supprimer en ordre décroissant, étiqueter
+ce qu'on voudra retoucher ensemble, puis le viser par son étiquette (`etiquettes.json`) :
+
+- `room`, `place_prop`, `place_against`, `place_row` et `place_roof` acceptent `"tag": "haie-nord"`,
+  recopié sur tout ce qu'ils créent (les 4 murs et le sol d'une `room`, chaque objet d'une
+  rangée). Les `add_*` prennent le même champ `tag` ; `set` le change (`"fields": {"tag": "x"}`)
+  ou le retire (`{"tag": null}`). 1 à 40 caractères. Les ouvertures n'en ont pas.
+- `remove`, `move`, `paint` et `set` acceptent `"target": {"tag": "haie-nord"}` (et `paint` dans
+  `targets`) : la commande s'applique à tous les murs, sols, toits, objets, piscines et routes qui
+  portent exactement cette étiquette (casse et accents compris). `remove` s'occupe de l'ordre.
+- **Tout ou rien** : une étiquette que rien ne porte fait refuser la commande ; si un des éléments
+  refuse (un champ de `set` qui n'existe pas pour un sol, un objet poussé hors du terrain), aucun
+  n'est modifié.
+- `describe` affiche l'étiquette en fin de ligne : `Prop 4 : Hedge (Haie) en …, tag "haie-nord"`.
+- `rotate` et `duplicate` restent sur un indice.
 
 ## Avertissements (`check`)
 
