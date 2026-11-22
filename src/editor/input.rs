@@ -506,8 +506,14 @@ mod tests {
     #[test]
     fn pointer_eyedropper_then_paint_copies_a_finish() {
         let mut ed = Editor::default();
-        let slab =
-            |x: f32, color| crate::model::Slab { min: v(x, 0.0), max: v(x + 2.0, 2.0), level: 0, color, texture: 0 };
+        let slab = |x: f32, color| crate::model::Slab {
+            min: v(x, 0.0),
+            max: v(x + 2.0, 2.0),
+            level: 0,
+            color,
+            texture: 0,
+            tag: None,
+        };
         ed.house.slabs = vec![slab(0.0, [0.1, 0.2, 0.3]), slab(5.0, [1.0; 3])];
         refresh(&mut ed);
         ed.set_tool(Tool::Eyedropper);

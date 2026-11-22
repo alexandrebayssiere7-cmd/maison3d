@@ -343,6 +343,7 @@ mod tests {
             color,
             openings: vec![],
             texture: 0,
+            tag: None,
         });
         ed.selected = Some(ElemRef::Wall(0));
         ed

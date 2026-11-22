@@ -207,7 +207,7 @@ mod tests {
 
     fn room(h: &mut House, lo: Vec2, hi: Vec2, level: i32) {
         h.walls.extend(room_walls(lo, hi, level, LEVEL_H, 0.2, WHITE));
-        h.slabs.push(Slab { min: lo, max: hi, level, color: WHITE, texture: 0 });
+        h.slabs.push(Slab { min: lo, max: hi, level, color: WHITE, texture: 0, tag: None });
     }
 
     fn has(h: &House, needle: &str) -> bool {
@@ -230,6 +230,7 @@ mod tests {
             overhang: 0.5,
             color: WHITE,
             texture: 0,
+            tag: None,
         });
         assert_eq!(h.warnings(), Vec::<String>::new());
     }
@@ -266,13 +267,14 @@ mod tests {
     fn stairs_need_a_hole_and_a_landing() {
         let mut h = House::default();
         room(&mut h, Vec2::ZERO, Vec2::new(8.0, 6.0), 0);
-        h.slabs.push(Slab { min: Vec2::ZERO, max: Vec2::new(8.0, 6.0), level: 1, color: WHITE, texture: 0 });
+        h.slabs.push(Slab { min: Vec2::ZERO, max: Vec2::new(8.0, 6.0), level: 1, color: WHITE, texture: 0, tag: None });
         h.props.push(prop(PropKind::Stairs, Vec2::new(1.0, 3.0), 0, 180.0));
         assert!(has(&h, "monte dans le sol 1 du level 1"));
         // trémie au-dessus de l'escalier, palier au nord
-        h.slabs[1] = Slab { min: Vec2::new(1.6, 0.0), max: Vec2::new(8.0, 6.0), level: 1, color: WHITE, texture: 0 };
+        h.slabs[1] =
+            Slab { min: Vec2::new(1.6, 0.0), max: Vec2::new(8.0, 6.0), level: 1, color: WHITE, texture: 0, tag: None };
         assert!(has(&h, "arrive dans le vide"));
-        h.slabs.push(Slab { min: Vec2::ZERO, max: Vec2::new(1.6, 0.9), level: 1, color: WHITE, texture: 0 });
+        h.slabs.push(Slab { min: Vec2::ZERO, max: Vec2::new(1.6, 0.9), level: 1, color: WHITE, texture: 0, tag: None });
         assert!(!h.warnings().iter().any(|m| m.contains("Stairs")), "{:?}", h.warnings());
     }
 
@@ -290,14 +292,29 @@ mod tests {
             overhang: 0.5,
             color: WHITE,
             texture: 0,
+            tag: None,
         });
         let mut up = h.walls[1].clone();
         up.level = 1;
         up.openings.push(Opening::new(OpeningKind::Door, 3.0));
         up.openings.push(Opening::new(OpeningKind::GarageDoor, 6.0));
         h.walls.push(up);
-        h.pools.push(Pool { min: Vec2::new(2.0, 2.0), max: Vec2::new(4.0, 4.0), depth: 1.5, color: WHITE, texture: 0 });
-        h.roads.push(Road { a: Vec2::new(4.0, -5.0), b: Vec2::new(4.0, 10.0), width: 3.0, color: WHITE, texture: 0 });
+        h.pools.push(Pool {
+            min: Vec2::new(2.0, 2.0),
+            max: Vec2::new(4.0, 4.0),
+            depth: 1.5,
+            color: WHITE,
+            texture: 0,
+            tag: None,
+        });
+        h.roads.push(Road {
+            a: Vec2::new(4.0, -5.0),
+            b: Vec2::new(4.0, 10.0),
+            width: 3.0,
+            color: WHITE,
+            texture: 0,
+            tag: None,
+        });
         assert!(has(&h, "Wall 4 est en double avec le mur 0"));
         assert!(has(&h, "Roof 0 est posé au pied du mur 0"));
         assert!(has(&h, "Opening [5, 0] (Door) donne sur le vide"));

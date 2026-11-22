@@ -58,15 +58,15 @@ fn wall(level: i32, len: f32) -> Wall {
 }
 
 fn slab(level: i32, min: Vec2, max: Vec2) -> Slab {
-    Slab { min, max, level, color: WHITE_TEX, texture: 0 }
+    Slab { min, max, level, color: WHITE_TEX, texture: 0, tag: None }
 }
 
 fn pool(min: Vec2, max: Vec2) -> Pool {
-    Pool { min, max, depth: 1.5, color: WHITE_TEX, texture: 0 }
+    Pool { min, max, depth: 1.5, color: WHITE_TEX, texture: 0, tag: None }
 }
 
 fn road(a: Vec2, b: Vec2) -> Road {
-    Road { a, b, width: 4.0, color: WHITE_TEX, texture: 0 }
+    Road { a, b, width: 4.0, color: WHITE_TEX, texture: 0, tag: None }
 }
 
 /// Une maison avec un mur de 4 m (porte au milieu), un sol, un toit, un lit, une piscine, une route.
@@ -760,7 +760,7 @@ mod props {
             (v2(), level.clone()).prop_map(|(at, level)| Command::NameRoom { name: "pièce".into(), level, at }),
             Just(Command::UnnameRoom { name: "pièce".into() }),
             (anywhere(), anywhere(), level.clone(), look()).prop_map(|(min, max, level, (color, texture))| {
-                Command::AddSlab(Slab { min, max, level, color, texture })
+                Command::AddSlab(Slab { min, max, level, color, texture, tag: None })
             }),
             (
                 anywhere(),
@@ -772,7 +772,7 @@ mod props {
                 look()
             )
                 .prop_map(|(min, max, level, kind, height, overhang, (color, texture))| {
-                    Command::AddRoof(Roof { min, max, level, kind, height, overhang, color, texture })
+                    Command::AddRoof(Roof { min, max, level, kind, height, overhang, color, texture, tag: None })
                 }),
             (
                 prop::sample::select(&PropKind::ALL[..]),
@@ -785,7 +785,7 @@ mod props {
                 wild(0.2, 5.0)
             )
                 .prop_map(|(kind, pos, level, rot, height, (color, texture), finishes, scale)| {
-                    Command::AddProp(Prop { kind, pos, level, rot, color, texture, height, finishes, scale })
+                    Command::AddProp(Prop { kind, pos, level, rot, color, texture, height, finishes, scale, tag: None })
                 }),
             (
                 0..3usize,

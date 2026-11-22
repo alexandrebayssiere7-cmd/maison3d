@@ -10,7 +10,7 @@ fn hilly() -> House {
 }
 
 fn road(a: Vec2, b: Vec2) -> Road {
-    Road { a, b, width: 4.0, color: WHITE_TEX, texture: 0 }
+    Road { a, b, width: 4.0, color: WHITE_TEX, texture: 0, tag: None }
 }
 
 /// Écart entre le relief au milieu de la route et sa chaussée, droite qui relie ses deux bouts
@@ -59,6 +59,7 @@ fn moved_ground_floor_wall_flattens_the_relief_under_it() {
         color: WHITE_TEX,
         openings: vec![],
         texture: 0,
+        tag: None,
     };
     let mid = (w.a + w.b) / 2.0 + BY;
     assert!(h.terrain.height(mid).abs() > 0.5, "le relief doit monter sous le mur déplacé");
@@ -87,11 +88,19 @@ fn moved_slab_and_pool_settle_too() {
         level: 0,
         color: WHITE_TEX,
         texture: 0,
+        tag: None,
     }))
     .unwrap();
     h.apply(Command::Move { target: ElemRef::Slab(0), by: Vec2::splat(30.0) }).unwrap();
     assert_eq!(h.terrain.height(spot), 0.0);
-    let p = Pool { min: Vec2::new(30.0, -40.0), max: Vec2::new(34.0, -37.0), depth: 1.5, color: WHITE_TEX, texture: 0 };
+    let p = Pool {
+        min: Vec2::new(30.0, -40.0),
+        max: Vec2::new(34.0, -37.0),
+        depth: 1.5,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     let by = Vec2::new(0.0, 20.0);
     assert!((h.terrain.height(p.min + by) - h.terrain.height(p.max + by)).abs() > 0.1, "en pente avant la copie");
     h.apply(Command::AddPool(p)).unwrap();
@@ -112,6 +121,7 @@ fn set_flattens_under_a_ground_floor_wall() {
         color: WHITE_TEX,
         openings: vec![],
         texture: 0,
+        tag: None,
     };
     let mid = (w.a + w.b) / 2.0;
     h.apply(Command::AddWall(w)).unwrap();
@@ -171,7 +181,14 @@ fn null_or_refused_moves_leave_the_relief_alone() {
 #[test]
 fn pool_floor_sits_at_the_vertex_nearest_its_centre() {
     let mut h = hilly();
-    let p = Pool { min: Vec2::new(30.0, -40.0), max: Vec2::new(34.0, -37.0), depth: 1.5, color: WHITE_TEX, texture: 0 };
+    let p = Pool {
+        min: Vec2::new(30.0, -40.0),
+        max: Vec2::new(34.0, -37.0),
+        depth: 1.5,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     let by = Vec2::new(0.0, 20.0);
     let centre = (p.min + p.max) / 2.0;
     let (here, there) = (h.terrain.at_anchor(centre), h.terrain.at_anchor(centre + by));
@@ -234,7 +251,14 @@ fn same_building_twice_flattens_like_once() {
 #[test]
 fn moving_a_building_leaves_roads_where_they_are() {
     let mut h = hilly();
-    let r = Road { a: Vec2::new(-40.3, -20.6), b: Vec2::new(-20.2, -19.7), width: 4.0, color: WHITE_TEX, texture: 0 };
+    let r = Road {
+        a: Vec2::new(-40.3, -20.6),
+        b: Vec2::new(-20.2, -19.7),
+        width: 4.0,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     h.apply(Command::AddRoad(r)).unwrap();
     h.apply(serde_json::from_str(r#"{"op":"room","min":[40,40],"max":[46,46],"level":0}"#).unwrap()).unwrap();
     let before = h.terrain.clone();
@@ -261,9 +285,23 @@ fn wiggle(h: &mut House, wall: usize, times: usize) {
 #[test]
 fn road_ending_in_a_pool_keeps_the_pool_floor() {
     let mut h = hilly();
-    let p = Pool { min: Vec2::new(30.0, -40.0), max: Vec2::new(34.0, -37.0), depth: 1.5, color: WHITE_TEX, texture: 0 };
+    let p = Pool {
+        min: Vec2::new(30.0, -40.0),
+        max: Vec2::new(34.0, -37.0),
+        depth: 1.5,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     h.apply(Command::AddPool(p.clone())).unwrap();
-    let r = Road { a: Vec2::new(10.3, -38.6), b: Vec2::new(32.2, -38.4), width: 4.0, color: WHITE_TEX, texture: 0 };
+    let r = Road {
+        a: Vec2::new(10.3, -38.6),
+        b: Vec2::new(32.2, -38.4),
+        width: 4.0,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     h.apply(Command::AddRoad(r.clone())).unwrap();
     h.apply(serde_json::from_str(r#"{"op":"room","min":[-60,40],"max":[-54,46],"level":0}"#).unwrap()).unwrap();
     let centre = (p.min + p.max) / 2.0;
@@ -277,14 +315,27 @@ fn road_ending_in_a_pool_keeps_the_pool_floor() {
 fn driveway_down_to_a_house_leaves_the_house_floor_flat() {
     let mut h = hilly();
     let (lo, hi) = (Vec2::new(-40.0, 17.0), Vec2::new(-34.0, 23.0));
-    h.apply(Command::AddSlab(Slab { min: lo, max: hi, level: 0, color: WHITE_TEX, texture: 0 })).unwrap();
+    h.apply(Command::AddSlab(Slab { min: lo, max: hi, level: 0, color: WHITE_TEX, texture: 0, tag: None })).unwrap();
     // l'allée part du relief et s'arrête au bord nord de la maison
-    let r = Road { a: Vec2::new(-37.0, -5.0), b: Vec2::new(-37.0, 17.0), width: 4.0, color: WHITE_TEX, texture: 0 };
+    let r = Road {
+        a: Vec2::new(-37.0, -5.0),
+        b: Vec2::new(-37.0, 17.0),
+        width: 4.0,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     assert!(h.terrain.height(r.a).abs() > 1.0, "l'allée doit être en pente");
     h.apply(Command::AddRoad(r)).unwrap();
     // et une route en pente qui traverse la maison de part en part
-    let through =
-        Road { a: Vec2::new(-60.0, 21.0), b: Vec2::new(-14.0, 19.0), width: 4.0, color: WHITE_TEX, texture: 0 };
+    let through = Road {
+        a: Vec2::new(-60.0, 21.0),
+        b: Vec2::new(-14.0, 19.0),
+        width: 4.0,
+        color: WHITE_TEX,
+        texture: 0,
+        tag: None,
+    };
     assert!((h.terrain.height(through.a) - h.terrain.height(through.b)).abs() > 1.0, "en pente");
     h.apply(Command::AddRoad(through)).unwrap();
     let floor: Vec<f32> = (lo.y as usize..=hi.y as usize)
@@ -300,10 +351,17 @@ fn tangled() -> House {
     let mut h = House::default();
     h.apply(Command::GenerateTerrain { seed: 11, amp: 40.0, scale: 30.0, mountains: true }).unwrap();
     let road = |a: [f32; 2], b: [f32; 2], width: f32| {
-        Command::AddRoad(Road { a: Vec2::from(a), b: Vec2::from(b), width, color: WHITE_TEX, texture: 0 })
+        Command::AddRoad(Road { a: Vec2::from(a), b: Vec2::from(b), width, color: WHITE_TEX, texture: 0, tag: None })
     };
     let pool = |min: [f32; 2], max: [f32; 2]| {
-        Command::AddPool(Pool { min: Vec2::from(min), max: Vec2::from(max), depth: 1.5, color: WHITE_TEX, texture: 0 })
+        Command::AddPool(Pool {
+            min: Vec2::from(min),
+            max: Vec2::from(max),
+            depth: 1.5,
+            color: WHITE_TEX,
+            texture: 0,
+            tag: None,
+        })
     };
     for c in [
         serde_json::from_str(r#"{"op":"room","min":[-6,-5],"max":[6,5],"level":0}"#).unwrap(),
@@ -377,13 +435,13 @@ fn remove(_: &mut Dice, target: ElemRef) -> Command {
 fn new_road(d: &mut Dice, _: ElemRef) -> Command {
     let a = spot(d);
     let b = a + d.offset() * [0.5, 6.0, 6.0][d.below(3)];
-    Command::AddRoad(Road { a, b, width: 0.5 + d.below(8) as f32, color: WHITE_TEX, texture: 0 })
+    Command::AddRoad(Road { a, b, width: 0.5 + d.below(8) as f32, color: WHITE_TEX, texture: 0, tag: None })
 }
 
 fn new_pool(d: &mut Dice, _: ElemRef) -> Command {
     let min = spot(d).round();
     let max = min + Vec2::new(1.0 + d.below(6) as f32, 1.0 + d.below(5) as f32);
-    Command::AddPool(Pool { min, max, depth: 1.5, color: WHITE_TEX, texture: 0 })
+    Command::AddPool(Pool { min, max, depth: 1.5, color: WHITE_TEX, texture: 0, tag: None })
 }
 
 fn new_relief(d: &mut Dice, _: ElemRef) -> Command {
@@ -447,7 +505,14 @@ fn chained_t_junctions_settle_in_one_regrade() {
         ((-20.0, -52.3), (-20.0, -20.0)),
         ((-35.0, -20.0), (-5.0, -20.0)),
     ] {
-        let r = Road { a: Vec2::new(a.0, a.1), b: Vec2::new(b.0, b.1), width: 4.0, color: WHITE_TEX, texture: 0 };
+        let r = Road {
+            a: Vec2::new(a.0, a.1),
+            b: Vec2::new(b.0, b.1),
+            width: 4.0,
+            color: WHITE_TEX,
+            texture: 0,
+            tag: None,
+        };
         h.apply(Command::AddRoad(r)).unwrap();
     }
     h.apply(Command::GenerateTerrain { seed: 5, amp: 40.0, scale: 25.0, mountains: true }).unwrap();

@@ -50,7 +50,16 @@ fn finishes(list: &[Finish], slots: &[Slot]) -> Result<(), EditError> {
     list.iter().try_for_each(|f| look(f.color, f.texture))
 }
 
+/// Étiquette d'un élément : 1 à 40 caractères, pas seulement des espaces (comme un nom de pièce).
+pub(super) fn tag(t: Option<&str>) -> Result<(), EditError> {
+    match t {
+        Some(t) if !label(t) => Err(EditError::BadTag(t.to_owned())),
+        _ => Ok(()),
+    }
+}
+
 pub(super) fn wall(w: &Wall) -> Result<(), EditError> {
+    tag(w.tag.as_deref())?;
     level(w.level)?;
     point(w.a)?;
     point(w.b)?;
@@ -89,12 +98,14 @@ pub(super) fn place(w: &Wall, kind: OpeningKind, t: f32, width: f32, me: Option<
 }
 
 pub(super) fn slab(s: &Slab) -> Result<(), EditError> {
+    tag(s.tag.as_deref())?;
     level(s.level)?;
     rect(s.min, s.max)?;
     look(s.color, s.texture)
 }
 
 pub(super) fn roof(r: &Roof) -> Result<(), EditError> {
+    tag(r.tag.as_deref())?;
     level(r.level)?;
     rect(r.min, r.max)?;
     range("height", r.height, 0.0, 30.0)?;
@@ -103,6 +114,7 @@ pub(super) fn roof(r: &Roof) -> Result<(), EditError> {
 }
 
 pub(super) fn prop(p: &Prop) -> Result<(), EditError> {
+    tag(p.tag.as_deref())?;
     level(p.level)?;
     point(p.pos)?;
     range("rot", p.rot, -36_000.0, 36_000.0)?;
@@ -115,6 +127,7 @@ pub(super) fn prop(p: &Prop) -> Result<(), EditError> {
 }
 
 pub(super) fn pool(p: &Pool) -> Result<(), EditError> {
+    tag(p.tag.as_deref())?;
     rect(p.min, p.max)?;
     if p.min != p.min.round() || p.max != p.max.round() {
         return Err(EditError::PoolOffGrid);
@@ -124,6 +137,7 @@ pub(super) fn pool(p: &Pool) -> Result<(), EditError> {
 }
 
 pub(super) fn road(r: &Road) -> Result<(), EditError> {
+    tag(r.tag.as_deref())?;
     point(r.a)?;
     point(r.b)?;
     if !(0.05..=f32::MAX).contains(&r.a.distance(r.b)) {
@@ -134,7 +148,12 @@ pub(super) fn road(r: &Road) -> Result<(), EditError> {
 }
 
 pub(super) fn room_name(n: &str) -> Result<(), EditError> {
-    if n.trim().is_empty() || n.chars().count() > 40 { Err(EditError::BadName(n.to_owned())) } else { Ok(()) }
+    if label(n) { Ok(()) } else { Err(EditError::BadName(n.to_owned())) }
+}
+
+/// Nom de pièce ou étiquette acceptable : 1 à 40 caractères, pas seulement des espaces.
+fn label(s: &str) -> bool {
+    !s.trim().is_empty() && s.chars().count() <= 40
 }
 
 /// Décalage d'un `move` ou d'un `duplicate`.

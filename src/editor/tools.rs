@@ -35,11 +35,19 @@ impl Editor {
             color: self.wall_color,
             openings: vec![],
             texture: self.wall_texture,
+            tag: None,
         }
     }
 
     pub(super) fn new_slab(&self, a: Vec2, b: Vec2) -> Slab {
-        Slab { min: a.min(b), max: a.max(b), level: self.level, color: self.floor_color, texture: self.floor_texture }
+        Slab {
+            min: a.min(b),
+            max: a.max(b),
+            level: self.level,
+            color: self.floor_color,
+            texture: self.floor_texture,
+            tag: None,
+        }
     }
 
     pub(super) fn new_roof(&self, a: Vec2, b: Vec2) -> Roof {
@@ -52,6 +60,7 @@ impl Editor {
             overhang: self.roof_overhang,
             color: self.roof_color,
             texture: self.roof_texture,
+            tag: None,
         }
     }
 
@@ -65,7 +74,7 @@ impl Editor {
     }
 
     pub(super) fn new_road(&self, a: Vec2, b: Vec2) -> Road {
-        Road { a, b, width: self.road_width, color: self.road_color, texture: self.road_texture }
+        Road { a, b, width: self.road_width, color: self.road_color, texture: self.road_texture, tag: None }
     }
 
     /// Ce que l'outil mur ou route poserait entre `a` et `b`.
@@ -107,6 +116,7 @@ impl Editor {
                     depth: self.pool_depth,
                     color: self.pool_color,
                     texture: self.pool_texture,
+                    tag: None,
                 });
                 h.terrain = self.house.terrain.clone();
             }

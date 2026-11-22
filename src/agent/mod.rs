@@ -800,6 +800,7 @@ mod tests {
             width: 3.0,
             color: WHITE_TEX,
             texture: 0,
+            tag: None,
         }))
         .unwrap();
         assert_eq!(describe::bounds(&h), Some((Vec2::new(-3.0, -1.0), Vec2::new(5.0, 7.0))));

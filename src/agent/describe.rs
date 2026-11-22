@@ -54,14 +54,19 @@ pub fn describe(h: &House) -> String {
         s.push_str("\nExtérieur\n");
     }
     for (i, p) in h.pools.iter().enumerate() {
-        let _ = writeln!(s, "  Pool {i} : {} → {}, prof {} m", pt(p.min), pt(p.max), p.depth);
+        let _ = writeln!(s, "  Pool {i} : {} → {}, prof {} m{}", pt(p.min), pt(p.max), p.depth, tag(p.tag.as_deref()));
     }
     for (i, r) in h.roads.iter().enumerate() {
-        let _ = writeln!(s, "  Road {i} : {} → {}, larg {} m", pt(r.a), pt(r.b), r.width);
+        let _ = writeln!(s, "  Road {i} : {} → {}, larg {} m{}", pt(r.a), pt(r.b), r.width, tag(r.tag.as_deref()));
     }
     let (min, max) = h.terrain.h.iter().fold((0.0f32, 0.0f32), |(a, b), &y| (a.min(y), b.max(y)));
     let _ = writeln!(s, "\nRelief : altitude de {min:.1} à {max:.1} m");
     s
+}
+
+/// `, tag "haie-nord"` à ajouter à la ligne d'un élément étiqueté, rien sinon.
+fn tag(t: Option<&str>) -> String {
+    t.map_or(String::new(), |t| format!(", tag {t:?}"))
 }
 
 fn level_section(s: &mut String, h: &House, l: i32) {
@@ -83,6 +88,7 @@ fn level_section(s: &mut String, h: &House, l: i32) {
             w.thick,
             w.texture
         );
+        s.push_str(&tag(w.tag.as_deref()));
         for (j, o) in w.openings.iter().enumerate() {
             let _ = write!(
                 s,
@@ -98,27 +104,73 @@ fn level_section(s: &mut String, h: &House, l: i32) {
         s.push('\n');
     }
     for (i, sl) in h.slabs.iter().enumerate().filter(|(_, s)| s.level == l) {
-        let _ = writeln!(s, "  Slab {i} : {} → {}, texture {}", pt(sl.min), pt(sl.max), sl.texture);
+        let _ = writeln!(
+            s,
+            "  Slab {i} : {} → {}, texture {}{}",
+            pt(sl.min),
+            pt(sl.max),
+            sl.texture,
+            tag(sl.tag.as_deref())
+        );
     }
     for n in h.names.iter().filter(|n| n.level == l) {
         let _ = writeln!(s, "  Pièce « {} » : autour de {}", n.name, pt(n.at));
     }
     for (i, r) in h.roofs.iter().enumerate().filter(|(_, r)| r.level == l) {
         let height = if r.kind == RoofKind::Flat { String::new() } else { format!(", haut {} m", r.height) };
-        let _ = writeln!(s, "  Roof {i} : {:?} ({}) {} → {}{height}", r.kind, r.kind.name(), pt(r.min), pt(r.max));
+        let _ = writeln!(
+            s,
+            "  Roof {i} : {:?} ({}) {} → {}{height}{}",
+            r.kind,
+            r.kind.name(),
+            pt(r.min),
+            pt(r.max),
+            tag(r.tag.as_deref())
+        );
     }
     for (i, p) in h.props.iter().enumerate().filter(|(_, p)| p.level == l) {
         let (lo, hi) = p.corners().iter().fold((Vec2::MAX, Vec2::MIN), |(lo, hi), c| (lo.min(*c), hi.max(*c)));
         let height = p.kind.dim().map_or(String::new(), |d| format!(", {d} {} m", p.height));
         let _ = writeln!(
             s,
-            "  Prop {i} : {:?} ({}) en {}, rot {}°{height}, emprise {} → {}",
+            "  Prop {i} : {:?} ({}) en {}, rot {}°{height}, emprise {} → {}{}",
             p.kind,
             p.kind.name(),
             pt(p.pos),
             p.rot,
             pt(lo),
-            pt(hi)
+            pt(hi),
+            tag(p.tag.as_deref())
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::demo_house;
+
+    #[test]
+    fn tags_are_shown_on_their_element_line() {
+        let mut h = demo_house();
+        h.walls[0].tag = Some("façade".into());
+        h.slabs[0].tag = Some("rdc".into());
+        h.roofs[0].tag = Some("toit".into());
+        h.props[0].tag = Some("salon".into());
+        h.pools[0].tag = Some("jardin".into());
+        h.roads[0].tag = Some("rue".into());
+        let text = describe(&h);
+        for (start, tag) in [
+            ("  Wall 0 :", "façade"),
+            ("  Slab 0 :", "rdc"),
+            ("  Roof 0 :", "toit"),
+            ("  Prop 0 :", "salon"),
+            ("  Pool 0 :", "jardin"),
+            ("  Road 0 :", "rue"),
+        ] {
+            let line = text.lines().find(|l| l.starts_with(start)).unwrap();
+            assert!(line.ends_with(&format!(", tag \"{tag}\"")), "{line}");
+        }
+        assert!(!text.lines().any(|l| l.starts_with("  Wall 1 :") && l.contains("tag")));
     }
 }

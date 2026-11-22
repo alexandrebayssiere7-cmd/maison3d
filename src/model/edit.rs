@@ -214,6 +214,7 @@ mod tests {
             color: WHITE,
             openings: vec![],
             texture: 0,
+            tag: None,
         }
     }
     #[test]

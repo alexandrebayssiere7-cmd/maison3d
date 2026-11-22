@@ -186,6 +186,10 @@ pub struct Wall {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 impl Wall {
@@ -238,6 +242,10 @@ pub struct Slab {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, JsonSchema)]
@@ -262,6 +270,10 @@ pub struct Roof {
     /// Matière (`maison3d textures`), 0 = aucune.
     #[serde(default)]
     pub texture: usize,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 /// Piscine creusée dans le terrain ; coins alignés sur la grille du relief (1 m).
@@ -280,6 +292,10 @@ pub struct Pool {
     pub color: Rgb,
     /// Matière du bassin (`maison3d textures`, « Mosaïque bleue » dans l'éditeur).
     pub texture: usize,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 /// Tronçon de route posé sur le terrain (qui est terrassé dessous à sa création).
@@ -298,6 +314,10 @@ pub struct Road {
     pub color: Rgb,
     /// Matière (`maison3d textures`, « Béton brut » dans l'éditeur).
     pub texture: usize,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 /// Version du format de sauvegarde ; à incrémenter (avec migration dans `House::load`) à chaque changement incompatible.
@@ -623,7 +643,17 @@ impl House {
 pub fn room_walls(min: Vec2, max: Vec2, level: i32, height: f32, thick: f32, color: Rgb) -> Vec<Wall> {
     let c = [min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y)];
     (0..4)
-        .map(|i| Wall { a: c[i], b: c[(i + 1) % 4], level, height, thick, color, openings: vec![], texture: 0 })
+        .map(|i| Wall {
+            a: c[i],
+            b: c[(i + 1) % 4],
+            level,
+            height,
+            thick,
+            color,
+            openings: vec![],
+            texture: 0,
+            tag: None,
+        })
         .collect()
 }
 
@@ -653,6 +683,7 @@ mod tests {
             color: WHITE,
             openings: vec![],
             texture: 0,
+            tag: None,
         }
     }
     #[test]
@@ -673,8 +704,15 @@ mod tests {
     #[test]
     fn outdoor_props_sit_on_roads() {
         let mut h = House::default();
-        h.roads.push(Road { a: Vec2::new(-10.0, 0.0), b: Vec2::new(10.0, 0.0), width: 6.0, color: WHITE, texture: 0 });
-        h.roads.push(Road { a: Vec2::ZERO, b: Vec2::ZERO, width: 6.0, color: WHITE, texture: 0 });
+        h.roads.push(Road {
+            a: Vec2::new(-10.0, 0.0),
+            b: Vec2::new(10.0, 0.0),
+            width: 6.0,
+            color: WHITE,
+            texture: 0,
+            tag: None,
+        });
+        h.roads.push(Road { a: Vec2::ZERO, b: Vec2::ZERO, width: 6.0, color: WHITE, texture: 0, tag: None });
         let at = |kind, z: f32| h.prop_y(&Prop::new(kind, Vec2::new(0.0, z), 0, 0.0));
         assert!((at(PropKind::Crosswalk, 2.9) - 0.06).abs() < 1e-5, "sur la chaussée");
         assert_eq!(at(PropKind::Crosswalk, 3.5), 0.0, "à côté de la route");
@@ -703,8 +741,16 @@ mod tests {
     fn save_format_roundtrips() {
         let mut h = demo_house();
         h.names.push(RoomName { name: "séjour".into(), level: 0, at: Vec2::new(5.0, 4.0) });
+        h.walls[0].tag = Some("façade".into());
+        h.slabs[0].tag = Some("rdc".into());
+        h.roofs[0].tag = Some("toit".into());
+        h.props[0].tag = Some("salon".into());
+        h.pools[0].tag = Some("jardin".into());
+        h.roads[0].tag = Some("rue".into());
         let json = serde_json::to_string(&h).unwrap();
         assert_eq!(serde_json::from_str::<House>(&json).unwrap(), h);
+        let walls = serde_json::to_value(&h.walls[..2]).unwrap();
+        assert!(walls[1].get("tag").is_none(), "sans étiquette, pas de champ dans le fichier");
     }
     #[test]
     fn load_rejects_truncated_terrain() {
@@ -732,6 +778,7 @@ mod tests {
         assert_eq!(h.version, VERSION);
         assert_eq!((h.walls.len(), h.slabs.len(), h.props.len()), (4, 1, 1));
         assert!((h.props[0].scale - 1.0).abs() < f32::EPSILON, "objet sans échelle : 1");
+        assert!(h.walls.iter().all(|w| w.tag.is_none()) && h.props[0].tag.is_none(), "sans étiquette : None");
     }
     #[test]
     fn load_rejects_elements_the_commands_would_refuse() {

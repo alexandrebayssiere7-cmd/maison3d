@@ -77,13 +77,17 @@ pub struct Prop {
     /// toutes les dimensions, `height` comprise (un escalier à l'échelle 2 monte deux fois plus haut).
     #[serde(default = "one")]
     pub scale: f32,
+    /// Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`
+    /// visent d'un coup tous les éléments qui la portent avec `{"tag": "haie-nord"}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 impl Prop {
     /// Objet aux finitions et à la dimension d'origine de sa sorte.
     pub fn new(kind: PropKind, pos: Vec2, level: i32, rot: f32) -> Self {
         let (color, texture, height) = (kind.default_color(), kind.default_texture(), kind.default_height());
-        Prop { kind, pos, level, rot, color, texture, height, finishes: vec![], scale: 1.0 }
+        Prop { kind, pos, level, rot, color, texture, height, finishes: vec![], scale: 1.0, tag: None }
     }
     /// Unit vector pointing to the front of the prop, on the ground.
     pub fn front(&self) -> Vec2 {

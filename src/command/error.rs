@@ -79,6 +79,8 @@ pub enum EditError {
     },
     BadName(String),
     NoSuchName(String),
+    /// Étiquette vide, faite d'espaces ou de plus de 40 caractères.
+    BadTag(String),
 }
 
 impl std::fmt::Display for EditError {
@@ -149,6 +151,7 @@ impl std::fmt::Display for EditError {
                 write!(f, "Aucune pièce nommée « {n} » (noms : `maison3d query <monde.json> rooms`)")
             }
             Self::BadName(n) => write!(f, "Nom de pièce « {n} » refusé : 1 à 40 caractères, pas seulement des espaces"),
+            Self::BadTag(t) => write!(f, "Étiquette « {t} » refusée : 1 à 40 caractères, pas seulement des espaces"),
         }
     }
 }
@@ -209,6 +212,7 @@ mod tests {
             (EditError::TooMany { count: 500, max: 200 }, "500 objets"),
             (EditError::BadName(" ".into()), "1 à 40"),
             (EditError::NoSuchName("cave".into()), "« cave »"),
+            (EditError::BadTag(String::new()), "Étiquette «  » refusée"),
         ];
         for (e, needle) in cases {
             let msg = e.to_string();

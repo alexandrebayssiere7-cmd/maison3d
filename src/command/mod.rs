@@ -377,7 +377,7 @@ impl House {
             RoofKind::Sawtooth => 1.5,
             _ => 2.5,
         };
-        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture })
+        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture, tag: None })
     }
 
     fn generate_checked(
@@ -456,7 +456,7 @@ impl House {
             self.add_wall(w)?;
         }
         let texture = floor_texture.unwrap_or_else(|| find("Parquet chêne clair"));
-        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture })?;
+        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture, tag: None })?;
         match name {
             Some(name) => self.name_room(name, level, (min + max) / 2.0).map(|_| made),
             None => Ok(made),
@@ -707,3 +707,6 @@ mod tests;
 
 #[cfg(test)]
 mod settle_tests;
+
+#[cfg(test)]
+mod tag_tests;

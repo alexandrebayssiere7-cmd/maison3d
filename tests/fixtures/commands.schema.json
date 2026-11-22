@@ -459,6 +459,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -522,6 +529,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -595,6 +609,13 @@
               "format": "uint",
               "minimum": 0,
               "default": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -675,6 +696,13 @@
               "type": "number",
               "format": "float",
               "default": 1.0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -735,6 +763,13 @@
               "type": "integer",
               "format": "uint",
               "minimum": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
@@ -795,6 +830,13 @@
               "type": "integer",
               "format": "uint",
               "minimum": 0
+            },
+            "tag": {
+              "description": "Étiquette libre (1 à 40 caractères, ex. « haie-nord ») : `remove`, `move`, `paint` et `set`\nvisent d'un coup tous les éléments qui la portent avec `{\"tag\": \"haie-nord\"}`.",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false,
