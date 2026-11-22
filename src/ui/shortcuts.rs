@@ -156,6 +156,7 @@ mod tests {
             level: 0,
             rot: 0.0,
             scale: None,
+            tag: None,
         }])
         .unwrap();
         ed.selected = Some(ElemRef::Prop(0));

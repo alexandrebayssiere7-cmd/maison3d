@@ -602,7 +602,14 @@ mod tests {
         let mut h = House::default();
         let before = Counts::of(&h);
         let e = h
-            .apply(Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None })
+            .apply(Command::PlaceProp {
+                kind: PropKind::Lamp,
+                pos: Vec2::ZERO,
+                level: 0,
+                rot: 0.0,
+                scale: None,
+                tag: None,
+            })
             .unwrap();
         let v = step_json(2, &before, &Counts::of(&h), e);
         assert_eq!(
@@ -684,6 +691,7 @@ mod tests {
             wall_texture: None,
             floor_texture: None,
             name: None,
+            tag: None,
         };
         let e = h.apply(room).unwrap();
         assert_eq!(changes(&before, &Counts::of(&h), e), " → créés Wall 0 à 3, créé Slab 0");
@@ -801,6 +809,7 @@ mod tests {
             level: 0,
             rot: 0.0,
             scale: None,
+            tag: None,
         })
         .unwrap();
         h.apply(Command::AddRoad(Road {

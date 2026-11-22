@@ -47,7 +47,8 @@ fn high_level_commands_fill_defaults() {
             thick: None,
             wall_texture: None,
             floor_texture: None,
-            name: None
+            name: None,
+            tag: None,
         })
         .is_err()
     );
@@ -76,8 +77,15 @@ fn furnished() -> House {
         Command::AddWall(wall(0, 4.0)),
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Door, t: 2.0 },
         Command::AddSlab(slab(0, Vec2::ZERO, Vec2::splat(4.0))),
-        Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::splat(4.0), level: 1, kind: RoofKind::Hip, texture: None },
-        Command::PlaceProp { kind: PropKind::Bed, pos: Vec2::ONE, level: 0, rot: 0.0, scale: None },
+        Command::PlaceRoof {
+            min: Vec2::ZERO,
+            max: Vec2::splat(4.0),
+            level: 1,
+            kind: RoofKind::Hip,
+            texture: None,
+            tag: None,
+        },
+        Command::PlaceProp { kind: PropKind::Bed, pos: Vec2::ONE, level: 0, rot: 0.0, scale: None, tag: None },
         Command::AddPool(pool(Vec2::new(10.0, 10.0), Vec2::new(14.0, 12.0))),
         Command::AddRoad(road(Vec2::new(-20.0, 0.0), Vec2::new(-20.0, 30.0))),
     ] {
@@ -105,9 +113,16 @@ fn invalid_additions_are_refused() {
         Command::AddWall(wall(0, 0.01)),
         Command::AddSlab(slab(0, Vec2::ONE, Vec2::ZERO)),
         Command::AddSlab(slab(12, Vec2::ZERO, Vec2::ONE)),
-        Command::PlaceRoof { min: Vec2::ONE, max: Vec2::ONE, level: 1, kind: RoofKind::Flat, texture: None },
-        Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::ONE, level: 10, kind: RoofKind::Flat, texture: None },
-        Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: -2, rot: 0.0, scale: None },
+        Command::PlaceRoof { min: Vec2::ONE, max: Vec2::ONE, level: 1, kind: RoofKind::Flat, texture: None, tag: None },
+        Command::PlaceRoof {
+            min: Vec2::ZERO,
+            max: Vec2::ONE,
+            level: 10,
+            kind: RoofKind::Flat,
+            texture: None,
+            tag: None,
+        },
+        Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: -2, rot: 0.0, scale: None, tag: None },
         Command::AddPool(pool(Vec2::new(0.5, 0.0), Vec2::new(3.0, 3.0))),
         Command::AddPool(pool(Vec2::new(3.0, 0.0), Vec2::new(0.0, 3.0))),
         Command::AddRoad(road(Vec2::ONE, Vec2::ONE)),
@@ -369,14 +384,22 @@ fn every_command_roundtrips_through_json() {
             wall_texture: None,
             floor_texture: None,
             name: Some("salon".into()),
+            tag: Some("maison".into()),
         },
         Command::NameRoom { name: "cuisine".into(), level: 0, at: Vec2::ONE },
         Command::UnnameRoom { name: "cuisine".into() },
         Command::PlaceOpening { wall: 0, kind: OpeningKind::Window, t: 1.5 },
-        Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0, scale: Some(1.5) },
-        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: Some(Side::Left) },
-        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: None },
-        Command::PlaceRoof { min: Vec2::ZERO, max: Vec2::ONE, level: 1, kind: RoofKind::Shed, texture: None },
+        Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ONE, level: 1, rot: 45.0, scale: Some(1.5), tag: None },
+        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: Some(Side::Left), tag: None },
+        Command::PlaceAgainst { kind: PropKind::Bed, wall: 0, t: 2.0, side: None, tag: None },
+        Command::PlaceRoof {
+            min: Vec2::ZERO,
+            max: Vec2::ONE,
+            level: 1,
+            kind: RoofKind::Shed,
+            texture: None,
+            tag: None,
+        },
         Command::AddWall(h.walls[0].clone()),
         Command::AddSlab(h.slabs[0].clone()),
         Command::AddRoof(h.roofs[0].clone()),
@@ -398,7 +421,15 @@ fn every_command_roundtrips_through_json() {
             color: Some([0.1, 0.2, 0.3]),
             texture: None,
         },
-        Command::PlaceRow { kind: PropKind::Hedge, from: Vec2::ZERO, to: Vec2::X, step: 2.0, level: 0, rot: None },
+        Command::PlaceRow {
+            kind: PropKind::Hedge,
+            from: Vec2::ZERO,
+            to: Vec2::X,
+            step: 2.0,
+            level: 0,
+            rot: None,
+            tag: Some("haie".into()),
+        },
         Command::Set { target: ElemRef::Prop(0).into(), fields: serde_json::from_str(r#"{"height": 2}"#).unwrap() },
     ];
     for c in cmds {
@@ -470,7 +501,7 @@ fn unknown_fields_and_typos_are_refused() {
 }
 
 fn against(kind: PropKind, wall: usize, t: f32, side: Option<Side>) -> Command {
-    Command::PlaceAgainst { kind, wall, t, side }
+    Command::PlaceAgainst { kind, wall, t, side, tag: None }
 }
 
 /// Bornes `[x, z]` de l'emprise au sol d'un objet posé.
@@ -726,32 +757,49 @@ mod props {
         ]
     }
 
+    /// Étiquette absente, ou l'une de deux, pour que des cibles `{"tag": …}` touchent parfois.
+    fn tag() -> impl Strategy<Value = Option<String>> {
+        prop::option::of(prop::sample::select(&["a", "b"][..]).prop_map(String::from))
+    }
+
+    /// Un élément, ou une étiquette qui en désigne parfois plusieurs, parfois aucun.
+    fn any_target() -> impl Strategy<Value = Target> {
+        prop_oneof![target().prop_map(Target::from), tag().prop_map(|t| Target::Tag { tag: t.unwrap_or_default() })]
+    }
+
+    fn room() -> impl Strategy<Value = Command> {
+        (corner(), corner(), -3..12i32, tag()).prop_map(|(min, max, level, tag)| Command::Room {
+            min,
+            max,
+            level,
+            height: None,
+            thick: None,
+            wall_texture: None,
+            floor_texture: None,
+            name: None,
+            tag,
+        })
+    }
+
     fn command() -> impl Strategy<Value = Command> {
         let level = -3..12i32;
         prop_oneof![
-            (corner(), corner(), level.clone()).prop_map(|(min, max, level)| Command::Room {
-                min,
-                max,
-                level,
-                height: None,
-                thick: None,
-                wall_texture: None,
-                floor_texture: None,
-                name: None
-            }),
+            room(),
             (0..6usize, prop::sample::select(&OpeningKind::ALL[..]), -1.0f32..6.0)
                 .prop_map(|(wall, kind, t)| Command::PlaceOpening { wall, kind, t }),
-            (prop::sample::select(&PropKind::ALL[..]), v2(), level.clone(), -400.0f32..400.0)
-                .prop_map(|(kind, pos, level, rot)| Command::PlaceProp { kind, pos, level, rot, scale: None }),
+            (prop::sample::select(&PropKind::ALL[..]), v2(), level.clone(), -400.0f32..400.0, tag()).prop_map(
+                |(kind, pos, level, rot, tag)| Command::PlaceProp { kind, pos, level, rot, scale: None, tag }
+            ),
             (
                 prop::sample::select(&PropKind::ALL[..]),
                 0..6usize,
                 -1.0f32..6.0,
                 prop::option::of(prop::sample::select(&[Side::Left, Side::Right][..]))
             )
-                .prop_map(|(kind, wall, t, side)| Command::PlaceAgainst { kind, wall, t, side }),
-            (corner(), corner(), level.clone(), prop::sample::select(&RoofKind::ALL[..]))
-                .prop_map(|(min, max, level, kind)| Command::PlaceRoof { min, max, level, kind, texture: None }),
+                .prop_map(|(kind, wall, t, side)| Command::PlaceAgainst { kind, wall, t, side, tag: None }),
+            (corner(), corner(), level.clone(), prop::sample::select(&RoofKind::ALL[..])).prop_map(
+                |(min, max, level, kind)| Command::PlaceRoof { min, max, level, kind, texture: None, tag: None }
+            ),
             (v2(), v2(), level.clone()).prop_map(|(a, b, level)| {
                 let mut w = wall(level, 1.0);
                 (w.a, w.b) = (a, b);
@@ -809,22 +857,25 @@ mod props {
                         opening: Opening { kind, t, width, height, sill, color, texture, finishes },
                     }
                 }),
-            target().prop_map(|target| Command::Remove { target: target.into() }),
-            (target(), v2()).prop_map(|(target, by)| Command::Move { target: target.into(), by }),
+            any_target().prop_map(|target| Command::Remove { target }),
+            (any_target(), v2()).prop_map(|(target, by)| Command::Move { target, by }),
             (target(), v2()).prop_map(|(target, by)| Command::Duplicate { target, by }),
             (target(), -400.0f32..400.0).prop_map(|(target, deg)| Command::Rotate { target, deg }),
-            (target(), -2.0f32..8.0).prop_map(|(target, v)| Command::Set {
-                target: target.into(),
+            (any_target(), -2.0f32..8.0).prop_map(|(target, v)| Command::Set {
+                target,
                 fields: serde_json::from_value(serde_json::json!({ "height": v })).unwrap(),
             }),
-            (prop::sample::select(&PropKind::ALL[..]), v2(), v2(), 0.5f32..5.0, level)
-                .prop_map(|(kind, from, to, step, level)| Command::PlaceRow { kind, from, to, step, level, rot: None }),
-            (target(), target(), any::<bool>(), 0..10usize, 0..8usize).prop_map(|(a, b, c, t, part)| Command::Paint {
-                target: Some(a.into()),
-                targets: vec![b.into()],
-                part,
-                color: c.then_some([0.5, 0.2, 0.1]),
-                texture: Some(t),
+            (prop::sample::select(&PropKind::ALL[..]), v2(), v2(), 0.5f32..5.0, level).prop_map(
+                |(kind, from, to, step, level)| Command::PlaceRow { kind, from, to, step, level, rot: None, tag: None }
+            ),
+            (target(), any_target(), any::<bool>(), 0..10usize, 0..8usize).prop_map(|(a, b, c, t, part)| {
+                Command::Paint {
+                    target: Some(a.into()),
+                    targets: vec![b],
+                    part,
+                    color: c.then_some([0.5, 0.2, 0.1]),
+                    texture: Some(t),
+                }
             }),
         ]
     }

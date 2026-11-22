@@ -87,6 +87,14 @@
                 "null"
               ],
               "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur les 4 murs et le sol (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -223,6 +231,14 @@
               ],
               "format": "float",
               "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -264,6 +280,14 @@
                 {
                   "type": "null"
                 }
+              ],
+              "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
               ],
               "default": null
             }
@@ -325,6 +349,14 @@
               ],
               "format": "float",
               "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur chaque objet de la rangée (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             }
           },
           "additionalProperties": false,
@@ -381,6 +413,14 @@
               ],
               "format": "uint",
               "minimum": 0,
+              "default": null
+            },
+            "tag": {
+              "description": "Étiquette posée sur le toit (voir `remove`), 1 à 40 caractères.",
+              "type": [
+                "string",
+                "null"
+              ],
               "default": null
             }
           },

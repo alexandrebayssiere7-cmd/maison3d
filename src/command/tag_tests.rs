@@ -154,3 +154,33 @@ fn a_failure_on_one_tagged_element_leaves_the_house_intact() {
     assert!(matches!(err, Err(EditError::OutOfWorld(_))), "{err:?}");
     assert_eq!(h, before);
 }
+
+#[test]
+fn room_and_place_commands_tag_everything_they_create() {
+    let mut h = House::default();
+    for c in [
+        r#"{"op":"room","min":[0,0],"max":[5,4],"level":0,"tag":"maison"}"#,
+        r#"{"op":"place_roof","min":[0,0],"max":[5,4],"level":1,"kind":"Gable","tag":"maison"}"#,
+        r#"{"op":"place_prop","kind":"Sofa","pos":[2,2],"level":0,"tag":"salon"}"#,
+        r#"{"op":"place_against","kind":"Bed","wall":0,"t":2.5,"tag":"salon"}"#,
+        r#"{"op":"place_row","kind":"Hedge","from":[-10,8],"to":[-4,8],"step":2,"level":0,"tag":"haie"}"#,
+        r#"{"op":"place_prop","kind":"Lamp","pos":[3,3],"level":0}"#,
+    ] {
+        h.apply(json(c)).unwrap();
+    }
+    assert!(h.walls.iter().all(|w| w.tag.as_deref() == Some("maison")));
+    assert_eq!((h.slabs[0].tag.as_deref(), h.roofs[0].tag.as_deref()), (Some("maison"), Some("maison")));
+    let tags: Vec<_> = h.props.iter().map(|p| p.tag.as_deref()).collect();
+    let haie = Some("haie");
+    assert_eq!(tags, [Some("salon"), Some("salon"), haie, haie, haie, haie, None]);
+    let maison = h.resolve(&Target::Tag { tag: "maison".into() }).unwrap();
+    assert_eq!(maison.len(), 6, "4 murs, le sol et le toit");
+}
+
+#[test]
+fn a_bad_tag_in_room_cancels_the_whole_room() {
+    let mut h = House::default();
+    let err = h.apply(json(r#"{"op":"room","min":[0,0],"max":[5,4],"level":0,"tag":" "}"#));
+    assert_eq!(err, Err(EditError::BadTag(" ".into())));
+    assert_eq!(h, House::default());
+}

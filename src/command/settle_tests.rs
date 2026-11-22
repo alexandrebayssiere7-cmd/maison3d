@@ -70,7 +70,8 @@ fn moved_ground_floor_wall_flattens_the_relief_under_it() {
     let before = h.terrain.h.clone();
     h.apply(Command::AddWall(Wall { level: 1, ..w })).unwrap();
     h.apply(Command::PlaceOpening { wall: 1, kind: OpeningKind::Window, t: 3.0 }).unwrap();
-    h.apply(Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None }).unwrap();
+    h.apply(Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None, tag: None })
+        .unwrap();
     for target in [ElemRef::Wall(1), ElemRef::Opening(1, 0), ElemRef::Prop(0)] {
         h.apply(Command::Move { target: target.into(), by: Vec2::new(0.5, 0.0) }).unwrap();
     }

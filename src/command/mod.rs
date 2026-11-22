@@ -69,6 +69,9 @@ pub enum Command {
         /// Nom de la pièce (« cuisine », « chambre 1 »), posé en son centre comme `name_room`.
         #[serde(default)]
         name: Option<String>,
+        /// Étiquette posée sur les 4 murs et le sol (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Nomme la pièce qui contient le point `at` : l'espace fermé par les murs autour de lui,
     /// cloisons comprises. `maison3d query` la retrouve ensuite par ce nom. Redonner un nom déjà
@@ -115,6 +118,9 @@ pub enum Command {
         /// Échelle uniforme, 0,2 à 5 (1 par défaut) : multiplie toutes les dimensions de l'objet.
         #[serde(default)]
         scale: Option<f32>,
+        /// Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Objet posé dos à un mur, avant tourné à l'opposé du mur, sur l'étage du mur : `pos` et
     /// `rot` sont calculés (arrière contre la face du mur). Refusé si l'objet dépasse du mur en
@@ -129,6 +135,9 @@ pub enum Command {
         /// le mur ; refusé si les deux côtés en ont un (cloison) ou aucun.
         #[serde(default)]
         side: Option<Side>,
+        /// Étiquette posée sur l'objet (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Rangée d'objets identiques posés de `from` à `to` (extrémités comprises) tous les `step`
     /// mètres : haie, clôture, arbres d'alignement, lampadaires. Renvoie le dernier posé.
@@ -150,6 +159,9 @@ pub enum Command {
         /// direction `from` → `to`).
         #[serde(default)]
         rot: Option<f32>,
+        /// Étiquette posée sur chaque objet de la rangée (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Toit de 2,5 m de haut (1,5 m pour des sheds, 1,2 m pour un papillon, 30 cm pour un toit
     /// plat) avec 50 cm de débord. Il se pose à la base de `level` : pour couvrir
@@ -167,6 +179,9 @@ pub enum Command {
         /// Matière (« Tuiles terre cuite » par défaut, « Zinc » pour un toit plat).
         #[serde(default)]
         texture: Option<usize>,
+        /// Étiquette posée sur le toit (voir `remove`), 1 à 40 caractères.
+        #[serde(default)]
+        tag: Option<String>,
     },
     /// Mur droit, tous champs explicites. Pour une cloison intérieure, mettre ses extrémités sur
     /// les murs existants. Au rez-de-chaussée, le relief est aplani autour.
@@ -324,22 +339,24 @@ impl House {
             self.found(target)?;
         }
         match cmd {
-            Command::Room { min, max, level, height, thick, wall_texture, floor_texture, name } => {
+            Command::Room { min, max, level, height, thick, wall_texture, floor_texture, name, tag } => {
                 let walls = (height.unwrap_or(LEVEL_H), thick.unwrap_or(0.2));
                 let textures = (wall_texture.unwrap_or_else(|| find("Crépi blanc")), floor_texture);
-                self.add_room(min, max, level, walls, textures, name)
+                self.add_room(min, max, level, walls, textures, (name, tag))
             }
             Command::NameRoom { name, level, at } => self.name_room(name, level, at),
             Command::UnnameRoom { name } => self.unname_room(name),
             Command::PlaceOpening { wall, kind, t } => self.add_opening(wall, Opening::new(kind, t)),
-            Command::PlaceProp { kind, pos, level, rot, scale } => {
-                self.add_prop(Prop { scale: scale.unwrap_or(1.0), ..Prop::new(kind, pos, level, rot) })
+            Command::PlaceProp { kind, pos, level, rot, scale, tag } => {
+                self.add_prop(Prop { scale: scale.unwrap_or(1.0), tag, ..Prop::new(kind, pos, level, rot) })
             }
-            Command::PlaceAgainst { kind, wall, t, side } => self.place_against(kind, wall, t, side),
-            Command::PlaceRow { kind, from, to, step, level, rot } => {
-                self.place_row(kind, (from, to), step, level, rot)
+            Command::PlaceAgainst { kind, wall, t, side, tag } => self.place_against(kind, wall, t, side, tag),
+            Command::PlaceRow { kind, from, to, step, level, rot, tag } => {
+                self.place_row(kind, (from, to), step, level, (rot, tag))
             }
-            Command::PlaceRoof { min, max, level, kind, texture } => self.place_roof((min, max), level, kind, texture),
+            Command::PlaceRoof { min, max, level, kind, texture, tag } => {
+                self.place_roof((min, max), level, kind, texture, tag)
+            }
             Command::AddWall(w) => self.add_wall(w),
             Command::AddSlab(s) => self.add_slab(s),
             Command::AddRoof(r) => self.add_roof(r),
@@ -374,6 +391,7 @@ impl House {
         level: i32,
         kind: RoofKind,
         texture: Option<usize>,
+        tag: Option<String>,
     ) -> Result<Option<ElemRef>, EditError> {
         let flat = kind == RoofKind::Flat;
         let texture = texture.unwrap_or_else(|| find(if flat { "Zinc" } else { "Tuiles terre cuite" }));
@@ -383,7 +401,7 @@ impl House {
             RoofKind::Sawtooth => 1.5,
             _ => 2.5,
         };
-        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture, tag: None })
+        self.add_roof(Roof { min, max, level, kind, height, overhang: 0.5, color: WHITE_TEX, texture, tag })
     }
 
     fn generate_checked(
@@ -454,15 +472,16 @@ impl House {
         level: i32,
         (height, thick): (f32, f32),
         (wall_texture, floor_texture): (usize, Option<usize>),
-        name: Option<String>,
+        (name, tag): (Option<String>, Option<String>),
     ) -> Result<Option<ElemRef>, EditError> {
         validate::rect(min, max)?;
         for mut w in room_walls(min, max, level, height, thick, WHITE_TEX) {
             w.texture = wall_texture;
+            w.tag.clone_from(&tag);
             self.add_wall(w)?;
         }
         let texture = floor_texture.unwrap_or_else(|| find("Parquet chêne clair"));
-        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture, tag: None })?;
+        let made = self.add_slab(Slab { min, max, level, color: WHITE_TEX, texture, tag })?;
         match name {
             Some(name) => self.name_room(name, level, (min + max) / 2.0).map(|_| made),
             None => Ok(made),
@@ -563,11 +582,12 @@ impl House {
         wall: usize,
         t: f32,
         side: Option<Side>,
+        tag: Option<String>,
     ) -> Result<Option<ElemRef>, EditError> {
         let n = self.walls.len();
         let w = self.walls.get(wall).ok_or(EditError::WallNotFound(wall, n))?;
         let side = side.or_else(|| self.floor_side(w, t)).ok_or(EditError::SideUnknown(wall))?;
-        let p = Prop::against(kind, w, t, side);
+        let p = Prop { tag, ..Prop::against(kind, w, t, side) };
         let (lo, hi) = p.local_box();
         // même marge qu'une ouverture : l'objet ne mord pas sur les murs perpendiculaires
         let (t_min, t_max) = w.t_range(2.0 * hi.x.max(-lo.x));
@@ -590,7 +610,7 @@ impl House {
         (from, to): (Vec2, Vec2),
         step: f32,
         level: i32,
-        rot: Option<f32>,
+        (rot, tag): (Option<f32>, Option<String>),
     ) -> Result<Option<ElemRef>, EditError> {
         validate::range("step", step, 0.1, 2.0 * crate::terrain::HALF)?;
         let d = to - from;
@@ -603,7 +623,7 @@ impl House {
         let mut last = None;
         for k in 0..count {
             let pos = from + d.normalize_or_zero() * step * k as f32;
-            last = self.add_prop(Prop::new(kind, pos, level, rot))?;
+            last = self.add_prop(Prop { tag: tag.clone(), ..Prop::new(kind, pos, level, rot) })?;
         }
         Ok(last)
     }
