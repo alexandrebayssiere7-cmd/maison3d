@@ -18,7 +18,7 @@ fn json_commands_build_a_room() {
     assert_eq!(h.apply(it.next().unwrap()), Ok(Some(ElemRef::Opening(0, 0))));
     // chevauche la première porte
     assert!(h.apply(it.next().unwrap()).is_err());
-    assert!(h.apply(Command::Remove { target: ElemRef::Prop(3) }).is_err());
+    assert!(h.apply(Command::Remove { target: ElemRef::Prop(3).into() }).is_err());
 }
 
 #[test]
@@ -145,11 +145,11 @@ fn missing_targets_are_refused() {
     let mut h = House::default();
     for target in ALL_REFS {
         for c in [
-            Command::Remove { target },
-            Command::Move { target, by: Vec2::X },
+            Command::Remove { target: target.into() },
+            Command::Move { target: target.into(), by: Vec2::X },
             Command::Duplicate { target, by: Vec2::X },
             Command::Rotate { target, deg: 90.0 },
-            Command::Paint { target: Some(target), targets: vec![], part: 0, color: None, texture: None },
+            Command::Paint { target: Some(target.into()), targets: vec![], part: 0, color: None, texture: None },
         ] {
             assert!(matches!(h.apply(c), Err(EditError::NotFound(t, 0)) if t == target));
         }
@@ -161,7 +161,7 @@ fn move_and_duplicate_every_kind() {
     let mut h = furnished();
     for target in ALL_REFS {
         let before = h.clone();
-        assert_eq!(h.apply(Command::Move { target, by: Vec2::new(0.5, 0.0) }), Ok(Some(target)));
+        assert_eq!(h.apply(Command::Move { target: target.into(), by: Vec2::new(0.5, 0.0) }), Ok(Some(target)));
         assert_ne!(h, before, "{target:?} n'a pas bougé");
     }
     assert_eq!(h.walls[0].openings[0].t, 2.5);
@@ -231,7 +231,7 @@ fn paint_sets_color_and_texture_when_given() {
     let mut h = furnished();
     let red = [1.0, 0.0, 0.0];
     h.apply(Command::Paint {
-        target: Some(ElemRef::Slab(0)),
+        target: Some(ElemRef::Slab(0).into()),
         targets: vec![],
         part: 0,
         color: Some(red),
@@ -239,11 +239,17 @@ fn paint_sets_color_and_texture_when_given() {
     })
     .unwrap();
     assert_eq!((h.slabs[0].color, h.slabs[0].texture), (red, 3));
-    h.apply(Command::Paint { target: Some(ElemRef::Slab(0)), targets: vec![], part: 0, color: None, texture: Some(5) })
-        .unwrap();
+    h.apply(Command::Paint {
+        target: Some(ElemRef::Slab(0).into()),
+        targets: vec![],
+        part: 0,
+        color: None,
+        texture: Some(5),
+    })
+    .unwrap();
     assert_eq!((h.slabs[0].color, h.slabs[0].texture), (red, 5));
     h.apply(Command::Paint {
-        target: Some(ElemRef::Opening(0, 0)),
+        target: Some(ElemRef::Opening(0, 0).into()),
         targets: vec![],
         part: 0,
         color: Some(red),
@@ -261,7 +267,7 @@ fn paint_reaches_each_part_and_refuses_missing_ones() {
     let car = ElemRef::Prop(i);
     let tyres = PropKind::Car.slots().len() - 1;
     h.apply(Command::Paint {
-        target: Some(car),
+        target: Some(car.into()),
         targets: vec![],
         part: tyres,
         color: Some([1.0, 1.0, 0.0]),
@@ -272,7 +278,7 @@ fn paint_reaches_each_part_and_refuses_missing_ones() {
     assert_eq!(h.props[i].color, PropKind::Car.default_color(), "la carrosserie ne change pas");
     let before = h.clone();
     let err = h.apply(Command::Paint {
-        target: Some(car),
+        target: Some(car.into()),
         targets: vec![],
         part: tyres + 1,
         color: Some([0.0; 3]),
@@ -280,7 +286,7 @@ fn paint_reaches_each_part_and_refuses_missing_ones() {
     });
     assert!(matches!(err, Err(EditError::NoSuchPart { count, .. }) if count == tyres + 1));
     let err = h.apply(Command::Paint {
-        target: Some(ElemRef::Wall(0)),
+        target: Some(ElemRef::Wall(0).into()),
         targets: vec![],
         part: 1,
         color: Some([0.0; 3]),
@@ -307,7 +313,7 @@ fn paint_targets_paints_every_element_or_none() {
     assert_eq!(h.slabs[0].texture, 4);
 
     let before = h.clone();
-    let targets = vec![ElemRef::Wall(3), ElemRef::Wall(99)];
+    let targets = vec![ElemRef::Wall(3).into(), ElemRef::Wall(99).into()];
     let err = h.apply(Command::Paint { target: None, targets, part: 0, color: Some([0.0; 3]), texture: None });
     assert!(matches!(err, Err(EditError::NotFound(ElemRef::Wall(99), 4))));
     assert_eq!(h, before, "le mur 3 n'est pas repeint non plus");
@@ -324,7 +330,7 @@ fn finishes_given_by_add_or_set_are_validated() {
     assert_eq!(h.props[i].finish(1).color, [0.0; 3]);
     let two = serde_json::json!({ "finishes": [{"color": [0, 0, 0]}, {"color": [0, 0, 0]}] });
     let set = |fields: serde_json::Value| Command::Set {
-        target: ElemRef::Prop(i),
+        target: ElemRef::Prop(i).into(),
         fields: serde_json::from_value(fields).unwrap(),
     };
     assert!(matches!(h.apply(set(two)), Err(EditError::TooManyFinishes { count: 2, max: 1 })));
@@ -340,7 +346,7 @@ fn finishes_given_by_add_or_set_are_validated() {
 #[test]
 fn remove_storey_and_terrain_commands() {
     let mut h = furnished();
-    h.apply(Command::Remove { target: ElemRef::Opening(0, 0) }).unwrap();
+    h.apply(Command::Remove { target: ElemRef::Opening(0, 0).into() }).unwrap();
     assert_eq!(h.walls[0].openings, []);
     h.apply(Command::AddStorey { level: 0, min: None, max: None }).unwrap();
     assert_eq!(h.walls.iter().filter(|w| w.level == 1).count(), 1);
@@ -381,19 +387,19 @@ fn every_command_roundtrips_through_json() {
         Command::AddStorey { level: 2, min: None, max: None },
         Command::GenerateTerrain { seed: 3, amp: 2.5, scale: 20.0, mountains: false },
         Command::FlattenTerrain,
-        Command::Remove { target: ElemRef::Opening(1, 2) },
-        Command::Move { target: ElemRef::Road(0), by: Vec2::new(0.5, -1.0) },
+        Command::Remove { target: ElemRef::Opening(1, 2).into() },
+        Command::Move { target: ElemRef::Road(0).into(), by: Vec2::new(0.5, -1.0) },
         Command::Duplicate { target: ElemRef::Pool(0), by: Vec2::Y },
         Command::Rotate { target: ElemRef::Prop(0), deg: -90.0 },
         Command::Paint {
-            target: Some(ElemRef::Wall(0)),
+            target: Some(ElemRef::Wall(0).into()),
             targets: vec![],
             part: 0,
             color: Some([0.1, 0.2, 0.3]),
             texture: None,
         },
         Command::PlaceRow { kind: PropKind::Hedge, from: Vec2::ZERO, to: Vec2::X, step: 2.0, level: 0, rot: None },
-        Command::Set { target: ElemRef::Prop(0), fields: serde_json::from_str(r#"{"height": 2}"#).unwrap() },
+        Command::Set { target: ElemRef::Prop(0).into(), fields: serde_json::from_str(r#"{"height": 2}"#).unwrap() },
     ];
     for c in cmds {
         let json = serde_json::to_string(&c).unwrap();
@@ -533,16 +539,16 @@ fn opening_errors_say_why() {
 fn set_changes_fields_in_place_and_validates() {
     let mut h = furnished();
     let set = |target, fields: &str| Command::Set { target, fields: serde_json::from_str(fields).unwrap() };
-    assert_eq!(h.apply(set(ElemRef::Prop(0), r#"{"height": 4.5, "rot": 90}"#)), Ok(Some(ElemRef::Prop(0))));
+    assert_eq!(h.apply(set(ElemRef::Prop(0).into(), r#"{"height": 4.5, "rot": 90}"#)), Ok(Some(ElemRef::Prop(0))));
     assert_eq!((h.props[0].height, h.props[0].rot), (4.5, 90.0));
-    h.apply(set(ElemRef::Opening(0, 0), r#"{"width": 1.2}"#)).unwrap();
+    h.apply(set(ElemRef::Opening(0, 0).into(), r#"{"width": 1.2}"#)).unwrap();
     assert_eq!(h.walls[0].openings[0].width, 1.2);
-    h.apply(set(ElemRef::Road(0), r#"{"width": 6}"#)).unwrap();
+    h.apply(set(ElemRef::Road(0).into(), r#"{"width": 6}"#)).unwrap();
     assert_eq!(h.roads[0].width, 6.0);
-    h.apply(set(ElemRef::Roof(0), r#"{"overhang": 0.2, "kind": "Flat"}"#)).unwrap();
+    h.apply(set(ElemRef::Roof(0).into(), r#"{"overhang": 0.2, "kind": "Flat"}"#)).unwrap();
     assert_eq!((h.roofs[0].overhang, h.roofs[0].kind), (0.2, RoofKind::Flat));
     // une piscine agrandie est recreusée : son nouveau coin est au fond
-    h.apply(set(ElemRef::Pool(0), r#"{"max": [16, 12], "depth": 2}"#)).unwrap();
+    h.apply(set(ElemRef::Pool(0).into(), r#"{"max": [16, 12], "depth": 2}"#)).unwrap();
     assert_eq!(h.pools[0].depth, 2.0);
     assert!(h.ground(Vec2::new(15.5, 11.0)) < -1.0);
     let before = h.clone();
@@ -552,7 +558,7 @@ fn set_changes_fields_in_place_and_validates() {
         (ElemRef::Slab(0), r#"{"min": "nord"}"#),
         (ElemRef::Opening(0, 0), r#"{"t": 9}"#),
     ] {
-        assert!(h.apply(set(target, bad)).is_err(), "{bad}");
+        assert!(h.apply(set(target.into(), bad)).is_err(), "{bad}");
     }
     assert_eq!(h, before);
 }
@@ -803,19 +809,19 @@ mod props {
                         opening: Opening { kind, t, width, height, sill, color, texture, finishes },
                     }
                 }),
-            target().prop_map(|target| Command::Remove { target }),
-            (target(), v2()).prop_map(|(target, by)| Command::Move { target, by }),
+            target().prop_map(|target| Command::Remove { target: target.into() }),
+            (target(), v2()).prop_map(|(target, by)| Command::Move { target: target.into(), by }),
             (target(), v2()).prop_map(|(target, by)| Command::Duplicate { target, by }),
             (target(), -400.0f32..400.0).prop_map(|(target, deg)| Command::Rotate { target, deg }),
             (target(), -2.0f32..8.0).prop_map(|(target, v)| Command::Set {
-                target,
+                target: target.into(),
                 fields: serde_json::from_value(serde_json::json!({ "height": v })).unwrap(),
             }),
             (prop::sample::select(&PropKind::ALL[..]), v2(), v2(), 0.5f32..5.0, level)
                 .prop_map(|(kind, from, to, step, level)| Command::PlaceRow { kind, from, to, step, level, rot: None }),
             (target(), target(), any::<bool>(), 0..10usize, 0..8usize).prop_map(|(a, b, c, t, part)| Command::Paint {
-                target: Some(a),
-                targets: vec![b],
+                target: Some(a.into()),
+                targets: vec![b.into()],
                 part,
                 color: c.then_some([0.5, 0.2, 0.1]),
                 texture: Some(t),

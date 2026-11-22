@@ -81,6 +81,8 @@ pub enum EditError {
     NoSuchName(String),
     /// Étiquette vide, faite d'espaces ou de plus de 40 caractères.
     BadTag(String),
+    /// Cible `{"tag": …}` qu'aucun élément ne porte.
+    NoSuchTag(String),
 }
 
 impl std::fmt::Display for EditError {
@@ -147,11 +149,24 @@ impl std::fmt::Display for EditError {
             ),
             Self::BadFields(e) => write!(f, "Champs refusés par set : {e}"),
             Self::TooMany { count, max } => write!(f, "{count} objets demandés, {max} au plus par rangée"),
-            Self::NoSuchName(n) => {
-                write!(f, "Aucune pièce nommée « {n} » (noms : `maison3d query <monde.json> rooms`)")
+            Self::NoSuchName(s) | Self::BadName(s) | Self::NoSuchTag(s) | Self::BadTag(s) => self.fmt_label(f, s),
+        }
+    }
+}
+
+impl EditError {
+    /// Message des erreurs sur un nom de pièce ou une étiquette `s` (à part : `fmt` resterait
+    /// sinon au-dessus du score CRAP permis).
+    fn fmt_label(&self, f: &mut std::fmt::Formatter, s: &str) -> std::fmt::Result {
+        match self {
+            Self::NoSuchName(_) => {
+                write!(f, "Aucune pièce nommée « {s} » (noms : `maison3d query <monde.json> rooms`)")
             }
-            Self::BadName(n) => write!(f, "Nom de pièce « {n} » refusé : 1 à 40 caractères, pas seulement des espaces"),
-            Self::BadTag(t) => write!(f, "Étiquette « {t} » refusée : 1 à 40 caractères, pas seulement des espaces"),
+            Self::BadName(_) => write!(f, "Nom de pièce « {s} » refusé : 1 à 40 caractères, pas seulement des espaces"),
+            Self::NoSuchTag(_) => {
+                write!(f, "Aucun élément ne porte l'étiquette « {s} » (étiquettes : `maison3d describe`)")
+            }
+            _ => write!(f, "Étiquette « {s} » refusée : 1 à 40 caractères, pas seulement des espaces"),
         }
     }
 }
@@ -213,6 +228,7 @@ mod tests {
             (EditError::BadName(" ".into()), "1 à 40"),
             (EditError::NoSuchName("cave".into()), "« cave »"),
             (EditError::BadTag(String::new()), "Étiquette «  » refusée"),
+            (EditError::NoSuchTag("haie".into()), "« haie »"),
         ];
         for (e, needle) in cases {
             let msg = e.to_string();

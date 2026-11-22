@@ -154,7 +154,7 @@ impl Editor {
             && orig != self.house
         {
             self.house = orig;
-            if self.apply([Command::Move { target, by }]).is_ok() {
+            if self.apply([Command::Move { target: target.into(), by }]).is_ok() {
                 self.message = "Élément déplacé".into();
             }
         }
@@ -263,7 +263,7 @@ impl Editor {
             Tool::Paint => {
                 let (color, texture) = (Some(self.paint_color), Some(self.paint_texture));
                 // refus déjà affiché dans le message par Editor::apply
-                let _ = self.apply([Command::Paint { target: Some(e), targets: vec![], part, color, texture }]);
+                let _ = self.apply([Command::Paint { target: Some(e.into()), targets: vec![], part, color, texture }]);
             }
             Tool::Eyedropper => {
                 if let Some((c, t)) = self.house.finish_mut(e, part) {
@@ -274,7 +274,7 @@ impl Editor {
             }
             _ => {
                 // refus déjà affiché dans le message par Editor::apply
-                let _ = self.apply([Command::Remove { target: e }]);
+                let _ = self.apply([Command::Remove { target: e.into() }]);
                 self.selected = None;
             }
         }
@@ -380,7 +380,7 @@ mod tests {
         let mut ed = with_table();
         ed.select_input(Some(Vec2::ZERO), Some(ElemRef::Prop(0)), true, true);
         ed.select_input(Some(v(2.0, 1.0)), None, false, true);
-        let err = ed.apply([Command::Remove { target: ElemRef::Wall(3) }]).unwrap_err();
+        let err = ed.apply([Command::Remove { target: ElemRef::Wall(3).into() }]).unwrap_err();
         assert!(matches!(err, crate::editor::EditError::NotFound(ElemRef::Wall(3), _)), "{err}");
         ed.select_input(Some(v(3.0, 1.0)), None, false, false);
         assert_eq!(ed.house, with_table().house);
@@ -550,7 +550,7 @@ mod tests {
         ed.sculpt_input(Some(Vec2::ZERO), true, true, 0.1);
         let sculpted = ed.house.terrain.height(Vec2::ZERO);
         // a refused command makes no undo point: the gesture goes on
-        let res = ed.apply([Command::Remove { target: ElemRef::Wall(9) }]);
+        let res = ed.apply([Command::Remove { target: ElemRef::Wall(9).into() }]);
         assert!(matches!(res, Err(crate::command::EditError::NotFound(ElemRef::Wall(9), 0))), "{res:?}");
         ed.sculpt_input(Some(Vec2::ZERO), false, true, 0.1);
         let h = ed.house.terrain.height(Vec2::ZERO);

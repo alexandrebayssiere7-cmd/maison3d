@@ -32,7 +32,7 @@ fn moved_road_is_graded_at_its_new_place() {
     let r = road(Vec2::new(-40.0, -20.0), Vec2::new(-20.0, -20.0));
     assert!(road_gap(&h, &moved(&r)) > 0.5, "le relief doit croiser la route déplacée");
     h.apply(Command::AddRoad(r.clone())).unwrap();
-    h.apply(Command::Move { target: ElemRef::Road(0), by: BY }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Road(0).into(), by: BY }).unwrap();
     assert!(road_gap(&h, &h.roads[0]) < 0.05, "écart {}", road_gap(&h, &h.roads[0]));
 }
 
@@ -64,7 +64,7 @@ fn moved_ground_floor_wall_flattens_the_relief_under_it() {
     let mid = (w.a + w.b) / 2.0 + BY;
     assert!(h.terrain.height(mid).abs() > 0.5, "le relief doit monter sous le mur déplacé");
     h.apply(Command::AddWall(w.clone())).unwrap();
-    h.apply(Command::Move { target: ElemRef::Wall(0), by: BY }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Wall(0).into(), by: BY }).unwrap();
     assert_eq!(h.terrain.height(mid), 0.0);
     // un mur d'étage, une ouverture ou un objet déplacés ne touchent pas au relief
     let before = h.terrain.h.clone();
@@ -72,7 +72,7 @@ fn moved_ground_floor_wall_flattens_the_relief_under_it() {
     h.apply(Command::PlaceOpening { wall: 1, kind: OpeningKind::Window, t: 3.0 }).unwrap();
     h.apply(Command::PlaceProp { kind: PropKind::Sofa, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None }).unwrap();
     for target in [ElemRef::Wall(1), ElemRef::Opening(1, 0), ElemRef::Prop(0)] {
-        h.apply(Command::Move { target, by: Vec2::new(0.5, 0.0) }).unwrap();
+        h.apply(Command::Move { target: target.into(), by: Vec2::new(0.5, 0.0) }).unwrap();
     }
     assert_eq!(h.terrain.h, before);
 }
@@ -91,7 +91,7 @@ fn moved_slab_and_pool_settle_too() {
         tag: None,
     }))
     .unwrap();
-    h.apply(Command::Move { target: ElemRef::Slab(0), by: Vec2::splat(30.0) }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Slab(0).into(), by: Vec2::splat(30.0) }).unwrap();
     assert_eq!(h.terrain.height(spot), 0.0);
     let p = Pool {
         min: Vec2::new(30.0, -40.0),
@@ -126,7 +126,7 @@ fn set_flattens_under_a_ground_floor_wall() {
     let mid = (w.a + w.b) / 2.0;
     h.apply(Command::AddWall(w)).unwrap();
     assert!(h.terrain.height(mid).abs() > 0.5, "un mur d'étage laisse le relief");
-    h.apply(Command::Set { target: ElemRef::Wall(0), fields: fields(serde_json::json!({"level": 0})) }).unwrap();
+    h.apply(Command::Set { target: ElemRef::Wall(0).into(), fields: fields(serde_json::json!({"level": 0})) }).unwrap();
     assert_eq!(h.terrain.height(mid), 0.0);
 }
 
@@ -155,10 +155,10 @@ fn set_without_moving_leaves_the_relief_alone() {
     // 4 couleurs de murs successives : le relief ne s'aplanit pas un peu plus à chaque fois
     for i in 0..4 {
         let color = fields(serde_json::json!({"color": [1, 0, 0]}));
-        h.apply(Command::Set { target: ElemRef::Wall(i), fields: color }).unwrap();
+        h.apply(Command::Set { target: ElemRef::Wall(i).into(), fields: color }).unwrap();
     }
     for target in [ElemRef::Slab(0), ElemRef::Road(0), ElemRef::Pool(0)] {
-        h.apply(Command::Set { target, fields: fields(serde_json::json!({"texture": 3})) }).unwrap();
+        h.apply(Command::Set { target: target.into(), fields: fields(serde_json::json!({"texture": 3})) }).unwrap();
     }
     assert!(h.terrain.h == before, "le relief a changé");
 }
@@ -168,13 +168,13 @@ fn null_or_refused_moves_leave_the_relief_alone() {
     let mut h = built();
     let before = h.terrain.h.clone();
     for target in [ElemRef::Wall(0), ElemRef::Slab(0), ElemRef::Road(0), ElemRef::Pool(0)] {
-        h.apply(Command::Move { target, by: Vec2::ZERO }).unwrap();
+        h.apply(Command::Move { target: target.into(), by: Vec2::ZERO }).unwrap();
         // hors du terrain : refusé, rien ne bouge
-        let err = h.apply(Command::Move { target, by: Vec2::new(150.0, 0.0) }).unwrap_err();
+        let err = h.apply(Command::Move { target: target.into(), by: Vec2::new(150.0, 0.0) }).unwrap_err();
         assert!(matches!(err, EditError::OutOfWorld(_)), "{err:?}");
     }
     // une piscine se déplace par mètres entiers : 0,3 m ne la bouge pas
-    h.apply(Command::Move { target: ElemRef::Pool(0), by: Vec2::new(0.3, 0.0) }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Pool(0).into(), by: Vec2::new(0.3, 0.0) }).unwrap();
     assert!(h.terrain.h == before, "le relief a changé");
 }
 
@@ -216,7 +216,8 @@ fn swapping_wall_ends_is_not_a_move() {
 #[test]
 fn back_and_forth_moves_flatten_only_once() {
     let mut h = built();
-    let step = |h: &mut House, dx: f32| h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(dx, 0.0) });
+    let step =
+        |h: &mut House, dx: f32| h.apply(Command::Move { target: ElemRef::Wall(0).into(), by: Vec2::new(dx, 0.0) });
     step(&mut h, 0.5).unwrap();
     step(&mut h, -0.5).unwrap();
     let once = h.terrain.h.clone();
@@ -242,7 +243,7 @@ fn same_building_twice_flattens_like_once() {
     }
     let w = &copies.walls[0];
     let swap = fields(serde_json::json!({"a": [w.b.x, w.b.y], "b": [w.a.x, w.a.y]}));
-    copies.apply(Command::Set { target: ElemRef::Wall(0), fields: swap }).unwrap();
+    copies.apply(Command::Set { target: ElemRef::Wall(0).into(), fields: swap }).unwrap();
     assert!(copies.terrain == once.terrain, "copies sur place");
     let ten_m = Vec2::new(-24.0, 20.0);
     assert!(once.terrain.height(ten_m).abs() > 0.5, "il reste du relief à 10 m de la maison");
@@ -264,7 +265,7 @@ fn moving_a_building_leaves_roads_where_they_are() {
     let before = h.terrain.clone();
     for k in 0..40 {
         let dx = if k % 2 == 0 { 0.5 } else { -0.5 };
-        h.apply(Command::Move { target: ElemRef::Wall(1), by: Vec2::new(dx, 0.0) }).unwrap();
+        h.apply(Command::Move { target: ElemRef::Wall(1).into(), by: Vec2::new(dx, 0.0) }).unwrap();
     }
     let r = &h.roads[0];
     let ends = |t: &crate::terrain::Terrain| (t.height(r.a), t.height(r.b));
@@ -278,7 +279,7 @@ fn moving_a_building_leaves_roads_where_they_are() {
 fn wiggle(h: &mut House, wall: usize, times: usize) {
     for k in 0..times {
         let dx = if k % 2 == 0 { 0.5 } else { -0.5 };
-        h.apply(Command::Move { target: ElemRef::Wall(wall), by: Vec2::new(dx, 0.0) }).unwrap();
+        h.apply(Command::Move { target: ElemRef::Wall(wall).into(), by: Vec2::new(dx, 0.0) }).unwrap();
     }
 }
 
@@ -408,11 +409,11 @@ fn spot(d: &mut Dice) -> Vec2 {
 }
 
 fn move_by(d: &mut Dice, target: ElemRef) -> Command {
-    Command::Move { target, by: d.offset() }
+    Command::Move { target: target.into(), by: d.offset() }
 }
 
 fn stay(_: &mut Dice, target: ElemRef) -> Command {
-    Command::Move { target, by: Vec2::ZERO }
+    Command::Move { target: target.into(), by: Vec2::ZERO }
 }
 
 fn copy_by(d: &mut Dice, target: ElemRef) -> Command {
@@ -420,15 +421,18 @@ fn copy_by(d: &mut Dice, target: ElemRef) -> Command {
 }
 
 fn retexture(d: &mut Dice, target: ElemRef) -> Command {
-    Command::Set { target, fields: fields(serde_json::json!({"texture": d.below(5)})) }
+    Command::Set { target: target.into(), fields: fields(serde_json::json!({"texture": d.below(5)})) }
 }
 
 fn relevel(d: &mut Dice, target: ElemRef) -> Command {
-    Command::Set { target, fields: fields(serde_json::json!({"level": d.below(2), "width": 1 + d.below(6)})) }
+    Command::Set {
+        target: target.into(),
+        fields: fields(serde_json::json!({"level": d.below(2), "width": 1 + d.below(6)})),
+    }
 }
 
 fn remove(_: &mut Dice, target: ElemRef) -> Command {
-    Command::Remove { target }
+    Command::Remove { target: target.into() }
 }
 
 /// Route nouvelle, courte une fois sur trois.
@@ -527,8 +531,8 @@ fn generated_relief_already_obeys_the_building_rule() {
     let before = h.terrain.clone();
     // un mur recopié sur place, puis déplacé vers l'intérieur et ramené : rien ne doit bouger
     h.apply(Command::Duplicate { target: ElemRef::Wall(0), by: Vec2::ZERO }).unwrap();
-    h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(0.0, 1.0) }).unwrap();
-    h.apply(Command::Move { target: ElemRef::Wall(0), by: Vec2::new(0.0, -1.0) }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Wall(0).into(), by: Vec2::new(0.0, 1.0) }).unwrap();
+    h.apply(Command::Move { target: ElemRef::Wall(0).into(), by: Vec2::new(0.0, -1.0) }).unwrap();
     let moved = h.terrain.h.iter().zip(&before.h).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max);
     assert!(h.terrain == before, "le relief a changé de {moved} m au plus");
 }

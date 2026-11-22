@@ -275,7 +275,7 @@ fn reopening_the_same_file_is_undoable_and_writes_nothing() {
 #[test]
 fn reopening_an_untouched_world_keeps_the_redo_stack() {
     let (mut ed, _path) = opened("reopen_redo.json");
-    ed.apply([crate::command::Command::Remove { target: crate::model::ElemRef::Prop(0) }]).unwrap();
+    ed.apply([crate::command::Command::Remove { target: crate::model::ElemRef::Prop(0).into() }]).unwrap();
     ed.undo();
     assert!(ed.can_redo());
     ed.load();

@@ -14,9 +14,11 @@ use crate::model::{
 use crate::textures::find;
 
 mod error;
+mod target;
 mod validate;
 
 pub use error::EditError;
+pub use target::Target;
 
 /// Une modification du monde. En JSON : `{"op": "add_wall", "a": [0, 0], "b": [4, 0], ...}`.
 ///
@@ -29,7 +31,9 @@ pub use error::EditError;
 ///
 /// Les éléments sont désignés par leur indice dans leur liste (`{"Wall": 0}`,
 /// `{"Opening": [mur, n]}`), affiché par `maison3d describe` ; `apply` affiche ceux que crée
-/// chaque commande. Une suppression décale les indices suivants de la même liste.
+/// chaque commande. Une suppression décale les indices suivants de la même liste. `remove`,
+/// `move`, `paint` et `set` acceptent aussi `{"tag": "haie-nord"}` : tous les éléments posés
+/// avec cette étiquette (champ `tag`), sans compter les indices.
 ///
 /// Préférer `room` et les `place_*`, qui remplissent dimensions et matières par défaut
 /// (`maison3d catalog` les liste) ; les `add_*` demandent tous les champs.
@@ -222,16 +226,21 @@ pub enum Command {
     },
     /// Remet tout le terrain à plat, à l'altitude 0.
     FlattenTerrain,
-    /// Supprime un élément (un mur emporte ses ouvertures). Décale de 1 les indices suivants
-    /// de la même liste : dans un lot, supprimer du plus grand indice au plus petit.
-    Remove { target: ElemRef },
+    /// Supprime un élément (un mur emporte ses ouvertures), ou tous ceux d'une étiquette. Décale
+    /// les indices suivants de la même liste : dans un lot, supprimer du plus grand indice au
+    /// plus petit, ou viser une étiquette.
+    Remove {
+        /// Élément (`{"Prop": 3}`) ou étiquette (`{"tag": "haie-nord"}`) à supprimer.
+        target: Target,
+    },
     /// Déplace un élément. Une ouverture glisse le long de son mur (seule la composante de
     /// `by` dans l'axe du mur compte) et la commande est refusée si elle ne tient plus ; une
     /// piscine se déplace par mètres entiers (`by` arrondi). Le relief suit l'élément déplacé :
     /// terrassé sous une route ou une piscine, aplani autour d'un mur ou d'un sol du
-    /// rez-de-chaussée.
+    /// rez-de-chaussée. Avec une étiquette, chaque élément est déplacé ; renvoie le dernier.
     Move {
-        target: ElemRef,
+        /// Élément ou étiquette à déplacer.
+        target: Target,
         /// Décalage `[dx, dz]` en mètres.
         #[schemars(with = "[f32; 2]")]
         by: Vec2,
@@ -256,13 +265,13 @@ pub enum Command {
     /// porte…), listées par `maison3d catalog` (`parts`). Peint `target` puis chaque élément de
     /// `targets` (au moins un des deux) ; refusée en entier si l'un d'eux n'existe pas.
     Paint {
-        /// Élément à peindre.
+        /// Élément ou étiquette à peindre.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        target: Option<ElemRef>,
-        /// Autres éléments à peindre de la même façon, par exemple les 4 murs d'une pièce :
-        /// `"targets": [{"Wall": 0}, {"Wall": 1}, {"Wall": 2}, {"Wall": 3}]`.
+        target: Option<Target>,
+        /// Autres éléments ou étiquettes à peindre de la même façon, par exemple les 4 murs
+        /// d'une pièce : `"targets": [{"Wall": 0}, {"Wall": 1}, {"Wall": 2}, {"Wall": 3}]`.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        targets: Vec<ElemRef>,
+        targets: Vec<Target>,
         /// Indice de la partie à peindre dans `parts` (0 par défaut : la partie principale). Murs,
         /// sols, toits, piscines et routes n'ont que la partie 0.
         #[serde(default)]
@@ -276,9 +285,12 @@ pub enum Command {
     /// `{"op": "set", "target": {"Prop": 3}, "fields": {"height": 4.5}}`. Les noms et les bornes
     /// sont ceux de `add_wall`, `add_slab`, `add_roof`, `add_prop`, `add_pool`, `add_road` ou de
     /// l'ouverture ; le résultat est validé comme un ajout. Si l'emprise, l'étage ou la largeur
-    /// change, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché.
+    /// change, le relief suit l'élément comme pour `move` ; sinon il n'est pas touché. Avec une
+    /// étiquette, chaque élément est modifié et le dernier renvoyé ; refusée en entier si un
+    /// champ n'existe pas pour l'un d'eux (`height` sur un groupe mur + sol, par exemple).
     Set {
-        target: ElemRef,
+        /// Élément ou étiquette à modifier.
+        target: Target,
         /// Champs à remplacer et leur nouvelle valeur.
         fields: serde_json::Map<String, serde_json::Value>,
     },
@@ -288,11 +300,7 @@ impl Command {
     /// L'élément existant que vise la commande, s'il y en a un.
     fn target(&self) -> Option<ElemRef> {
         match self {
-            Command::Remove { target }
-            | Command::Move { target, .. }
-            | Command::Duplicate { target, .. }
-            | Command::Rotate { target, .. }
-            | Command::Set { target, .. } => Some(*target),
+            Command::Duplicate { target, .. } | Command::Rotate { target, .. } => Some(*target),
             _ => None,
         }
     }
@@ -347,17 +355,15 @@ impl House {
                 self.terrain = crate::terrain::Terrain::default();
                 Ok(None)
             }
-            Command::Remove { target } => {
-                self.remove_settled(target);
-                Ok(None)
-            }
-            Command::Move { target, by } => self.move_elem(target, by),
+            Command::Remove { target } => self.remove_all(&target),
+            Command::Move { target, by } => self.each(&target, |h, e| h.move_elem(e, by)),
             Command::Duplicate { target, by } => self.duplicate_checked(target, by),
             Command::Rotate { target, deg } => self.rotate(target, deg),
             Command::Paint { target, targets, part, color, texture } => {
-                self.paint_all(target.into_iter().chain(targets), part, color, texture)
+                let refs = target.iter().chain(&targets).map(|t| self.resolve(t)).collect::<Result<Vec<_>, _>>()?;
+                self.paint_all(refs.into_iter().flatten(), part, color, texture)
             }
-            Command::Set { target, fields } => self.set(target, fields),
+            Command::Set { target, fields } => self.each(&target, |h, e| h.set(e, fields.clone())),
         }
     }
 
@@ -401,7 +407,7 @@ impl House {
         Ok(Some(copy))
     }
 
-    fn found(&self, target: ElemRef) -> Result<(), EditError> {
+    pub(super) fn found(&self, target: ElemRef) -> Result<(), EditError> {
         if self.exists(target) { Ok(()) } else { Err(EditError::NotFound(target, self.count(target))) }
     }
 
@@ -414,8 +420,8 @@ impl House {
         texture: Option<usize>,
     ) -> Result<Option<ElemRef>, EditError> {
         let mut last = None;
+        // `resolve` a déjà vérifié que chaque cible existe
         for target in targets {
-            self.found(target)?;
             last = self.paint(target, part, color, texture)?;
         }
         last.map(Some).ok_or(EditError::NoTarget)
@@ -516,7 +522,7 @@ impl House {
 
     /// Retire l'élément ; routes et piscines restantes lisaient peut-être le relief qu'il
     /// portait : elles sont terrassées à nouveau.
-    fn remove_settled(&mut self, target: ElemRef) {
+    pub(super) fn remove_settled(&mut self, target: ElemRef) {
         self.remove(target);
         let ground = !matches!(target, ElemRef::Opening(..) | ElemRef::Roof(_) | ElemRef::Prop(_));
         if ground && !self.terrain.h.is_empty() {

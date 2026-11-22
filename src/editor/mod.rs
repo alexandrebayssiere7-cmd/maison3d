@@ -354,7 +354,7 @@ impl Editor {
     pub fn delete_selected(&mut self) {
         if let Some(target) = self.selected.take() {
             // refus déjà affiché dans le message par Editor::apply
-            let _ = self.apply([Command::Remove { target }]);
+            let _ = self.apply([Command::Remove { target: target.into() }]);
         }
     }
 
@@ -376,7 +376,7 @@ impl Editor {
     pub fn nudge_selected(&mut self, by: Vec2) {
         if let Some(target) = self.selected {
             // refus déjà affiché dans le message par Editor::apply
-            let _ = self.apply([Command::Move { target, by }]);
+            let _ = self.apply([Command::Move { target: target.into(), by }]);
         }
     }
 
@@ -519,7 +519,7 @@ mod tests {
     fn editor_apply_is_all_or_nothing() {
         let mut ed = Editor::default();
         let lamp = Command::PlaceProp { kind: PropKind::Lamp, pos: Vec2::ZERO, level: 0, rot: 0.0, scale: None };
-        let err = ed.apply([lamp.clone(), Command::Remove { target: ElemRef::Wall(3) }]).unwrap_err();
+        let err = ed.apply([lamp.clone(), Command::Remove { target: ElemRef::Wall(3).into() }]).unwrap_err();
         assert!(ed.house.props.is_empty() && !ed.can_undo());
         assert!(matches!(err, EditError::NotFound(ElemRef::Wall(3), _)), "{err}");
         assert_eq!(ed.message, err.to_string());
