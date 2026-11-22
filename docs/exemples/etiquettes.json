@@ -1,0 +1,13 @@
+[
+  {"op": "room", "min": [0, 0], "max": [6, 5], "level": 0, "tag": "maison"},
+  {"op": "place_opening", "wall": 2, "kind": "Door", "t": 3},
+  {"op": "place_opening", "wall": 0, "kind": "Window", "t": 3},
+  {"op": "place_roof", "min": [0, 0], "max": [6, 5], "level": 1, "kind": "Gable", "tag": "maison"},
+  {"op": "place_row", "kind": "Hedge", "from": [-5, -3], "to": [11, -3], "step": 2, "level": 0, "tag": "haie-nord"},
+  {"op": "place_row", "kind": "StreetLamp", "from": [-5, 9], "to": [11, 9], "step": 8, "level": 0, "tag": "lampadaires"},
+  {"op": "place_row", "kind": "Fence", "from": [-5, 12], "to": [11, 12], "step": 2, "level": 0, "tag": "chantier"},
+  {"op": "paint", "target": {"tag": "maison"}, "color": [0.95, 0.9, 0.8]},
+  {"op": "move", "target": {"tag": "haie-nord"}, "by": [0, -1]},
+  {"op": "set", "target": {"tag": "lampadaires"}, "fields": {"scale": 1.2}},
+  {"op": "remove", "target": {"tag": "chantier"}}
+]
