@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
-use super::collide::{push_out, support_height};
+use super::collide::{NEAR_RADIUS, near, push_out, support_height};
 use super::{VisitInput, Visitor, lerp_angle, yaw_facing};
 use crate::command::Command;
 use crate::editor::Editor;
@@ -87,6 +87,8 @@ impl Car {
 
     /// Un pas de conduite, découpé en petits pas : suspension et collisions restent stables même à 120 km/h.
     fn advance(&mut self, input: &DriveInput, solids: &[Transform], house: &House, dt: f32) {
+        // once per frame: the collision loops below scan every solid many times
+        let solids = &near(solids, self.pos, NEAR_RADIUS);
         let support = |p: Vec2, y: f32| support_height(p, y, house.ground(p), solids);
         for _ in 0..4 {
             self.step(input, dt / 4.0, &support, solids);
@@ -584,6 +586,28 @@ mod tests {
         let car = Car::new(0, Vec3::new(f32::NAN, 0.0, f32::NAN), 0.0);
         v.drive(car, &mut ed, &VisitInput::default(), &[], 1.0 / 60.0);
         assert_eq!(v.pos, Vec3::new(1.0, 0.0, 2.0), "the editor camera must not inherit NaN");
+    }
+
+    #[test]
+    fn driving_with_filtered_solids_matches_the_full_list() {
+        let house = demo_house();
+        let wall = |x: f32, z: f32| Transform::from_xyz(x, 1.0, z).with_scale(Vec3::new(4.0, 2.0, 1.0));
+        let close = [wall(0.0, 12.0), wall(3.0, 25.0)];
+        let mut all = close.to_vec();
+        all.extend((0..200).map(|i| wall(40.0 + i as f32, -80.0 + (i % 7) as f32 * 30.0)));
+        let input = DriveInput { throttle: 1.0, steer: 0.1, handbrake: false };
+        let start = Vec3::new(0.0, house.ground(Vec2::ZERO), 0.0);
+        let (mut a, mut b) = (Car::new(0, start, 0.0), Car::new(0, start, 0.0));
+        for _ in 0..(60 * 6) {
+            // reference: the pre-filter behavior, every solid in every sub-step
+            let support = |p: Vec2, y: f32| support_height(p, y, house.ground(p), &all);
+            for _ in 0..4 {
+                a.step(&input, 1.0 / 240.0, &support, &all);
+            }
+            b.advance(&input, &all, &house, 1.0 / 60.0);
+        }
+        assert_eq!((a.pos, a.vel), (b.pos, b.vel));
+        assert!(a.pos.z < 30.0, "the walls must matter: z = {}", a.pos.z);
     }
 
     #[test]

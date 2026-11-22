@@ -26,6 +26,19 @@ pub(super) fn collider(p: &Part) -> Transform {
     Transform::from_translation(tf.translation).with_scale(size)
 }
 
+/// How far from the car (m) a solid can still matter in one frame. A frame moves the car by
+/// under 2 m (top speed 33 m/s, frames capped at 50 ms) and the car is about 4 m long, so 10 m
+/// is a wide margin.
+pub(super) const NEAR_RADIUS: f32 = 10.0;
+
+/// Solids that can touch a disc of `radius` around `at` (horizontal plane). A box counts from its
+/// edge, not its center: its horizontal half-diagonal is added to the distance budget.
+pub(super) fn near(solids: &[Transform], at: Vec3, radius: f32) -> Vec<Transform> {
+    let reach = |tf: &Transform| radius + 0.5 * tf.scale.x.hypot(tf.scale.z);
+    let d = |tf: &Transform| Vec2::new(tf.translation.x - at.x, tf.translation.z - at.z).length();
+    solids.iter().filter(|tf| d(tf) <= reach(tf)).copied().collect()
+}
+
 /// Bas et haut d'une boîte droite (voir `collider`).
 fn y_range(tf: &Transform) -> (f32, f32) {
     (tf.translation.y - tf.scale.y / 2.0, tf.translation.y + tf.scale.y / 2.0)
@@ -159,5 +172,32 @@ mod tests {
         assert!(up < 4.0, "caméra traverse le toit : {up}");
         // dehors, rien derrière : distance complète
         assert_eq!(camera_clearance(&parts, Vec3::new(30.0, 1.7, 30.0), Vec3::X, 4.0, 0.0), 3.75);
+    }
+
+    fn boxed(x: f32, z: f32, w: f32, d: f32) -> Transform {
+        Transform::from_xyz(x, 1.0, z).with_scale(Vec3::new(w, 2.0, d))
+    }
+
+    #[test]
+    fn near_keeps_close_boxes_and_drops_far_ones() {
+        let all = [boxed(3.0, 0.0, 1.0, 1.0), boxed(50.0, 0.0, 1.0, 1.0)];
+        assert_eq!(near(&all, Vec3::ZERO, NEAR_RADIUS), vec![all[0]]);
+    }
+
+    #[test]
+    fn near_keeps_a_big_box_whose_edge_enters_the_radius() {
+        // center 30 m away, but 60 m long: its edge is at 0 m from the car
+        let wall = boxed(30.0, 0.0, 60.0, 1.0);
+        assert_eq!(near(&[wall], Vec3::ZERO, NEAR_RADIUS).len(), 1);
+        assert_eq!(near(&[boxed(30.0, 0.0, 1.0, 1.0)], Vec3::ZERO, NEAR_RADIUS).len(), 0);
+    }
+
+    #[test]
+    fn near_keeps_few_boxes_of_a_large_world() {
+        let all: Vec<Transform> = (0..5000)
+            .map(|i| boxed((i % 100) as f32 * 10.0 - 500.0, (i / 100) as f32 * 20.0 - 500.0, 2.0, 2.0))
+            .collect();
+        let kept = near(&all, Vec3::ZERO, NEAR_RADIUS);
+        assert!(!kept.is_empty() && kept.len() < 50, "{} kept", kept.len());
     }
 }
